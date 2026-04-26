@@ -1,5 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
-import { LanguageProvider } from "@/i18n/LanguageProvider";
+import { LanguageProvider, useLang } from "@/i18n/LanguageProvider";
+import { DemoBanner } from "@/components/DemoBanner";
+import { Toaster } from "@/components/ui/sonner";
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
@@ -65,7 +67,18 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   return (
     <LanguageProvider>
-      <Outlet />
+      <AppChrome />
     </LanguageProvider>
+  );
+}
+
+function AppChrome() {
+  const { dir } = useLang();
+  return (
+    <>
+      <DemoBanner />
+      <Outlet />
+      <Toaster position="top-center" richColors closeButton dir={dir} />
+    </>
   );
 }
