@@ -138,12 +138,13 @@ function notifyChange() {
 // =====================================================================
 
 function mapDx(r: DxRequest): InsuranceRequest {
-  const agentMatch = AGENTS.find((a) => a.id === r.agent_id);
+  const cached = cachedAgents?.find((a) => a.id === r.agent_id);
+  const agentMatch = cached ?? AGENTS.find((a) => a.id === r.agent_id);
   return {
     id: r.id,
     agentId: r.agent_id,
     agentName: r.agent_name || agentMatch?.name || r.agent_id,
-    branch: r.branch || "—",
+    branch: r.branch || cached?.branch || "—",
     status: (r.status as RequestStatus) ?? "new",
     createdAt: r.date_created,
     images: {
