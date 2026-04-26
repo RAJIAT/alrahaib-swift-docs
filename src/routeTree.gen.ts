@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SuccessRouteImport } from './routes/success'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as AgentsRouteImport } from './routes/agents'
 import { Route as AgentRouteImport } from './routes/agent'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
@@ -24,6 +25,11 @@ const SuccessRoute = SuccessRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentsRoute = AgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AgentRoute = AgentRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/agent': typeof AgentRoute
+  '/agents': typeof AgentsRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
   '/requests/$id': typeof RequestsIdRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/agent': typeof AgentRoute
+  '/agents': typeof AgentsRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
   '/requests/$id': typeof RequestsIdRoute
@@ -68,20 +76,36 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/agent': typeof AgentRoute
+  '/agents': typeof AgentsRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
   '/requests/$id': typeof RequestsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/agent' | '/login' | '/success' | '/requests/$id'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/agent'
+    | '/agents'
+    | '/login'
+    | '/success'
+    | '/requests/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/agent' | '/login' | '/success' | '/requests/$id'
+  to:
+    | '/'
+    | '/admin'
+    | '/agent'
+    | '/agents'
+    | '/login'
+    | '/success'
+    | '/requests/$id'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/agent'
+    | '/agents'
     | '/login'
     | '/success'
     | '/requests/$id'
@@ -91,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   AgentRoute: typeof AgentRoute
+  AgentsRoute: typeof AgentsRoute
   LoginRoute: typeof LoginRoute
   SuccessRoute: typeof SuccessRoute
   RequestsIdRoute: typeof RequestsIdRoute
@@ -110,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agents': {
+      id: '/agents'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof AgentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/agent': {
@@ -147,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   AgentRoute: AgentRoute,
+  AgentsRoute: AgentsRoute,
   LoginRoute: LoginRoute,
   SuccessRoute: SuccessRoute,
   RequestsIdRoute: RequestsIdRoute,

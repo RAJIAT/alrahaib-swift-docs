@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, ListChecks, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, ListChecks, LogOut, Menu, Users, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
@@ -38,6 +38,7 @@ export function DashboardShell({
     role === "admin"
       ? [
           { to: "/admin", label: t.nav.dashboard, icon: <LayoutDashboard className="h-5 w-5" /> },
+          { to: "/agents", label: t.admin.manageAgents, icon: <Users className="h-5 w-5" /> },
         ]
       : [
           { to: "/agent", label: t.nav.requests, icon: <LayoutDashboard className="h-5 w-5" /> },
