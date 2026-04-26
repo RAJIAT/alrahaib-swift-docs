@@ -60,17 +60,34 @@ Create three roles:
 - `requests`: **read** with filter
   `{ "agent_id": { "_eq": "$CURRENT_USER.agent_id" } }`
 - `directus_files`: **read** (so the agent can view their own uploads)
-- Add custom fields to `directus_users`: `agent_id` (string), `branch` (string).
 
 ### Role: **Admin**
 - `requests`: **read**, **update** (full)
 - `directus_files`: **read**
+- `directus_users`: **create**, **read**, **update**, **delete**
+  (so the admin can manage agent accounts from `/agents` in the app)
+- `directus_roles`: **read** (needed to look up the Agent role id when creating users)
 
-## 4. Create users
+### Custom fields on `directus_users`
 
-In Directus → User Directory:
-- One Admin user (assign Admin role).
-- One user per agent (assign Agent role + set `agent_id` matching the URL agent).
+In Directus → Settings → Data Model → Directus Users, add:
+
+| Field      | Type   | Notes                                          |
+| ---------- | ------ | ---------------------------------------------- |
+| `agent_id` | String | Business identifier used in the customer URL. |
+| `branch`   | String | Branch name (Abu Dhabi, Dubai, ...).          |
+
+These fields are read by the app (`/users/me`) and used to scope the agent's
+own dashboard. The `status` field already exists on Directus users — set it to
+`active` for working accounts; the admin UI uses `suspended` to disable login
+without deleting the account.
+
+## 4. Create the first Admin
+
+Manually create one Admin user in Directus → User Directory (assign Admin role).
+Then log into the app with that admin and use **Manage Agents** to create
+agent accounts going forward — no SQL or Directus admin access needed for
+day-to-day operations.
 
 ## 5. Configure the frontend
 
