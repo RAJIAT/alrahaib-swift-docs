@@ -1,8 +1,10 @@
 export type Lang = "ar" | "en";
 
+type Dir = "rtl" | "ltr";
+
 export const translations = {
   ar: {
-    dir: "rtl" as const,
+    dir: "rtl" as Dir,
     brand: "الراحة للوساطة التأمينية",
     langSwitch: "EN",
     upload: {
@@ -85,7 +87,7 @@ export const translations = {
     },
   },
   en: {
-    dir: "ltr" as const,
+    dir: "ltr" as Dir,
     brand: "Al Raha Insurance Broker",
     langSwitch: "العربية",
     upload: {
