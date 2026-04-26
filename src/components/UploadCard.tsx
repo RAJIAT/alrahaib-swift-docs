@@ -1,4 +1,4 @@
-import { Camera, Check, RefreshCw } from "lucide-react";
+import { Camera, Check, RefreshCw, FileText } from "lucide-react";
 import { useRef, useState } from "react";
 import { useLang } from "@/i18n/LanguageProvider";
 
