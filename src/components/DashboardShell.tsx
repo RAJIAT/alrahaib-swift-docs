@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, ListChecks, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, ListChecks, LogOut, Menu, Users, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
