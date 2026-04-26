@@ -283,18 +283,16 @@ export async function submitUpload(input: {
   images: { registration: File; license: File; emirates: File };
 }): Promise<{ id: string }> {
   if (isDirectusEnabled()) {
-    // 1) Upload the three files in parallel — Public role can create files.
     const [registration, license, emirates] = await Promise.all([
       dxUploadFile(input.images.registration),
       dxUploadFile(input.images.license),
       dxUploadFile(input.images.emirates),
     ]);
-    // 2) Create the request — Public role has create on `requests`.
-    const agent = AGENTS.find((a) => a.id === input.agentId);
+    const agent = (cachedAgents ?? []).find((a) => a.id === input.agentId);
     const r = await dxCreateRequest({
       agent_id: input.agentId,
       agent_name: agent?.name,
-      branch: agent ? BRANCHES[Math.abs(hash(input.agentId)) % BRANCHES.length] : undefined,
+      branch: agent?.branch,
       registration, license, emirates,
     });
     notifyChange();
@@ -310,10 +308,11 @@ export async function submitUpload(input: {
   ]);
   const list = load();
   const id = nextId();
-  const agent = AGENTS.find((a) => a.id === input.agentId) ?? AGENTS[0];
+  const directory = loadMockAgents();
+  const agent = directory.find((a) => a.id === input.agentId) ?? directory[0];
   const newReq: InsuranceRequest = {
     id, agentId: agent.id, agentName: agent.name,
-    branch: BRANCHES[list.length % BRANCHES.length],
+    branch: agent.branch ?? BRANCHES[list.length % BRANCHES.length],
     status: "new", createdAt: new Date().toISOString(),
     images: { registration, license, emirates },
   };
