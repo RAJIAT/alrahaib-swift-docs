@@ -1,10 +1,11 @@
 import { RotateCcw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useLang } from "@/i18n/LanguageProvider";
-import { resetDemo } from "@/services/api";
+import { isDemoMode, resetDemo } from "@/services/api";
 
 export function DemoBanner() {
   const { t } = useLang();
+  if (!isDemoMode()) return null;
 
   const onReset = () => {
     if (!window.confirm(t.demo.confirmReset)) return;
