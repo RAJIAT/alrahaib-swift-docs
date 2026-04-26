@@ -5,27 +5,7 @@
  * Designed for an on-premise / Azure-UAE Directus instance so that
  * all data and files remain inside the UAE (no external SaaS).
  *
- * Expected Directus setup (one-time, by ops):
- *
- *   Collection: requests
- *     - id              (uuid, primary, auto)
- *     - status          (string, default "new")  — new|processing|sold|rejected|reupload
- *     - agent_id        (string)
- *     - agent_name      (string, nullable)
- *     - branch          (string, nullable)
- *     - registration    (uuid → directus_files)
- *     - license         (uuid → directus_files)
- *     - emirates        (uuid → directus_files)
- *     - date_created    (timestamp, special: date-created)
- *
- *   Roles:
- *     - Public:  files.create + requests.create  (for /upload page)
- *     - Agent :  requests.read (filter: agent_id == $CURRENT_USER.agent_id)
- *     - Admin :  full read/update on requests
- *
- * Auth:
- *     - Login with email/password → POST /auth/login
- *     - Tokens stored in localStorage; refresh handled lazily.
+ * See DIRECTUS_SETUP.md for the full schema, roles and permissions.
  */
 
 export const DIRECTUS_URL: string | undefined =
@@ -59,7 +39,6 @@ function writeToken(t: TokenBundle | null) {
 async function refreshIfNeeded(): Promise<string | null> {
   const t = readToken();
   if (!t) return null;
-  // Refresh 30s before expiry.
   if (Date.now() < t.expires - 30_000) return t.access_token;
   try {
     const res = await fetch(`${DIRECTUS_URL}/auth/refresh`, {
@@ -116,13 +95,12 @@ export async function dxLogin(email: string, password: string) {
     expires: Date.now() + (data.expires ?? 900_000),
   };
   writeToken(t);
-  // Fetch the user with their role + custom fields.
-  const me = await dxFetch("/users/me?fields=id,email,first_name,last_name,role.name,agent_id,branch");
+  const me = await dxFetch("/users/me?fields=id,email,first_name,last_name,role.name,agent_id,branch,status");
   return me.data as {
     id: string; email: string;
     first_name?: string; last_name?: string;
     role?: { name?: string };
-    agent_id?: string; branch?: string;
+    agent_id?: string; branch?: string; status?: string;
   };
 }
 
@@ -188,7 +166,6 @@ export async function dxCreateRequest(input: {
   license: string;
   emirates: string;
 }): Promise<DxRequest> {
-  // Public role uses no auth header — the request collection's create permission is granted to Public.
   const json = await dxFetch("/items/requests", {
     method: "POST",
     body: JSON.stringify({ ...input, status: "new" }),
@@ -202,6 +179,87 @@ export async function dxUpdateRequestStatus(id: string, status: string): Promise
     body: JSON.stringify({ status }),
   });
   return json.data as DxRequest;
+}
+
+// ---------- Users (Agent management — Admin only) ----------
+
+export type DxUser = {
+  id: string;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  agent_id?: string;
+  branch?: string;
+  status: "active" | "suspended" | "invited" | "draft" | "archived";
+  role?: { id: string; name: string };
+};
+
+const USER_FIELDS = "id,email,first_name,last_name,agent_id,branch,status,role.id,role.name";
+
+/** Find a role's UUID by its display name (e.g. "Agent", "Admin"). */
+export async function dxFindRoleId(name: string): Promise<string | null> {
+  const json = await dxFetch(
+    `/roles?filter[name][_eq]=${encodeURIComponent(name)}&fields=id,name&limit=1`,
+  );
+  return json.data?.[0]?.id ?? null;
+}
+
+export async function dxListAgents(): Promise<DxUser[]> {
+  // List all users with role "Agent". We resolve role id first to keep the query indexed.
+  const roleId = await dxFindRoleId("Agent");
+  const params = new URLSearchParams({
+    fields: USER_FIELDS,
+    sort: "first_name",
+    limit: "500",
+  });
+  if (roleId) params.set("filter[role][_eq]", roleId);
+  const json = await dxFetch(`/users?${params.toString()}`);
+  return json.data as DxUser[];
+}
+
+export async function dxCreateAgent(input: {
+  email: string;
+  password: string;
+  first_name: string;
+  last_name?: string;
+  agent_id: string;
+  branch?: string;
+}): Promise<DxUser> {
+  const roleId = await dxFindRoleId("Agent");
+  if (!roleId) throw new Error('Role "Agent" not found in Directus. Create it first (see DIRECTUS_SETUP.md).');
+  const json = await dxFetch("/users", {
+    method: "POST",
+    body: JSON.stringify({
+      email: input.email,
+      password: input.password,
+      first_name: input.first_name,
+      last_name: input.last_name ?? "",
+      agent_id: input.agent_id,
+      branch: input.branch ?? null,
+      role: roleId,
+      status: "active",
+    }),
+  });
+  return json.data as DxUser;
+}
+
+export async function dxUpdateAgent(id: string, patch: Partial<{
+  first_name: string;
+  last_name: string;
+  agent_id: string;
+  branch: string | null;
+  status: DxUser["status"];
+  password: string;
+}>): Promise<DxUser> {
+  const json = await dxFetch(`/users/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+  return json.data as DxUser;
+}
+
+export async function dxDeleteAgent(id: string): Promise<void> {
+  await dxFetch(`/users/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export type { DxRequest };
