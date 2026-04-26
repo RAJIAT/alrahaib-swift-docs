@@ -1,4 +1,4 @@
-import { Camera, Check, RefreshCw } from "lucide-react";
+import { Camera, Check, RefreshCw, FileText } from "lucide-react";
 import { useRef, useState } from "react";
 import { useLang } from "@/i18n/LanguageProvider";
 
@@ -18,8 +18,10 @@ export function UploadCard({ label, file, onChange }: Props) {
     const f = e.target.files?.[0] ?? null;
     onChange(f);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(f ? URL.createObjectURL(f) : null);
+    setPreviewUrl(f && f.type.startsWith("image/") ? URL.createObjectURL(f) : null);
   };
+
+  const isPdf = file?.type === "application/pdf";
 
   return (
     <div
@@ -30,8 +32,7 @@ export function UploadCard({ label, file, onChange }: Props) {
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
-        capture="environment"
+        accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,application/pdf"
         className="hidden"
         onChange={handle}
       />
@@ -45,13 +46,20 @@ export function UploadCard({ label, file, onChange }: Props) {
         )}
       </div>
 
-      {previewUrl ? (
+      {previewUrl || isPdf ? (
         <button
           type="button"
           onClick={open}
           className="group relative mx-4 mt-3 mb-4 block aspect-[4/3] w-[calc(100%-2rem)] overflow-hidden rounded-xl bg-muted"
         >
-          <img src={previewUrl} alt={label} className="h-full w-full object-cover" />
+          {previewUrl ? (
+            <img src={previewUrl} alt={label} className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-primary-soft/40 text-primary">
+              <FileText className="h-10 w-10" />
+              <span className="max-w-[80%] truncate text-xs font-medium">{file?.name}</span>
+            </div>
+          )}
           <div className="absolute inset-0 flex items-center justify-center bg-foreground/0 transition group-hover:bg-foreground/40">
             <span className="inline-flex items-center gap-2 rounded-full bg-surface/90 px-3 py-1.5 text-sm font-medium text-foreground opacity-0 transition group-hover:opacity-100">
               <RefreshCw className="h-4 w-4" />
