@@ -23,7 +23,8 @@ import {
   isDirectusEnabled,
   dxLogin, dxLogout, dxHasSession, dxAssetUrl,
   dxListRequests, dxGetRequest, dxCreateRequest, dxUpdateRequestStatus, dxUploadFile,
-  type DxRequest,
+  dxListAgents, dxCreateAgent, dxUpdateAgent, dxDeleteAgent,
+  type DxRequest, type DxUser,
 } from "@/services/directus";
 
 export type RequestStatus = "new" | "processing" | "sold" | "rejected" | "reupload";
