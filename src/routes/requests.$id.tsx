@@ -1,9 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, RotateCcw, FileText, X } from "lucide-react";
+import { toast } from "sonner";
 import { DashboardShell } from "@/components/DashboardShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLang } from "@/i18n/LanguageProvider";
+import { isPdfDataUrl } from "@/lib/imageUtils";
 import {
   getCurrentUser, getRequest, updateRequestStatus,
   type InsuranceRequest, type RequestStatus,
@@ -21,7 +23,6 @@ function RequestDetails() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [zoom, setZoom] = useState<string | null>(null);
-  const [savedFlash, setSavedFlash] = useState(false);
 
   const user = getCurrentUser();
   const role = user?.role ?? "agent";
@@ -34,11 +35,13 @@ function RequestDetails() {
   const setStatus = async (s: RequestStatus) => {
     if (!req) return;
     setSaving(true);
-    const updated = await updateRequestStatus(req.id, s);
-    setReq(updated);
-    setSaving(false);
-    setSavedFlash(true);
-    setTimeout(() => setSavedFlash(false), 1500);
+    try {
+      const updated = await updateRequestStatus(req.id, s);
+      setReq(updated);
+      toast.success(t.details.statusUpdated);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const Back = dir === "rtl" ? ArrowRight : ArrowLeft;
@@ -48,7 +51,7 @@ function RequestDetails() {
     <DashboardShell role={role} title={t.details.title}>
       <Link
         to={backTo}
-        className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
+        className="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition hover:text-foreground"
       >
         <Back className="h-4 w-4" />
         {t.details.back}
@@ -57,7 +60,7 @@ function RequestDetails() {
       {loading || !req ? (
         <p className="py-12 text-center text-muted-foreground">…</p>
       ) : (
-        <>
+        <div className="animate-fade-in">
           {/* Top info */}
           <div className="rounded-2xl border border-border bg-card p-5 shadow-card">
             <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -71,7 +74,9 @@ function RequestDetails() {
                   <div><span className="font-medium text-foreground">{t.table.agent}:</span> {req.agentName}</div>
                   <div><span className="font-medium text-foreground">{t.table.branch}:</span> {req.branch}</div>
                   <div><span className="font-medium text-foreground">{t.table.date}:</span>{" "}
-                    {new Date(req.createdAt).toLocaleDateString(lang === "ar" ? "ar-AE" : "en-GB")}
+                    {new Date(req.createdAt).toLocaleString(lang === "ar" ? "ar-AE" : "en-GB", {
+                      dateStyle: "medium", timeStyle: "short",
+                    })}
                   </div>
                 </div>
               </div>
@@ -87,16 +92,15 @@ function RequestDetails() {
                     <option key={s} value={s}>{t.status[s]}</option>
                   ))}
                 </select>
-                {savedFlash && <span className="text-xs font-semibold text-success">✓ {t.details.saved}</span>}
               </label>
             </div>
           </div>
 
           {/* Image cards */}
           <div className="mt-6 grid gap-4 md:grid-cols-3">
-            <ImgCard label={t.details.registration} url={req.images.registration} onZoom={setZoom} />
-            <ImgCard label={t.details.license} url={req.images.license} onZoom={setZoom} />
-            <ImgCard label={t.details.emirates} url={req.images.emirates} onZoom={setZoom} />
+            <ImgCard label={t.details.registration} url={req.images.registration} onZoom={setZoom} pdfLabel={t.details.pdfDocument} />
+            <ImgCard label={t.details.license} url={req.images.license} onZoom={setZoom} pdfLabel={t.details.pdfDocument} />
+            <ImgCard label={t.details.emirates} url={req.images.emirates} onZoom={setZoom} pdfLabel={t.details.pdfDocument} />
           </div>
 
           {/* Actions */}
@@ -104,7 +108,7 @@ function RequestDetails() {
             <button
               onClick={() => setStatus("processing")}
               disabled={saving}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-soft transition disabled:opacity-50"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-[0.98] disabled:opacity-50"
             >
               <FileText className="h-4 w-4" />
               {t.details.createQuote}
@@ -112,7 +116,7 @@ function RequestDetails() {
             <button
               onClick={() => setStatus("sold")}
               disabled={saving}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-success text-sm font-semibold text-success-foreground shadow-soft transition disabled:opacity-50"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-success text-sm font-semibold text-success-foreground shadow-soft transition active:scale-[0.98] disabled:opacity-50"
             >
               <Check className="h-4 w-4" />
               {t.details.markSold}
@@ -120,42 +124,68 @@ function RequestDetails() {
             <button
               onClick={() => setStatus("reupload")}
               disabled={saving}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-purple text-sm font-semibold text-purple-foreground shadow-soft transition disabled:opacity-50"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-purple text-sm font-semibold text-purple-foreground shadow-soft transition active:scale-[0.98] disabled:opacity-50"
             >
               <RotateCcw className="h-4 w-4" />
               {t.details.reupload}
             </button>
           </div>
-        </>
+        </div>
       )}
 
       {/* Zoom modal */}
       {zoom && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/85 p-4"
+          className="fixed inset-0 z-50 flex animate-fade-in items-center justify-center bg-foreground/85 p-4"
           onClick={() => setZoom(null)}
         >
           <button
             onClick={() => setZoom(null)}
-            className="absolute top-4 right-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-surface text-foreground shadow-soft"
+            className="absolute top-4 right-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-surface text-foreground shadow-soft transition hover:bg-muted"
           >
             <X className="h-5 w-5" />
           </button>
-          <img src={zoom} alt="Zoom" className="max-h-[90vh] max-w-full rounded-xl object-contain" />
+          {isPdfDataUrl(zoom) ? (
+            <iframe
+              src={zoom}
+              title="PDF"
+              className="h-[90vh] w-full max-w-4xl animate-scale-in rounded-xl bg-white"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <img
+              src={zoom}
+              alt="Zoom"
+              className="max-h-[90vh] max-w-full animate-scale-in rounded-xl object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
         </div>
       )}
     </DashboardShell>
   );
 }
 
-function ImgCard({ label, url, onZoom }: { label: string; url: string; onZoom: (u: string) => void }) {
+function ImgCard({
+  label, url, onZoom, pdfLabel,
+}: { label: string; url: string; onZoom: (u: string) => void; pdfLabel: string }) {
+  const pdf = isPdfDataUrl(url);
   return (
     <button
-      onClick={() => onZoom(url)}
-      className="group block overflow-hidden rounded-2xl border border-border bg-card text-start shadow-card"
+      onClick={() => url && onZoom(url)}
+      className="group block overflow-hidden rounded-2xl border border-border bg-card text-start shadow-card transition hover:shadow-elevated active:scale-[0.99]"
     >
       <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
-        <img src={url} alt={label} className="h-full w-full object-cover transition group-hover:scale-105" />
+        {pdf ? (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-primary-soft/40 text-primary">
+            <FileText className="h-12 w-12" />
+            <span className="text-xs font-semibold">{pdfLabel}</span>
+          </div>
+        ) : url ? (
+          <img src={url} alt={label} className="h-full w-full object-cover transition group-hover:scale-105" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-muted-foreground">—</div>
+        )}
       </div>
       <div className="px-4 py-3">
         <div className="text-sm font-semibold text-foreground">{label}</div>

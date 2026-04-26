@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Check } from "lucide-react";
+import { toast } from "sonner";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
 import { UploadCard } from "@/components/UploadCard";
@@ -25,6 +26,7 @@ function UploadPage() {
   const [license, setLicense] = useState<File | null>(null);
   const [emirates, setEmirates] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
 
   const uploaded = [registration, license, emirates].filter(Boolean).length;
   const ready = uploaded === 3;
@@ -43,18 +45,21 @@ function UploadPage() {
     if (!ready || !registration || !license || !emirates) return;
     setSubmitting(true);
     try {
-      await submitUpload({
+      const { id } = await submitUpload({
         agentId: agent ?? "A123",
         images: { registration, license, emirates },
       });
-      navigate({ to: "/success" });
-    } finally {
+      setDone(true);
+      // Brief success flash before navigating.
+      setTimeout(() => navigate({ to: "/success", search: { id } }), 600);
+    } catch {
+      toast.error("Upload failed. Please try again.");
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-background pb-32">
+    <div className="min-h-screen bg-background pb-32 animate-fade-in">
       <header className="px-4 pt-5">
         <div className="mx-auto flex max-w-2xl items-center justify-between">
           <LanguageSwitcher />
@@ -92,12 +97,17 @@ function UploadPage() {
           <button
             disabled={!ready || submitting}
             onClick={onSubmit}
-            className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-base font-bold text-primary-foreground shadow-elevated transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-base font-bold text-primary-foreground shadow-elevated transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {submitting ? (
+            {done ? (
+              <>
+                <Check className="h-5 w-5 animate-scale-in" />
+                {t.success.title}
+              </>
+            ) : submitting ? (
               <>
                 <Loader2 className="h-5 w-5 animate-spin" />
-                {t.upload.submitting}
+                {t.upload.uploadingDocs}
               </>
             ) : (
               t.upload.submit

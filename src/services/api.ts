@@ -13,6 +13,8 @@
  *   PATCH  /api/requests/:id     -> updateRequestStatus
  */
 
+import { fileToStoredDataUrl } from "@/lib/imageUtils";
+
 export type RequestStatus = "new" | "processing" | "sold" | "rejected" | "reupload";
 
 export type InsuranceRequest = {
@@ -43,7 +45,10 @@ export type AuthUser = {
 const STORAGE = {
   user: "aib_auth_user",
   requests: "aib_requests",
+  seq: "aib_seq",
 };
+
+const CHANGE_EVENT = "aib:requests-changed";
 
 const SAMPLE_IMG =
   "https://images.unsplash.com/photo-1486006920555-c77dcf18193c?w=800&q=70";
@@ -78,6 +83,7 @@ function load(): InsuranceRequest[] {
   if (!raw) {
     const s = seed();
     localStorage.setItem(STORAGE.requests, JSON.stringify(s));
+    localStorage.setItem(STORAGE.seq, String(1000 + s.length));
     return s;
   }
   try { return JSON.parse(raw); } catch { return []; }
@@ -85,10 +91,42 @@ function load(): InsuranceRequest[] {
 
 function save(list: InsuranceRequest[]) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE.requests, JSON.stringify(list));
+  try {
+    localStorage.setItem(STORAGE.requests, JSON.stringify(list));
+  } catch {
+    // Quota exceeded — drop image payloads from older requests as a fallback.
+    const trimmed = list.map((r, idx) =>
+      idx < 5 ? r : { ...r, images: { registration: "", license: "", emirates: "" } },
+    );
+    try { localStorage.setItem(STORAGE.requests, JSON.stringify(trimmed)); } catch { /* ignore */ }
+  }
+  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+}
+
+function nextId(): string {
+  if (typeof window === "undefined") return `REQ-${Date.now()}`;
+  const cur = Number(localStorage.getItem(STORAGE.seq) ?? "1000");
+  const next = cur + 1;
+  localStorage.setItem(STORAGE.seq, String(next));
+  return `REQ-${next}`;
 }
 
 const delay = (ms = 400) => new Promise((r) => setTimeout(r, ms));
+
+// ---------- Live updates ----------
+export function subscribeRequests(cb: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const onChange = () => cb();
+  const onStorage = (e: StorageEvent) => {
+    if (e.key === STORAGE.requests) cb();
+  };
+  window.addEventListener(CHANGE_EVENT, onChange);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener(CHANGE_EVENT, onChange);
+    window.removeEventListener("storage", onStorage);
+  };
+}
 
 // ---------- Auth ----------
 export async function login(email: string, _password: string): Promise<AuthUser> {
@@ -151,22 +189,39 @@ export async function submitUpload(input: {
   agentId: string;
   images: { registration: File; license: File; emirates: File };
 }): Promise<{ id: string }> {
-  await delay(800);
-  // In a real backend we'd upload images. Here we just record a new request with sample images.
+  // Simulate network upload time (700–1200ms).
+  await delay(700 + Math.floor(Math.random() * 500));
+
+  const [registration, license, emirates] = await Promise.all([
+    fileToStoredDataUrl(input.images.registration),
+    fileToStoredDataUrl(input.images.license),
+    fileToStoredDataUrl(input.images.emirates),
+  ]);
+
   const list = load();
-  const id = `REQ-${1000 + list.length}`;
+  const id = nextId();
   const agent = AGENTS.find((a) => a.id === input.agentId) ?? AGENTS[0];
   const newReq: InsuranceRequest = {
     id,
-    agentId: input.agentId,
+    agentId: agent.id,
     agentName: agent.name,
     branch: BRANCHES[list.length % BRANCHES.length],
     status: "new",
     createdAt: new Date().toISOString(),
-    images: { registration: SAMPLE_IMG, license: SAMPLE_IMG, emirates: SAMPLE_IMG },
+    images: { registration, license, emirates },
   };
   save([newReq, ...list]);
   return { id };
+}
+
+export function resetDemo() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(STORAGE.requests);
+  localStorage.removeItem(STORAGE.user);
+  localStorage.removeItem(STORAGE.seq);
+  // Re-seed immediately so next read is consistent.
+  load();
+  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
 }
 
 export function listAgents() { return AGENTS; }
