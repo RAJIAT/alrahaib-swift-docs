@@ -18,8 +18,10 @@ export function UploadCard({ label, file, onChange }: Props) {
     const f = e.target.files?.[0] ?? null;
     onChange(f);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(f ? URL.createObjectURL(f) : null);
+    setPreviewUrl(f && f.type.startsWith("image/") ? URL.createObjectURL(f) : null);
   };
+
+  const isPdf = file?.type === "application/pdf";
 
   return (
     <div
