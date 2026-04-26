@@ -11,7 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SuccessRouteImport } from './routes/success'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as AgentRouteImport } from './routes/agent'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as RequestsIdRouteImport } from './routes/requests.$id'
 
 const SuccessRoute = SuccessRouteImport.update({
   id: '/success',
@@ -23,40 +26,74 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AgentRoute = AgentRouteImport.update({
+  id: '/agent',
+  path: '/agent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RequestsIdRoute = RequestsIdRouteImport.update({
+  id: '/requests/$id',
+  path: '/requests/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/agent': typeof AgentRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
+  '/requests/$id': typeof RequestsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/agent': typeof AgentRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
+  '/requests/$id': typeof RequestsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
+  '/agent': typeof AgentRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
+  '/requests/$id': typeof RequestsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/success'
+  fullPaths: '/' | '/admin' | '/agent' | '/login' | '/success' | '/requests/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/success'
-  id: '__root__' | '/' | '/login' | '/success'
+  to: '/' | '/admin' | '/agent' | '/login' | '/success' | '/requests/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/agent'
+    | '/login'
+    | '/success'
+    | '/requests/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
+  AgentRoute: typeof AgentRoute
   LoginRoute: typeof LoginRoute
   SuccessRoute: typeof SuccessRoute
+  RequestsIdRoute: typeof RequestsIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -75,6 +112,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/agent': {
+      id: '/agent'
+      path: '/agent'
+      fullPath: '/agent'
+      preLoaderRoute: typeof AgentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -82,13 +133,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/requests/$id': {
+      id: '/requests/$id'
+      path: '/requests/$id'
+      fullPath: '/requests/$id'
+      preLoaderRoute: typeof RequestsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
+  AgentRoute: AgentRoute,
   LoginRoute: LoginRoute,
   SuccessRoute: SuccessRoute,
+  RequestsIdRoute: RequestsIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
