@@ -115,6 +115,17 @@ export async function dxLogin(email: string, password: string) {
     expires: Date.now() + (data.expires ?? 900_000),
   };
   writeToken(t);
+  const me = await dxFetchMe();
+  return me;
+}
+
+/** Fetch the currently authenticated Directus user. */
+export async function dxFetchMe(): Promise<{
+  id: string; email: string;
+  first_name?: string; last_name?: string;
+  role?: { name?: string };
+  agent_id?: string; branch?: string; status?: string;
+}> {
   const me = await dxFetch("/users/me?fields=id,email,first_name,last_name,role.name,agent_id,branch,status");
   return me.data as {
     id: string; email: string;
