@@ -42,8 +42,8 @@ function LoginPage() {
       </header>
 
       <main className="mx-auto flex max-w-md flex-col px-4 pt-12">
-        <h1 className="text-2xl font-bold text-foreground">{t.auth.title}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{t.auth.subtitle}</p>
+        <h1 className="text-2xl font-bold text-foreground text-center">{t.auth.title}</h1>
+        <p className="mt-2 text-sm text-muted-foreground text-center">{t.auth.subtitle}</p>
 
         <form onSubmit={onSubmit} className="mt-8 space-y-4 rounded-2xl border border-border bg-card p-6 shadow-card">
           <label className="block">
