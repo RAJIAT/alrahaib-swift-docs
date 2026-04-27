@@ -293,6 +293,13 @@ export const translations = {
       empty: "No agents yet. Add your first agent to get started.",
       backToAdmin: "Admin Dashboard",
     },
+    footer: {
+      rights: (year: number) => `© ${year} Al Raha Insurance Broker L.L.C. All rights reserved.`,
+      tagline: "A secure portal for uploading and managing insurance documents.",
+      dataNotice: "All submitted data is encrypted and handled confidentially in accordance with our privacy policy.",
+      privacy: "Privacy Policy",
+      terms: "Terms & Conditions",
+    },
   },
 };
 
