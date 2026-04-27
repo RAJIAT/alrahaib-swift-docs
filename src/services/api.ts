@@ -192,7 +192,17 @@ export function subscribeRequests(cb: () => void): () => void {
  */
 function assertNotProductionDemo() {
   if (isDirectusEnabled()) return;
-  // import.meta.env.PROD is true only in production builds.
+  // Lovable preview builds are technically production builds too, but they are
+  // used for client demos. Keep demo-login disabled on published/custom domains
+  // while allowing it on localhost and preview URLs.
+  const hostname = typeof window !== "undefined" ? window.location.hostname : "";
+  const isSafeDemoHost =
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.endsWith(".lovableproject.com") ||
+    hostname.includes("-preview--");
+  if (isSafeDemoHost) return;
+
   const isProd = typeof import.meta !== "undefined" && (import.meta as any).env?.PROD;
   if (isProd) {
     throw new Error(
