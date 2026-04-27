@@ -184,6 +184,23 @@ export function subscribeRequests(cb: () => void): () => void {
 // Auth
 // =====================================================================
 
+/**
+ * Build-time guard: demo mode (no Directus URL configured) MUST NOT run in
+ * production builds. In demo mode the login function ignores passwords by
+ * design, so silently shipping it to production would mean any visitor can
+ * sign in as admin. We hard-fail instead.
+ */
+function assertNotProductionDemo() {
+  if (isDirectusEnabled()) return;
+  // import.meta.env.PROD is true only in production builds.
+  const isProd = typeof import.meta !== "undefined" && (import.meta as any).env?.PROD;
+  if (isProd) {
+    throw new Error(
+      "Demo mode is not available in production. Set VITE_DIRECTUS_URL at build time to enable a real backend.",
+    );
+  }
+}
+
 export async function login(email: string, password: string): Promise<AuthUser> {
   if (isDirectusEnabled()) {
     const me = await dxLogin(email, password);
@@ -201,6 +218,7 @@ export async function login(email: string, password: string): Promise<AuthUser> 
     return user;
   }
 
+  assertNotProductionDemo();
   await delay(500);
   const e = email.trim().toLowerCase();
   if (e === "admin@aib.com" || e === "admin@aib.local") {
@@ -250,6 +268,42 @@ export function getCurrentUser(): AuthUser | null {
     }
     return u;
   } catch { return null; }
+}
+
+/**
+ * Re-verify the current user against the backend. In Directus mode this calls
+ * `/users/me` and refreshes the cached AuthUser (including role) so a user
+ * cannot escalate privileges by editing localStorage. Returns null if the
+ * session is no longer valid or if the cached role doesn't match the server.
+ */
+export async function refreshCurrentUser(): Promise<AuthUser | null> {
+  if (typeof window === "undefined") return null;
+  if (!isDirectusEnabled()) return getCurrentUser();
+  if (!dxHasSession()) {
+    localStorage.removeItem(STORAGE.user);
+    return null;
+  }
+  try {
+    const me = await dxFetchMe();
+    const roleName = (me.role?.name || "").toLowerCase();
+    const role: Role = roleName.includes("admin") ? "admin" : "agent";
+    const user: AuthUser = {
+      id: me.id,
+      email: me.email,
+      name: [me.first_name, me.last_name].filter(Boolean).join(" ") || me.email,
+      role,
+      agentId: me.agent_id,
+      branch: me.branch,
+    };
+    localStorage.setItem(STORAGE.user, JSON.stringify(user));
+    return user;
+  } catch {
+    // Session invalid or network down — clear cached user to avoid a stale
+    // role being trusted by the UI.
+    localStorage.removeItem(STORAGE.user);
+    dxLogout();
+    return null;
+  }
 }
 
 // =====================================================================
