@@ -6,6 +6,7 @@ import { DashboardShell } from "@/components/DashboardShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLang } from "@/i18n/LanguageProvider";
 import { isPdfDataUrl } from "@/lib/imageUtils";
+import { dxFetchAsset, isDirectusAssetUrl } from "@/services/directus";
 import {
   getCurrentUser, getRequest, updateRequestStatus,
   type InsuranceRequest, type RequestStatus,
