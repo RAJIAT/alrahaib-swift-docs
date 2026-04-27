@@ -1,11 +1,12 @@
+import logoUrl from "@/assets/logo.webp";
+
 export function Logo({ size = 44 }: { size?: number }) {
   return (
-    <div
-      className="inline-flex items-center justify-center rounded-2xl bg-primary text-primary-foreground font-bold shadow-soft"
-      style={{ width: size, height: size, fontSize: size * 0.42 }}
-      aria-label="AIB"
-    >
-      AIB
-    </div>
+    <img
+      src={logoUrl}
+      alt="Al Raha Insurance Broker"
+      style={{ height: size, width: "auto" }}
+      className="object-contain"
+    />
   );
 }
