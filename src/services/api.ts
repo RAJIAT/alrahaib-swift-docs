@@ -21,7 +21,7 @@
 import { fileToStoredDataUrl } from "@/lib/imageUtils";
 import {
   isDirectusEnabled,
-  dxLogin, dxLogout, dxHasSession, dxAssetUrl,
+  dxLogin, dxLogout, dxHasSession, dxAssetUrl, dxFetchMe,
   dxListRequests, dxGetRequest, dxCreateRequest, dxUpdateRequestStatus, dxUploadFile,
   dxListAgents, dxCreateAgent, dxUpdateAgent, dxDeleteAgent,
   type DxRequest, type DxUser,
