@@ -144,6 +144,13 @@ export const translations = {
       empty: "لا يوجد وكلاء بعد. ابدأ بإضافة أول وكيل.",
       backToAdmin: "لوحة المدير",
     },
+    footer: {
+      rights: (year: number) => `© ${year} الراحة لوساطة التأمين ذ.م.م. جميع الحقوق محفوظة.`,
+      tagline: "بوابة آمنة لرفع وإدارة مستندات التأمين.",
+      dataNotice: "جميع البيانات المرسلة مشفّرة وتُعالَج بسرّية تامة وفقاً لسياسة الخصوصية المعتمدة.",
+      privacy: "سياسة الخصوصية",
+      terms: "الشروط والأحكام",
+    },
   },
   en: {
     dir: "ltr" as Dir,
@@ -285,6 +292,13 @@ export const translations = {
       deleted: "Agent deleted",
       empty: "No agents yet. Add your first agent to get started.",
       backToAdmin: "Admin Dashboard",
+    },
+    footer: {
+      rights: (year: number) => `© ${year} Al Raha Insurance Broker L.L.C. All rights reserved.`,
+      tagline: "A secure portal for uploading and managing insurance documents.",
+      dataNotice: "All submitted data is encrypted and handled confidentially in accordance with our privacy policy.",
+      privacy: "Privacy Policy",
+      terms: "Terms & Conditions",
     },
   },
 };

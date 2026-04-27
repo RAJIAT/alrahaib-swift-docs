@@ -1,6 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { LanguageProvider, useLang } from "@/i18n/LanguageProvider";
 import { DemoBanner } from "@/components/DemoBanner";
+import { Footer } from "@/components/Footer";
 import { Toaster } from "@/components/ui/sonner";
 import appCss from "../styles.css?url";
 
@@ -83,10 +84,13 @@ function RootComponent() {
 function AppChrome() {
   const { dir } = useLang();
   return (
-    <>
+    <div className="flex min-h-screen flex-col">
       <DemoBanner />
-      <Outlet />
+      <div className="flex-1">
+        <Outlet />
+      </div>
+      <Footer />
       <Toaster position="top-center" richColors closeButton dir={dir} />
-    </>
+    </div>
   );
 }
