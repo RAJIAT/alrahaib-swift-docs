@@ -42,7 +42,6 @@ export function DashboardShell({
         ]
       : [
           { to: "/agent", label: t.nav.requests, icon: <LayoutDashboard className="h-5 w-5" /> },
-          { to: "/agent", label: t.nav.myTasks, icon: <ListChecks className="h-5 w-5" /> },
         ];
 
   const onLogout = () => {
