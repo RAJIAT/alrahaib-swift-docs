@@ -59,7 +59,7 @@ function UploadPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-32 animate-fade-in">
+    <div className="bg-background pb-28 animate-fade-in">
       <header className="px-4 pt-5">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-2">
           <LanguageSwitcher />
