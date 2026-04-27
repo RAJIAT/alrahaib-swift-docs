@@ -32,7 +32,12 @@ function AdminAgents() {
     const refresh = () => {
       getAgents().then((list) => { if (alive) { setAgents(list); setLoading(false); } });
     };
-    refresh();
+    // Re-verify role server-side; redirect if tampered.
+    refreshCurrentUser().then((fresh) => {
+      if (!alive) return;
+      if (!fresh || fresh.role !== "admin") { navigate({ to: "/login" }); return; }
+      refresh();
+    });
     const off = subscribeAgents(refresh);
     return () => { alive = false; off(); };
   }, [navigate]);
