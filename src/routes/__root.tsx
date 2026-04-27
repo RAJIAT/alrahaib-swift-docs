@@ -33,7 +33,7 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "AIB — Upload Insurance Documents" },
       { name: "description", content: "Fast and secure document upload for Al Raha Insurance Broker." },
-      { name: "theme-color", content: "#26a3a8" },
+      { name: "theme-color", content: "#1c244b" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
