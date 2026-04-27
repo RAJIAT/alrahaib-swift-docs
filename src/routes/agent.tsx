@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLang } from "@/i18n/LanguageProvider";
 import { useRequestsLive } from "@/hooks/useRequestsLive";
-import { getCurrentUser, type AuthUser } from "@/services/api";
+import { getCurrentUser, refreshCurrentUser, type AuthUser } from "@/services/api";
 
 export const Route = createFileRoute("/agent")({
   component: AgentDashboard,
