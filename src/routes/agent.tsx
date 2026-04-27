@@ -13,10 +13,13 @@ export const Route = createFileRoute("/agent")({
   component: AgentDashboard,
 });
 
+type StatusFilter = "all" | "new" | "processing" | "sold" | "rejected" | "reupload";
+
 function AgentDashboard() {
   const { t, dir, lang } = useLang();
   const navigate = useNavigate();
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [filter, setFilter] = useState<StatusFilter>("all");
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -29,14 +32,33 @@ function AgentDashboard() {
 
   const { items, loading } = useRequestsLive({ agentId: user?.agentId });
 
-  const stats = useMemo(
+  const counts = useMemo(
     () => ({
-      total: items.length,
-      newReq: items.filter((r) => r.status === "new").length,
-      sales: items.filter((r) => r.status === "sold").length,
+      all: items.length,
+      new: items.filter((r) => r.status === "new").length,
+      processing: items.filter((r) => r.status === "processing").length,
+      sold: items.filter((r) => r.status === "sold").length,
+      rejected: items.filter((r) => r.status === "rejected").length,
+      reupload: items.filter((r) => r.status === "reupload").length,
     }),
     [items],
   );
+
+  const stats = { total: counts.all, newReq: counts.new, sales: counts.sold };
+
+  const filteredItems = useMemo(
+    () => (filter === "all" ? items : items.filter((r) => r.status === filter)),
+    [items, filter],
+  );
+
+  const tabs: { key: StatusFilter; label: string; tone: string }[] = [
+    { key: "all", label: lang === "ar" ? "الكل" : "All", tone: "bg-foreground text-background" },
+    { key: "new", label: t.status.new, tone: "bg-info text-info-foreground" },
+    { key: "processing", label: t.status.processing, tone: "bg-warning text-warning-foreground" },
+    { key: "sold", label: t.status.sold, tone: "bg-success text-success-foreground" },
+    { key: "reupload", label: t.status.reupload, tone: "bg-purple text-purple-foreground" },
+    { key: "rejected", label: t.status.rejected, tone: "bg-destructive text-destructive-foreground" },
+  ];
 
   const Chevron = dir === "rtl" ? ChevronLeft : ChevronRight;
 
