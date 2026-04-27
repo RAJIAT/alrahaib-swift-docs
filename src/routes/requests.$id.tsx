@@ -100,9 +100,9 @@ function RequestDetails() {
 
           {/* Image cards */}
           <div className="mt-6 grid gap-4 md:grid-cols-3">
-            <ImgCard label={t.details.registration} url={req.images.registration} onZoom={setZoom} pdfLabel={t.details.pdfDocument} />
-            <ImgCard label={t.details.license} url={req.images.license} onZoom={setZoom} pdfLabel={t.details.pdfDocument} />
-            <ImgCard label={t.details.emirates} url={req.images.emirates} onZoom={setZoom} pdfLabel={t.details.pdfDocument} />
+            <ImgCard label={t.details.registration} url={req.images.registration} onZoom={(u, m) => { setZoom(u); setZoomMime(m); }} pdfLabel={t.details.pdfDocument} />
+            <ImgCard label={t.details.license} url={req.images.license} onZoom={(u, m) => { setZoom(u); setZoomMime(m); }} pdfLabel={t.details.pdfDocument} />
+            <ImgCard label={t.details.emirates} url={req.images.emirates} onZoom={(u, m) => { setZoom(u); setZoomMime(m); }} pdfLabel={t.details.pdfDocument} />
           </div>
 
           {/* Actions */}
