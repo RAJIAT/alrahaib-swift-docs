@@ -51,12 +51,6 @@ export const Route = createRootRoute({
       { rel: "icon", type: "image/webp", href: "/logo.webp" },
       { rel: "apple-touch-icon", href: "/logo.webp" },
       { rel: "preload", as: "image", href: "/logo.webp", fetchPriority: "high" } as any,
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Tajawal:wght@400;700&display=swap",
-      },
     ],
   }),
   shellComponent: RootShell,

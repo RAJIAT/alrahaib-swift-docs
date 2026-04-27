@@ -5,8 +5,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Inter", "Tajawal", system-ui, sans-serif;
-  --font-arabic: "Tajawal", "Inter", system-ui, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "SF Arabic", "Geeza Pro", "Noto Sans Arabic", system-ui, sans-serif;
+  --font-arabic: "SF Arabic", "Geeza Pro", "Noto Sans Arabic", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
