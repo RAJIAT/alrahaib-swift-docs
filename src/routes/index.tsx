@@ -59,7 +59,7 @@ function UploadPage() {
   };
 
   return (
-    <div className="bg-background pb-28 animate-fade-in">
+    <div className="bg-background animate-fade-in">
       <header className="px-4 pt-5">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-2">
           <LanguageSwitcher />
@@ -100,29 +100,26 @@ function UploadPage() {
         </p>
       </main>
 
-      {/* Sticky CTA */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-surface/80">
-        <div className="mx-auto max-w-2xl">
-          <button
-            disabled={!ready || submitting}
-            onClick={onSubmit}
-            className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-base font-bold text-primary-foreground shadow-elevated transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {done ? (
-              <>
-                <Check className="h-5 w-5 animate-scale-in" />
-                {t.success.title}
-              </>
-            ) : submitting ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin" />
-                {t.upload.uploadingDocs}
-              </>
-            ) : (
-              t.upload.submit
-            )}
-          </button>
-        </div>
+      <div className="mx-auto mt-8 max-w-2xl px-4 pb-8">
+        <button
+          disabled={!ready || submitting}
+          onClick={onSubmit}
+          className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-base font-bold text-primary-foreground shadow-elevated transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {done ? (
+            <>
+              <Check className="h-5 w-5 animate-scale-in" />
+              {t.success.title}
+            </>
+          ) : submitting ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              {t.upload.uploadingDocs}
+            </>
+          ) : (
+            t.upload.submit
+          )}
+        </button>
       </div>
     </div>
   );
