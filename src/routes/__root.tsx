@@ -1,6 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { LanguageProvider, useLang } from "@/i18n/LanguageProvider";
 import { DemoBanner } from "@/components/DemoBanner";
+import { Footer } from "@/components/Footer";
 import { Toaster } from "@/components/ui/sonner";
 import appCss from "../styles.css?url";
 
