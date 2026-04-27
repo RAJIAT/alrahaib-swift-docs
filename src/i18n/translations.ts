@@ -45,7 +45,7 @@ export const translations = {
       email: "البريد الإلكتروني",
       password: "كلمة المرور",
       submit: "دخول",
-      hint: "تجريبي: admin@aib.com (لإنشاء وكلاء) — أي كلمة مرور",
+      hint: "تجريبي: admin@aib.com (للإدارة) أو agent@aib.com (للوكيل) — أي كلمة مرور",
       invalid: "بيانات الدخول غير صحيحة",
     },
     nav: {
