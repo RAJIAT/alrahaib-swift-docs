@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, RotateCcw, FileText, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, RotateCcw, FileText, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/DashboardShell";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -15,13 +15,15 @@ export const Route = createFileRoute("/requests/$id")({
   component: RequestDetails,
 });
 
+type SavingAction = "quote" | "sold" | "reupload" | "select" | null;
+
 function RequestDetails() {
   const { t, dir, lang } = useLang();
   const navigate = useNavigate();
   const { id } = Route.useParams();
   const [req, setReq] = useState<InsuranceRequest | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState<SavingAction>(null);
   const [zoom, setZoom] = useState<string | null>(null);
   const [zoomMime, setZoomMime] = useState<string>("");
 
@@ -30,24 +32,31 @@ function RequestDetails() {
 
   useEffect(() => {
     if (!user) { navigate({ to: "/login" }); return; }
-    // Verify session is still valid server-side (Directus mode).
     refreshCurrentUser().then((fresh) => {
       if (!fresh) { navigate({ to: "/login" }); return; }
     });
     getRequest(id).then((r) => { setReq(r); setLoading(false); });
   }, [id, navigate, user]);
 
-  const setStatus = async (s: RequestStatus) => {
-    if (!req) return;
-    setSaving(true);
+  const setStatus = async (s: RequestStatus, action: SavingAction) => {
+    if (!req || savingAction) return;
+    const previous = req.status;
+    // Optimistic update
+    setReq({ ...req, status: s });
+    setSavingAction(action);
     try {
       const updated = await updateRequestStatus(req.id, s);
       setReq(updated);
-      toast.success(t.details.statusUpdated);
+      toast.success(t.common.statusUpdatedSuccess);
+    } catch {
+      setReq({ ...req, status: previous });
+      toast.error(t.common.statusUpdateFailed);
     } finally {
-      setSaving(false);
+      setSavingAction(null);
     }
   };
+
+  const saving = savingAction !== null;
 
   const Back = dir === "rtl" ? ArrowRight : ArrowLeft;
   const backTo = role === "admin" ? "/admin" : "/agent";
