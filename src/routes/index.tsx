@@ -1,10 +1,12 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Loader2, Check, LogIn } from "lucide-react";
+import { Loader2, Check, LogIn, User } from "lucide-react";
 import { toast } from "sonner";
+import { z } from "zod";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
 import { UploadCard } from "@/components/UploadCard";
+import { MultiUploadCard } from "@/components/MultiUploadCard";
 import { useLang } from "@/i18n/LanguageProvider";
 import { submitUpload } from "@/services/api";
 
@@ -25,12 +27,39 @@ function UploadPage() {
   const [registration, setRegistration] = useState<File | null>(null);
   const [license, setLicense] = useState<File | null>(null);
   const [emirates, setEmirates] = useState<File | null>(null);
+  const [passport, setPassport] = useState<File | null>(null);
+  const [vehiclePhotos, setVehiclePhotos] = useState<File[]>([]);
+  const [customerName, setCustomerName] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [errors, setErrors] = useState<{ name?: string; email?: string }>({});
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
   const uploaded = [registration, license, emirates].filter(Boolean).length;
-  const ready = uploaded === 3;
+  const docsReady = uploaded === 3;
   const remaining = 3 - uploaded;
+
+  const kycSchema = useMemo(
+    () =>
+      z.object({
+        customerName: z
+          .string()
+          .trim()
+          .min(1, t.upload.errors.nameRequired)
+          .min(2, t.upload.errors.nameTooShort)
+          .max(100),
+        customerEmail: z
+          .string()
+          .trim()
+          .min(1, t.upload.errors.emailRequired)
+          .email(t.upload.errors.emailInvalid)
+          .max(255),
+      }),
+    [t],
+  );
+
+  const kycValid = kycSchema.safeParse({ customerName, customerEmail }).success;
+  const ready = docsReady && kycValid;
 
   const cards = useMemo(
     () => [
@@ -42,15 +71,28 @@ function UploadPage() {
   );
 
   const onSubmit = async () => {
-    if (!ready || !registration || !license || !emirates) return;
+    const parsed = kycSchema.safeParse({ customerName, customerEmail });
+    if (!parsed.success) {
+      const fieldErrors: { name?: string; email?: string } = {};
+      for (const issue of parsed.error.issues) {
+        if (issue.path[0] === "customerName") fieldErrors.name = issue.message;
+        if (issue.path[0] === "customerEmail") fieldErrors.email = issue.message;
+      }
+      setErrors(fieldErrors);
+      return;
+    }
+    setErrors({});
+    if (!docsReady || !registration || !license || !emirates) return;
     setSubmitting(true);
     try {
       const { id } = await submitUpload({
         agentId: agent ?? "A123",
+        customerName: parsed.data.customerName,
+        customerEmail: parsed.data.customerEmail,
         images: { registration, license, emirates },
+        optional: { passport, vehiclePhotos },
       });
       setDone(true);
-      // Brief success flash before navigating.
       setTimeout(() => navigate({ to: "/success", search: { id } }), 600);
     } catch {
       toast.error("Upload failed. Please try again.");
@@ -89,15 +131,83 @@ function UploadPage() {
           </p>
         </div>
 
-        <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" dir={dir}>
+        {/* KYC card */}
+        <section className="mt-8 rounded-2xl border border-border bg-card p-5 shadow-card" dir={dir}>
+          <div className="mb-4 flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <User className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-foreground">{t.upload.kyc.title}</h2>
+              <p className="text-xs text-muted-foreground">{t.upload.kyc.subtitle}</p>
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="customerName" className="mb-1.5 block text-xs font-semibold text-foreground">
+                {t.upload.kyc.nameLabel} <span className="text-destructive">*</span>
+              </label>
+              <input
+                id="customerName"
+                type="text"
+                value={customerName}
+                maxLength={100}
+                onChange={(e) => { setCustomerName(e.target.value); if (errors.name) setErrors((p) => ({ ...p, name: undefined })); }}
+                placeholder={t.upload.kyc.namePlaceholder}
+                className={`h-11 w-full rounded-xl border bg-surface px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+                  errors.name ? "border-destructive" : "border-input"
+                }`}
+              />
+              {errors.name && <p className="mt-1 text-xs font-medium text-destructive">{errors.name}</p>}
+            </div>
+            <div>
+              <label htmlFor="customerEmail" className="mb-1.5 block text-xs font-semibold text-foreground">
+                {t.upload.kyc.emailLabel} <span className="text-destructive">*</span>
+              </label>
+              <input
+                id="customerEmail"
+                type="email"
+                value={customerEmail}
+                maxLength={255}
+                inputMode="email"
+                autoComplete="email"
+                onChange={(e) => { setCustomerEmail(e.target.value); if (errors.email) setErrors((p) => ({ ...p, email: undefined })); }}
+                placeholder={t.upload.kyc.emailPlaceholder}
+                className={`h-11 w-full rounded-xl border bg-surface px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+                  errors.email ? "border-destructive" : "border-input"
+                }`}
+                dir="ltr"
+              />
+              {errors.email && <p className="mt-1 text-xs font-medium text-destructive">{errors.email}</p>}
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" dir={dir}>
           {cards.map((c) => (
             <UploadCard key={c.key} label={c.label} file={c.file} onChange={c.set} />
           ))}
         </section>
 
         <p className="mt-5 text-center text-sm font-medium text-muted-foreground">
-          {ready ? t.upload.allDone : t.upload.remaining(remaining)}
+          {docsReady ? t.upload.allDone : t.upload.remaining(remaining)}
         </p>
+
+        {/* Optional uploads */}
+        <section className="mt-6 grid gap-4 sm:grid-cols-2" dir={dir}>
+          <UploadCard
+            label={t.upload.cards.passport}
+            file={passport}
+            onChange={setPassport}
+            optional
+          />
+          <MultiUploadCard
+            label={t.upload.cards.vehiclePhotos}
+            files={vehiclePhotos}
+            onChange={setVehiclePhotos}
+            optional
+          />
+        </section>
       </main>
 
       <div className="mx-auto mt-8 max-w-2xl px-4 pb-8">
