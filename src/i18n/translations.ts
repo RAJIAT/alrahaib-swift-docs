@@ -269,7 +269,7 @@ export const translations = {
       registration: "Vehicle Registration",
       license: "Driving License",
       emirates: "Emirates ID",
-      passport: "Passport",
+      passport: "Vehicle Inspection",
       vehiclePhotos: "Vehicle Photos",
       customer: "Customer Information",
       customerName: "Name",
