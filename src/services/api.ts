@@ -146,8 +146,9 @@ const DEMO_USERS: Array<AuthUser & { password: string }> = [
   },
 ];
 
-export async function login(email: string, password: string): Promise<AuthUser> {
-  const u = DEMO_USERS.find((x) => x.email === email && x.password === password);
+export async function login(email: string, _password: string): Promise<AuthUser> {
+  // Demo mode: any password is accepted for the demo accounts.
+  const u = DEMO_USERS.find((x) => x.email.toLowerCase() === email.trim().toLowerCase());
   if (!u) throw new Error("Invalid credentials");
   const { password: _pw, ...auth } = u;
   localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
