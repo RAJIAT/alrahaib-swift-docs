@@ -354,6 +354,13 @@ export function subscribeAgents(cb: () => void): () => void {
   };
 }
 
+// Sync cache for agents (used by admin filters & dropdowns).
+let cachedAgents: Agent[] = [];
+const BRANCHES = ["Abu Dhabi", "Dubai", "Sharjah"];
+
+export function listAgents(): Agent[] { return cachedAgents; }
+export function listBranches(): string[] { return BRANCHES; }
+
 export async function getAgents(): Promise<Agent[]> {
   const { data, error } = await supabase
     .from("agents")
