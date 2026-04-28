@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Loader2, Check, LogIn, User } from "lucide-react";
+import { Loader2, Check, LogIn, ShieldCheck, User, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -129,6 +129,19 @@ function UploadPage() {
           <p className="mt-2 text-sm text-muted-foreground sm:text-base">
             {t.upload.subtitle}
           </p>
+
+          {/* Trust + value prop (moved from footer) */}
+          <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1.5 text-xs font-semibold text-primary">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            <span>{t.hero.trust}</span>
+          </div>
+          <p className="mt-3 max-w-md text-xs leading-relaxed text-muted-foreground sm:text-sm">
+            {t.hero.valueProp}
+          </p>
+          <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <Zap className="h-3 w-3 text-warning-foreground" />
+            <span>{t.brand}</span>
+          </div>
         </div>
 
         {/* KYC card */}
