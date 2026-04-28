@@ -192,11 +192,18 @@ type DxRequest = {
   registration: string;
   license: string;
   emirates: string;
+  passport?: string | null;
+  vehicle_photos?: string[] | null;
+  customer_name?: string | null;
+  customer_email?: string | null;
 };
+
+const REQUEST_FIELDS =
+  "id,status,agent_id,agent_name,branch,date_created,registration,license,emirates,passport,vehicle_photos,customer_name,customer_email";
 
 export async function dxListRequests(opts?: { agentId?: string }): Promise<DxRequest[]> {
   const params = new URLSearchParams({
-    "fields": "id,status,agent_id,agent_name,branch,date_created,registration,license,emirates",
+    "fields": REQUEST_FIELDS,
     "sort": "-date_created",
     "limit": "200",
   });
@@ -208,7 +215,7 @@ export async function dxListRequests(opts?: { agentId?: string }): Promise<DxReq
 export async function dxGetRequest(id: string): Promise<DxRequest | null> {
   try {
     const json = await dxFetch(
-      `/items/requests/${encodeURIComponent(id)}?fields=id,status,agent_id,agent_name,branch,date_created,registration,license,emirates`,
+      `/items/requests/${encodeURIComponent(id)}?fields=${REQUEST_FIELDS}`,
     );
     return json.data as DxRequest;
   } catch {
@@ -223,6 +230,10 @@ export async function dxCreateRequest(input: {
   registration: string;
   license: string;
   emirates: string;
+  passport?: string | null;
+  vehicle_photos?: string[] | null;
+  customer_name?: string | null;
+  customer_email?: string | null;
 }): Promise<DxRequest> {
   const json = await dxFetch("/items/requests", {
     method: "POST",
