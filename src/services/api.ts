@@ -36,10 +36,14 @@ export type InsuranceRequest = {
   branch: string;
   status: RequestStatus;
   createdAt: string; // ISO
+  customerName?: string;
+  customerEmail?: string;
   images: {
     registration: string;
     license: string;
     emirates: string;
+    passport?: string;
+    vehiclePhotos?: string[];
   };
 };
 
