@@ -151,10 +151,16 @@ function mapDx(r: DxRequest): InsuranceRequest {
     branch: r.branch || cached?.branch || "—",
     status: (r.status as RequestStatus) ?? "new",
     createdAt: r.date_created,
+    customerName: r.customer_name ?? undefined,
+    customerEmail: r.customer_email ?? undefined,
     images: {
       registration: dxAssetUrl(r.registration),
       license: dxAssetUrl(r.license),
       emirates: dxAssetUrl(r.emirates),
+      passport: r.passport ? dxAssetUrl(r.passport) : undefined,
+      vehiclePhotos: Array.isArray(r.vehicle_photos) && r.vehicle_photos.length
+        ? r.vehicle_photos.map((id) => dxAssetUrl(id))
+        : undefined,
     },
   };
 }
