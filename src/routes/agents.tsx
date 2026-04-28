@@ -44,29 +44,27 @@ function AdminAgents() {
 
   const onCreate = async (v: AgentFormValues) => {
     await createAgent({
-      email: v.email, password: v.password, name: v.name,
-      agentId: v.agentId, branch: v.branch,
+      id: v.agentId, name: v.name, email: v.email, branch: v.branch,
     });
     toast.success(t.agents.created);
   };
 
   const onEdit = async (v: AgentFormValues) => {
     if (!dialog.target) return;
-    await updateAgent(dialog.target, {
-      name: v.name, branch: v.branch,
-      ...(v.password ? { password: v.password } : {}),
+    await updateAgent(dialog.target.id, {
+      name: v.name, branch: v.branch, email: v.email,
     });
     toast.success(t.agents.updated);
   };
 
   const onToggle = async (a: Agent) => {
-    await updateAgent(a, { active: !a.active });
+    await updateAgent(a.id, { active: !a.active });
     toast.success(t.agents.updated);
   };
 
   const onDelete = async (a: Agent) => {
     if (!confirm(t.agents.confirmDelete(a.name))) return;
-    await deleteAgent(a);
+    await deleteAgent(a.id);
     toast.success(t.agents.deleted);
   };
 
