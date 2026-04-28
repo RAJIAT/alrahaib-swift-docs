@@ -102,12 +102,52 @@ function RequestDetails() {
             </div>
           </div>
 
+          {/* Customer KYC */}
+          {(req.customerName || req.customerEmail) && (
+            <div className="mt-4 rounded-2xl border border-border bg-card p-5 shadow-card">
+              <h3 className="mb-3 text-sm font-bold text-foreground">{t.details.customer}</h3>
+              <div className="grid gap-x-6 gap-y-1 text-sm text-muted-foreground sm:grid-cols-2">
+                {req.customerName && (
+                  <div><span className="font-medium text-foreground">{t.details.customerName}:</span> {req.customerName}</div>
+                )}
+                {req.customerEmail && (
+                  <div dir="ltr" className="truncate"><span className="font-medium text-foreground">{t.details.customerEmail}:</span> {req.customerEmail}</div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Image cards */}
           <div className="mt-6 grid gap-4 md:grid-cols-3">
             <ImgCard label={t.details.registration} url={req.images.registration} onZoom={(u, m) => { setZoom(u); setZoomMime(m); }} pdfLabel={t.details.pdfDocument} />
             <ImgCard label={t.details.license} url={req.images.license} onZoom={(u, m) => { setZoom(u); setZoomMime(m); }} pdfLabel={t.details.pdfDocument} />
             <ImgCard label={t.details.emirates} url={req.images.emirates} onZoom={(u, m) => { setZoom(u); setZoomMime(m); }} pdfLabel={t.details.pdfDocument} />
           </div>
+
+          {/* Optional: passport */}
+          {req.images.passport && (
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <ImgCard label={t.details.passport} url={req.images.passport} onZoom={(u, m) => { setZoom(u); setZoomMime(m); }} pdfLabel={t.details.pdfDocument} />
+            </div>
+          )}
+
+          {/* Optional: vehicle photos */}
+          {req.images.vehiclePhotos && req.images.vehiclePhotos.length > 0 && (
+            <div className="mt-6">
+              <h3 className="mb-3 text-sm font-bold text-foreground">{t.details.vehiclePhotos}</h3>
+              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+                {req.images.vehiclePhotos.map((url, idx) => (
+                  <ImgCard
+                    key={idx}
+                    label={`${t.details.vehiclePhotos} ${idx + 1}`}
+                    url={url}
+                    onZoom={(u, m) => { setZoom(u); setZoomMime(m); }}
+                    pdfLabel={t.details.pdfDocument}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
