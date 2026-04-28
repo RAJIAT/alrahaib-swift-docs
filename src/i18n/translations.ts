@@ -96,7 +96,7 @@ export const translations = {
       registration: "ملكية المركبة",
       license: "رخصة القيادة",
       emirates: "الهوية الإماراتية",
-      passport: "جواز السفر",
+      passport: "فحص المركبة",
       vehiclePhotos: "صور المركبة",
       customer: "بيانات العميل",
       customerName: "الاسم",
