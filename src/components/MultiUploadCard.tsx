@@ -15,9 +15,11 @@ type Props = {
   optional?: boolean;
   /** Allow video files alongside images/PDF. Bumps max size to 50MB. */
   allowVideo?: boolean;
+  /** Allow any file type EXCEPT video (images, PDF, Office docs, etc.). */
+  acceptAny?: boolean;
 };
 
-const IMAGE_MAX_BYTES = 2 * 1024 * 1024; // 2MB for images / PDF
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024; // 5MB for images / PDF / docs
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024; // 50MB for video
 const IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
 
