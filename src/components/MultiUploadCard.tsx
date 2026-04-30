@@ -1,27 +1,45 @@
-import { Camera, FileText, Plus, X } from "lucide-react";
+import { Camera, FileText, Plus, Video, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLang } from "@/i18n/LanguageProvider";
 
 type Props = {
   label: string;
+  /** Helper text shown under the title (e.g. "Upload front and back"). */
+  hint?: string;
   files: File[];
   onChange: (files: File[]) => void;
   max?: number;
+  /** Minimum required files (used for the counter, e.g. 0/2). */
+  min?: number;
   optional?: boolean;
+  /** Allow video files alongside images/PDF. Bumps max size to 50MB. */
+  allowVideo?: boolean;
 };
 
-const MAX_BYTES = 2 * 1024 * 1024;
-const ALLOWED = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+const IMAGE_MAX_BYTES = 2 * 1024 * 1024; // 2MB for images / PDF
+const VIDEO_MAX_BYTES = 50 * 1024 * 1024; // 50MB for video
+const IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
 
-export function MultiUploadCard({ label, files, onChange, max = 6, optional }: Props) {
+export function MultiUploadCard({
+  label,
+  hint,
+  files,
+  onChange,
+  max = 6,
+  min = 0,
+  optional,
+  allowVideo,
+}: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const { t } = useLang();
   const [previews, setPreviews] = useState<string[]>([]);
 
   useEffect(() => {
     const urls = files.map((f) =>
-      f.type.startsWith("image/") ? URL.createObjectURL(f) : "",
+      f.type.startsWith("image/") || f.type.startsWith("video/")
+        ? URL.createObjectURL(f)
+        : "",
     );
     setPreviews(urls);
     return () => {
@@ -31,6 +49,12 @@ export function MultiUploadCard({ label, files, onChange, max = 6, optional }: P
 
   const open = () => inputRef.current?.click();
 
+  const isAllowed = (f: File) => {
+    if (IMAGE_TYPES.includes(f.type)) return f.size <= IMAGE_MAX_BYTES;
+    if (allowVideo && f.type.startsWith("video/")) return f.size <= VIDEO_MAX_BYTES;
+    return false;
+  };
+
   const handle = (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = Array.from(e.target.files ?? []);
     e.target.value = "";
@@ -39,10 +63,7 @@ export function MultiUploadCard({ label, files, onChange, max = 6, optional }: P
     const valid: File[] = [];
     let rejected = 0;
     for (const f of list) {
-      if (!ALLOWED.includes(f.type) || f.size > MAX_BYTES) {
-        rejected += 1;
-        continue;
-      }
+      if (!isAllowed(f)) { rejected += 1; continue; }
       valid.push(f);
     }
     if (rejected > 0) toast.error(t.upload.errors.someRejected(rejected));
@@ -59,6 +80,15 @@ export function MultiUploadCard({ label, files, onChange, max = 6, optional }: P
   };
 
   const canAddMore = files.length < max;
+  const acceptAttr = allowVideo
+    ? "image/jpeg,image/jpg,image/png,application/pdf,video/*"
+    : "image/jpeg,image/jpg,image/png,application/pdf";
+  const formatHint = allowVideo
+    ? "JPG · PNG · PDF · MP4 / MOV (≤ 50MB)"
+    : "JPG · PNG · PDF · ≤ 2MB";
+  const counterTotal = Math.max(max, min);
+  const counterCurrent = files.length;
+  const showCounter = files.length > 0 || min > 0;
 
   return (
     <div
@@ -70,22 +100,33 @@ export function MultiUploadCard({ label, files, onChange, max = 6, optional }: P
         ref={inputRef}
         type="file"
         multiple
-        accept="image/jpeg,image/jpg,image/png,application/pdf"
+        accept={acceptAttr}
         className="hidden"
         onChange={handle}
       />
-      <div className="flex items-center justify-between gap-2 px-4 pt-4">
-        <h3 className="text-base font-semibold text-foreground">
-          {label}
-          {optional && (
-            <span className="ms-2 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-              {t.upload.optional}
-            </span>
+      <div className="flex items-start justify-between gap-2 px-4 pt-4">
+        <div className="min-w-0">
+          <h3 className="flex items-center gap-1.5 text-base font-semibold text-foreground">
+            {label}
+            {optional && (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                {t.upload.optional}
+              </span>
+            )}
+          </h3>
+          {hint && (
+            <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{hint}</p>
           )}
-        </h3>
-        {files.length > 0 && (
-          <span className="text-xs font-semibold text-muted-foreground">
-            {files.length}/{max}
+        </div>
+        {showCounter && (
+          <span
+            className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+              counterCurrent >= min
+                ? "bg-success/10 text-success"
+                : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {counterCurrent}/{counterTotal}
           </span>
         )}
       </div>
@@ -97,35 +138,46 @@ export function MultiUploadCard({ label, files, onChange, max = 6, optional }: P
           className="m-4 flex aspect-[4/3] w-[calc(100%-2rem)] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-primary-soft/40 text-primary transition-all hover:border-primary hover:bg-primary-soft active:scale-[0.99]"
         >
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-            <Camera className="h-7 w-7" />
+            {allowVideo ? <Video className="h-7 w-7" /> : <Camera className="h-7 w-7" />}
           </div>
-          <span className="text-sm font-semibold">{t.upload.capture}</span>
-          <span className="text-[10px] font-medium text-muted-foreground">JPG · PNG · PDF · ≤ 2MB</span>
+          <span className="text-sm font-semibold">
+            {allowVideo ? t.upload.captureMedia : t.upload.capture}
+          </span>
+          <span className="text-[10px] font-medium text-muted-foreground">{formatHint}</span>
         </button>
       ) : (
         <div className="grid grid-cols-3 gap-2 p-4">
-          {files.map((f, idx) => (
-            <div key={idx} className="relative aspect-square overflow-hidden rounded-lg bg-muted">
-              {previews[idx] ? (
-                <img src={previews[idx]} alt={`${label} ${idx + 1}`} className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-primary-soft/40 p-1 text-primary">
-                  <FileText className="h-6 w-6" />
-                  <span className="max-w-full truncate text-[9px] font-semibold">
-                    {f.name}
-                  </span>
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => remove(idx)}
-                aria-label={t.upload.removePhoto}
-                className="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-foreground/70 text-background transition-colors hover:bg-foreground"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
+          {files.map((f, idx) => {
+            const isVideo = f.type.startsWith("video/");
+            const isImage = f.type.startsWith("image/");
+            return (
+              <div key={idx} className="relative aspect-square overflow-hidden rounded-lg bg-muted">
+                {isImage && previews[idx] ? (
+                  <img src={previews[idx]} alt={`${label} ${idx + 1}`} className="h-full w-full object-cover" />
+                ) : isVideo && previews[idx] ? (
+                  <>
+                    <video src={previews[idx]} className="h-full w-full object-cover" muted playsInline />
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-foreground/30">
+                      <Video className="h-6 w-6 text-background" />
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-primary-soft/40 p-1 text-primary">
+                    <FileText className="h-6 w-6" />
+                    <span className="max-w-full truncate text-[9px] font-semibold">{f.name}</span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => remove(idx)}
+                  aria-label={t.upload.removePhoto}
+                  className="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-foreground/70 text-background transition-colors hover:bg-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            );
+          })}
           {canAddMore && (
             <button
               type="button"
@@ -133,7 +185,9 @@ export function MultiUploadCard({ label, files, onChange, max = 6, optional }: P
               className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border bg-primary-soft/40 text-primary transition-colors hover:border-primary hover:bg-primary-soft"
             >
               <Plus className="h-5 w-5" />
-              <span className="text-[10px] font-semibold">{t.upload.addPhoto}</span>
+              <span className="text-[10px] font-semibold">
+                {allowVideo ? t.upload.addMedia : t.upload.addPhoto}
+              </span>
             </button>
           )}
         </div>
