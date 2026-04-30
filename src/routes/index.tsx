@@ -275,15 +275,6 @@ function UploadPage() {
             min={2}
             max={2}
           />
-          <MultiUploadCard
-            label={t.upload.cards.vehiclePhotos}
-            hint={t.upload.vehiclePhotosHint}
-            files={vehicleMedia}
-            onChange={setVehicleMedia}
-            min={2}
-            max={8}
-            allowVideo
-          />
         </section>
 
         <p className="mt-5 text-center text-sm font-medium text-muted-foreground">
@@ -292,6 +283,16 @@ function UploadPage() {
 
         {/* Optional uploads */}
         <section className="mt-6 grid gap-4 sm:grid-cols-2" dir={dir}>
+          <MultiUploadCard
+            label={t.upload.cards.vehiclePhotos}
+            hint={t.upload.vehiclePhotosHint}
+            files={vehicleMedia}
+            onChange={setVehicleMedia}
+            min={0}
+            max={8}
+            allowVideo
+            optional
+          />
           <UploadCard
             label={t.upload.cards.inspection}
             file={inspection}
