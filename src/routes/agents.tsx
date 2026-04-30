@@ -107,7 +107,7 @@ function AdminAgents() {
   const emptyLabel = isSupervisorTab ? t.agents.emptySupervisors : t.agents.empty;
 
   return (
-    <DashboardShell role={["admin", "supervisor"]} title={t.agents.title}>
+    <DashboardShell role={["admin", "supervisor"]} title={isSupervisor ? t.agents.titleAgentsOnly : t.agents.title}>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Link
