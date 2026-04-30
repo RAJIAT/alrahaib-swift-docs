@@ -32,6 +32,7 @@ export function MultiUploadCard({
   min = 0,
   optional,
   allowVideo,
+  acceptAny,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const { t } = useLang();
