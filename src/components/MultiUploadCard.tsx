@@ -53,6 +53,11 @@ export function MultiUploadCard({
   const open = () => inputRef.current?.click();
 
   const isAllowed = (f: File) => {
+    if (acceptAny) {
+      // Any non-video file (images, PDF, Office docs, text, etc.)
+      if (f.type.startsWith("video/")) return false;
+      return f.size <= IMAGE_MAX_BYTES;
+    }
     if (IMAGE_TYPES.includes(f.type)) return f.size <= IMAGE_MAX_BYTES;
     if (allowVideo && f.type.startsWith("video/")) return f.size <= VIDEO_MAX_BYTES;
     return false;
