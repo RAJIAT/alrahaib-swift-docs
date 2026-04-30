@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SuccessRouteImport } from './routes/success'
 import { Route as SetupDirectusRouteImport } from './routes/setup-directus'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as BranchesRouteImport } from './routes/branches'
 import { Route as AuditRouteImport } from './routes/audit'
 import { Route as AgentsRouteImport } from './routes/agents'
 import { Route as AgentRouteImport } from './routes/agent'
@@ -34,6 +35,11 @@ const SetupDirectusRoute = SetupDirectusRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BranchesRoute = BranchesRouteImport.update({
+  id: '/branches',
+  path: '/branches',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuditRoute = AuditRouteImport.update({
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/agent': typeof AgentRoute
   '/agents': typeof AgentsRoute
   '/audit': typeof AuditRoute
+  '/branches': typeof BranchesRoute
   '/login': typeof LoginRoute
   '/setup-directus': typeof SetupDirectusRoute
   '/success': typeof SuccessRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByTo {
   '/agent': typeof AgentRoute
   '/agents': typeof AgentsRoute
   '/audit': typeof AuditRoute
+  '/branches': typeof BranchesRoute
   '/login': typeof LoginRoute
   '/setup-directus': typeof SetupDirectusRoute
   '/success': typeof SuccessRoute
@@ -110,6 +118,7 @@ export interface FileRoutesById {
   '/agent': typeof AgentRoute
   '/agents': typeof AgentsRoute
   '/audit': typeof AuditRoute
+  '/branches': typeof BranchesRoute
   '/login': typeof LoginRoute
   '/setup-directus': typeof SetupDirectusRoute
   '/success': typeof SuccessRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/agent'
     | '/agents'
     | '/audit'
+    | '/branches'
     | '/login'
     | '/setup-directus'
     | '/success'
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/agent'
     | '/agents'
     | '/audit'
+    | '/branches'
     | '/login'
     | '/setup-directus'
     | '/success'
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/agent'
     | '/agents'
     | '/audit'
+    | '/branches'
     | '/login'
     | '/setup-directus'
     | '/success'
@@ -165,6 +177,7 @@ export interface RootRouteChildren {
   AgentRoute: typeof AgentRoute
   AgentsRoute: typeof AgentsRoute
   AuditRoute: typeof AuditRoute
+  BranchesRoute: typeof BranchesRoute
   LoginRoute: typeof LoginRoute
   SetupDirectusRoute: typeof SetupDirectusRoute
   SuccessRoute: typeof SuccessRoute
@@ -194,6 +207,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/branches': {
+      id: '/branches'
+      path: '/branches'
+      fullPath: '/branches'
+      preLoaderRoute: typeof BranchesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/audit': {
@@ -261,6 +281,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgentRoute: AgentRoute,
   AgentsRoute: AgentsRoute,
   AuditRoute: AuditRoute,
+  BranchesRoute: BranchesRoute,
   LoginRoute: LoginRoute,
   SetupDirectusRoute: SetupDirectusRoute,
   SuccessRoute: SuccessRoute,
