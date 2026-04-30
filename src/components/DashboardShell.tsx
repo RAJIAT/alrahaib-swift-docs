@@ -20,18 +20,21 @@ export function DashboardShell({
 }) {
   const { t, dir } = useLang();
   const navigate = useNavigate();
-  // Read once on mount (not on every render); avoids redirect loops from unstable refs.
-  const [user] = useState(() => getCurrentUser());
+  // Defer reading localStorage until after mount to avoid SSR hydration mismatch.
+  const [mounted, setMounted] = useState(false);
+  const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null);
   const [open, setOpen] = useState(false);
   const path = useRouterState({ select: (s) => s.location.pathname });
 
   const allowed = useMemo(() => (Array.isArray(role) ? role : [role]), [role]);
 
   useEffect(() => {
-    if (!user || !allowed.includes(user.role)) {
+    const u = getCurrentUser();
+    setUser(u);
+    setMounted(true);
+    if (!u || !allowed.includes(u.role)) {
       navigate({ to: "/login" });
     }
-    // run once — `user` and `allowed` are stable across renders
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
