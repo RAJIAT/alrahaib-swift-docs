@@ -118,7 +118,7 @@ function AdminDashboard() {
   if (dateF) activeChips.push({ label: `${t.admin.filterDate}: ${dateF}`, clear: () => startTransition(() => setDateF("")) });
 
   return (
-    <DashboardShell role="admin" title={t.admin.title}>
+    <DashboardShell role={["admin", "supervisor"]} title={isSupervisor ? `${t.admin.title} — ${lockedBranch}` : t.admin.title}>
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label={t.admin.total} value={stats.total} icon={<FileText className="h-5 w-5" />} tone="primary" />
@@ -133,7 +133,7 @@ function AdminDashboard() {
           <Select value={agentF} onChange={wrap(setAgentF)} label={t.admin.filterAgent} all={t.admin.all}
             options={agentOptions} />
           <Select value={branchF} onChange={wrap(setBranchF)} label={t.admin.filterBranch} all={t.admin.all}
-            options={branchOptions} />
+            options={branchOptions} disabled={isSupervisor} />
           <Select value={statusF} onChange={(v) => startTransition(() => setStatusF(v as RequestStatus | ""))} label={t.admin.filterStatus} all={t.admin.all}
             options={statusOptions} />
           <label className="block">
