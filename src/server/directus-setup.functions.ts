@@ -279,17 +279,23 @@ export const setupDirectus = createServerFn({ method: "POST" })
         }),
       );
 
-      // 11. Attach to Public role
-      const roles = await call(base, token, "GET", "/roles?filter[name][_eq]=Public&fields=id&limit=1");
-      const publicRoleId = roles.data?.data?.[0]?.id;
-      if (publicRoleId) {
-        await run("Attach policy to Public role", () =>
-          call(base, token, "PATCH", `/roles/${publicRoleId}`, {
-            policies: [policyId],
+      // 11. Attach policy to Public access (Directus 11+ uses access entries, not role.policies)
+      // Public access = an access entry with role=null + the policy.
+      // First, check if it's already attached to avoid duplicates.
+      const existing = await call(
+        base, token, "GET",
+        `/access?filter[role][_null]=true&filter[policy][_eq]=${policyId}&fields=id&limit=1`,
+      );
+      if (existing.data?.data?.[0]?.id) {
+        steps.push({ step: "Attach policy to Public access", ok: true, detail: "already attached" });
+      } else {
+        await run("Attach policy to Public access", () =>
+          call(base, token, "POST", "/access", {
+            role: null,
+            user: null,
+            policy: policyId,
           }),
         );
-      } else {
-        steps.push({ step: "Attach policy to Public role", ok: false, detail: "Public role not found" });
       }
     }
 
