@@ -110,6 +110,7 @@ export const translations = {
     },
     status: {
       new: "جديد",
+      linkSent: "تم إرسال الرابط",
       processing: "قيد المعالجة",
       sold: "مباع",
       rejected: "مرفوض",
@@ -371,6 +372,7 @@ export const translations = {
     },
     status: {
       new: "New",
+      linkSent: "Link sent",
       processing: "Processing",
       sold: "Sold",
       rejected: "Rejected",
