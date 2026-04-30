@@ -188,7 +188,7 @@ function UploadPage() {
               <p className="text-xs text-muted-foreground">{t.upload.kyc.subtitle}</p>
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
             <div>
               <label htmlFor="customerName" className="mb-1.5 block text-xs font-semibold text-foreground">
                 {t.upload.kyc.nameLabel} <span className="text-destructive">*</span>
@@ -225,6 +225,26 @@ function UploadPage() {
                 dir="ltr"
               />
               {errors.email && <p className="mt-1 text-xs font-medium text-destructive">{errors.email}</p>}
+            </div>
+            <div>
+              <label htmlFor="customerPhone" className="mb-1.5 block text-xs font-semibold text-foreground">
+                {t.upload.kyc.phoneLabel} <span className="text-destructive">*</span>
+              </label>
+              <input
+                id="customerPhone"
+                type="tel"
+                value={customerPhone}
+                maxLength={20}
+                inputMode="tel"
+                autoComplete="tel"
+                onChange={(e) => { setCustomerPhone(e.target.value); if (errors.phone) setErrors((p) => ({ ...p, phone: undefined })); }}
+                placeholder={t.upload.kyc.phonePlaceholder}
+                className={`h-11 w-full rounded-xl border bg-surface px-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+                  errors.phone ? "border-destructive" : "border-input"
+                }`}
+                dir="ltr"
+              />
+              {errors.phone && <p className="mt-1 text-xs font-medium text-destructive">{errors.phone}</p>}
             </div>
           </div>
         </section>
