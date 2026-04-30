@@ -1,10 +1,27 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
-import { Component, type ReactNode } from "react";
+import { Component, useEffect, type ReactNode } from "react";
 import { LanguageProvider, useLang } from "@/i18n/LanguageProvider";
 import { DemoBanner } from "@/components/DemoBanner";
 import { Footer } from "@/components/Footer";
 import { Toaster } from "@/components/ui/sonner";
 import appCss from "../styles.css?url";
+
+/**
+ * One-time cleanup of legacy demo data left in the browser's localStorage
+ * from before the Directus migration. Bumping the version key forces another
+ * cleanup pass on every device after the next deploy.
+ */
+const CLEANUP_VERSION_KEY = "aib_cleanup_v";
+const CURRENT_CLEANUP_VERSION = "2";
+
+function cleanupLegacyDemoData() {
+  if (typeof window === "undefined") return;
+  if (localStorage.getItem(CLEANUP_VERSION_KEY) === CURRENT_CLEANUP_VERSION) return;
+  ["aib_requests", "aib_agents", "aib_req_seq", "aib_agents_cache"].forEach((k) => {
+    try { localStorage.removeItem(k); } catch { /* ignore */ }
+  });
+  localStorage.setItem(CLEANUP_VERSION_KEY, CURRENT_CLEANUP_VERSION);
+}
 
 class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
