@@ -102,7 +102,9 @@ function RequestDetails() {
     (req.images.registration ?? []).forEach((u, i) =>
       list.push({ url: u, baseName: i === 0 ? "registration_front" : i === 1 ? "registration_back" : `registration_${i + 1}` }),
     );
-    if (req.images.license) list.push({ url: req.images.license, baseName: "license" });
+    (req.images.license ?? []).forEach((u, i) =>
+      list.push({ url: u, baseName: i === 0 ? "license_front" : i === 1 ? "license_back" : `license_${i + 1}` }),
+    );
     (req.images.emirates ?? []).forEach((u, i) =>
       list.push({ url: u, baseName: i === 0 ? "emirates_front" : i === 1 ? "emirates_back" : `emirates_${i + 1}` }),
     );
@@ -242,7 +244,17 @@ function RequestDetails() {
                 downloadLabel={t.details.download}
               />
             ))}
-            <ImgCard label={t.details.license} baseName="license" url={req.images.license} onZoom={(u, m, n) => { setZoom(u); setZoomMime(m); setZoomFilename(n); }} pdfLabel={t.details.pdfDocument} downloadLabel={t.details.download} />
+            {(req.images.license ?? []).map((url, i) => (
+              <ImgCard
+                key={`lic-${i}`}
+                label={i === 0 ? t.details.licenseFront : i === 1 ? t.details.licenseBack : `${t.details.license} ${i + 1}`}
+                baseName={i === 0 ? "license_front" : i === 1 ? "license_back" : `license_${i + 1}`}
+                url={url}
+                onZoom={(u, m, n) => { setZoom(u); setZoomMime(m); setZoomFilename(n); }}
+                pdfLabel={t.details.pdfDocument}
+                downloadLabel={t.details.download}
+              />
+            ))}
             {(req.images.emirates ?? []).map((url, i) => (
               <ImgCard
                 key={`eid-${i}`}

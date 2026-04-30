@@ -27,8 +27,8 @@ function UploadPage() {
   // Two-image cards (front + back) — single picker each.
   const [registration, setRegistration] = useState<File[]>([]);
   const [emirates, setEmirates] = useState<File[]>([]);
-  // Single license card.
-  const [license, setLicense] = useState<File | null>(null);
+  // License: front + back.
+  const [license, setLicense] = useState<File[]>([]);
   // Combined photos + videos card.
   const [vehicleMedia, setVehicleMedia] = useState<File[]>([]);
   // Optional.
@@ -48,7 +48,7 @@ function UploadPage() {
 
   const registrationOk = registration.length >= 2;
   const emiratesOk = emirates.length >= 2;
-  const licenseOk = !!license;
+  const licenseOk = license.length >= 2;
   const vehicleOk = vehicleMedia.length >= 2; // at least 2 media (front + back)
   const completed = [registrationOk, emiratesOk, licenseOk, vehicleOk].filter(Boolean).length;
   const docsReady = completed === 4;
@@ -96,7 +96,7 @@ function UploadPage() {
       return;
     }
     setErrors({});
-    if (!docsReady || !license) return;
+    if (!docsReady || license.length < 2) return;
     setSubmitting(true);
     try {
       const { id } = await submitUpload({
@@ -267,10 +267,13 @@ function UploadPage() {
             min={2}
             max={2}
           />
-          <UploadCard
+          <MultiUploadCard
             label={t.upload.cards.license}
-            file={license}
+            hint={t.upload.licenseHint}
+            files={license}
             onChange={setLicense}
+            min={2}
+            max={2}
           />
           <MultiUploadCard
             label={t.upload.cards.vehiclePhotos}
