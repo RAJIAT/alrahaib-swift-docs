@@ -13,7 +13,7 @@ export type AgentFormValues = {
 };
 
 export function AgentFormDialog({
-  open, mode, initial, onClose, onSubmit, lockedBranch,
+  open, mode, initial, onClose, onSubmit, lockedBranch, lockedRole, defaultRole,
 }: {
   open: boolean;
   mode: "create" | "edit";
@@ -21,10 +21,16 @@ export function AgentFormDialog({
   onClose: () => void;
   onSubmit: (values: AgentFormValues) => Promise<void>;
   lockedBranch?: string;
+  /** When set, hides the role selector and forces this role. */
+  lockedRole?: AgentRole;
+  /** Initial role for create mode (when lockedRole is not set). */
+  defaultRole?: AgentRole;
 }) {
   const { t, dir } = useLang();
   const [values, setValues] = useState<AgentFormValues>({
-    name: "", email: "", password: "", agentId: "", branch: listBranches()[0] ?? "",
+    name: "", email: "", password: "", agentId: "",
+    branch: listBranches()[0] ?? "",
+    role: lockedRole ?? defaultRole ?? "agent",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -38,8 +44,9 @@ export function AgentFormDialog({
       password: "",
       agentId: initial?.id ?? "",
       branch: lockedBranch ?? initial?.branch ?? (listBranches()[0] ?? ""),
+      role: lockedRole ?? initial?.role ?? defaultRole ?? "agent",
     });
-  }, [open, initial, lockedBranch]);
+  }, [open, initial, lockedBranch, lockedRole, defaultRole]);
 
   if (!open) return null;
 
