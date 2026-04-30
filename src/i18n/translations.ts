@@ -182,6 +182,7 @@ export const translations = {
       deleted: "تم حذف الوكيل",
       empty: "لا يوجد وكلاء بعد. ابدأ بإضافة أول وكيل.",
       backToAdmin: "لوحة المدير",
+      supervisorNoDelete: "ليس لديك صلاحية حذف الوكلاء. يمكن للمدير فقط القيام بذلك.",
     },
     hero: {
       trust: "بياناتك مشفّرة وتُعالَج بسرّية تامة",
@@ -379,6 +380,7 @@ export const translations = {
       deleted: "Agent deleted",
       empty: "No agents yet. Add your first agent to get started.",
       backToAdmin: "Admin Dashboard",
+      supervisorNoDelete: "You don't have permission to delete agents. Only admins can do that.",
     },
     hero: {
       trust: "Your data is encrypted and handled with full confidentiality",
