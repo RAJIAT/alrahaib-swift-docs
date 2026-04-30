@@ -72,12 +72,16 @@ export function AgentFormDialog({
     }
   };
 
+  const isSupervisorForm = (lockedRole ?? values.role) === "supervisor";
+  const titleCreate = isSupervisorForm ? t.agents.addSupervisorTitle : t.agents.addTitle;
+  const titleEdit = isSupervisorForm ? t.agents.editSupervisorTitle : t.agents.editTitle;
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-0 sm:items-center sm:p-4" dir={dir}>
       <div className="w-full max-w-lg overflow-hidden rounded-t-2xl bg-card shadow-elevated sm:rounded-2xl">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="text-base font-bold text-foreground">
-            {mode === "create" ? t.agents.addTitle : t.agents.editTitle}
+            {mode === "create" ? titleCreate : titleEdit}
           </h2>
           <button onClick={onClose} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted">
             <X className="h-4 w-4" />
