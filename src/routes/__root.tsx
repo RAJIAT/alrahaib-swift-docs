@@ -128,6 +128,7 @@ function RootComponent() {
 
 function AppChrome() {
   const { dir } = useLang();
+  useEffect(() => { cleanupLegacyDemoData(); }, []);
   return (
     <div className="flex min-h-screen flex-col">
       <DemoBanner />
