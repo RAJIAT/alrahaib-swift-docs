@@ -68,8 +68,8 @@ function AdminAgents() {
   const onCreate = async (v: AgentFormValues) => {
     await createAgent({
       id: v.agentId, name: v.name, email: v.email,
+      password: v.password,
       branch: lockedBranch ?? v.branch,
-      // Supervisors can only ever create plain agents; admins use the form's role.
       role: isSupervisor ? "agent" : v.role,
       supervisorId: v.supervisorId || undefined,
     });
@@ -83,6 +83,7 @@ function AdminAgents() {
       branch: lockedBranch ?? v.branch,
       email: v.email,
       supervisorId: v.supervisorId ? v.supervisorId : null,
+      ...(v.password ? { password: v.password } : {}),
     });
     toast.success(t.agents.updated);
   };
