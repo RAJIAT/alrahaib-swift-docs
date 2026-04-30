@@ -19,6 +19,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RequestsIdRouteImport } from './routes/requests.$id'
 import { Route as RRequestIdRouteImport } from './routes/r.$requestId'
+import { Route as ApiDirectusSplatRouteImport } from './routes/api/directus.$'
 
 const SuccessRoute = SuccessRouteImport.update({
   id: '/success',
@@ -70,6 +71,11 @@ const RRequestIdRoute = RRequestIdRouteImport.update({
   path: '/r/$requestId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDirectusSplatRoute = ApiDirectusSplatRouteImport.update({
+  id: '/api/directus/$',
+  path: '/api/directus/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -82,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/success': typeof SuccessRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
+  '/api/directus/$': typeof ApiDirectusSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -94,6 +101,7 @@ export interface FileRoutesByTo {
   '/success': typeof SuccessRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
+  '/api/directus/$': typeof ApiDirectusSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -107,6 +115,7 @@ export interface FileRoutesById {
   '/success': typeof SuccessRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
+  '/api/directus/$': typeof ApiDirectusSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -121,6 +130,7 @@ export interface FileRouteTypes {
     | '/success'
     | '/r/$requestId'
     | '/requests/$id'
+    | '/api/directus/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -133,6 +143,7 @@ export interface FileRouteTypes {
     | '/success'
     | '/r/$requestId'
     | '/requests/$id'
+    | '/api/directus/$'
   id:
     | '__root__'
     | '/'
@@ -145,6 +156,7 @@ export interface FileRouteTypes {
     | '/success'
     | '/r/$requestId'
     | '/requests/$id'
+    | '/api/directus/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -158,6 +170,7 @@ export interface RootRouteChildren {
   SuccessRoute: typeof SuccessRoute
   RRequestIdRoute: typeof RRequestIdRoute
   RequestsIdRoute: typeof RequestsIdRoute
+  ApiDirectusSplatRoute: typeof ApiDirectusSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -232,6 +245,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RRequestIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/directus/$': {
+      id: '/api/directus/$'
+      path: '/api/directus/$'
+      fullPath: '/api/directus/$'
+      preLoaderRoute: typeof ApiDirectusSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -246,6 +266,7 @@ const rootRouteChildren: RootRouteChildren = {
   SuccessRoute: SuccessRoute,
   RRequestIdRoute: RRequestIdRoute,
   RequestsIdRoute: RequestsIdRoute,
+  ApiDirectusSplatRoute: ApiDirectusSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -8,7 +8,15 @@
  * See DIRECTUS_SETUP.md for the full schema, roles and permissions.
  */
 
-const DEFAULT_DIRECTUS_URL = "http://74.162.122.193:8055";
+/**
+ * We always go through the same-origin /api/directus proxy.
+ *
+ * The browser is on HTTPS but Directus is on plain HTTP, so direct calls are
+ * blocked by the browser's Mixed Content rule. The /api/directus/* server
+ * route forwards every request to the on-premise Directus instance over the
+ * server-to-server network where HTTP is fine.
+ */
+const DEFAULT_DIRECTUS_URL = "/api/directus";
 
 export const DIRECTUS_URL: string | undefined =
   ((import.meta as any).env?.VITE_DIRECTUS_URL || DEFAULT_DIRECTUS_URL)
