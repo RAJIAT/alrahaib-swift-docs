@@ -9,7 +9,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { isPdfDataUrl } from "@/lib/imageUtils";
 import {
   getCurrentUser, refreshCurrentUser, getRequest, updateRequestStatus, resolveAssetUrl,
-  addRequestNote, resolveRequestNote,
+  addRequestNote, resolveRequestNote, subscribeRequests,
   type AuthUser, type InsuranceRequest, type RequestStatus, type RequestNoteKind,
 } from "@/services/api";
 
@@ -69,8 +69,12 @@ function RequestDetails() {
       if (!fresh) navigate({ to: "/login" });
     });
     let alive = true;
-    getRequest(id).then((r) => { if (alive) { setReq(r); setLoading(false); } });
-    return () => { alive = false; };
+    const refreshRequest = () => {
+      getRequest(id).then((r) => { if (alive) { setReq(r); setLoading(false); } });
+    };
+    refreshRequest();
+    const unsubscribe = subscribeRequests(refreshRequest);
+    return () => { alive = false; unsubscribe(); };
     // run once per id
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
