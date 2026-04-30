@@ -52,7 +52,10 @@ function ReuploadPage() {
       setReq(fresh);
     } catch (err) {
       console.error(err);
-      toast.error(t.common?.statusUpdateFailed ?? "Failed");
+      const msg = err instanceof Error && err.message === "STORAGE_QUOTA_EXCEEDED"
+        ? (dir === "rtl" ? "حجم الملفات كبير جداً، جرّب صور أصغر أو أقل عدداً" : "Files too large, try smaller or fewer images")
+        : (t.common?.statusUpdateFailed ?? "Failed");
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }

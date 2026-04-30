@@ -114,7 +114,12 @@ function readJSON<T>(key: string, fallback: T): T {
 
 function writeJSON(key: string, value: unknown) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (err) {
+    console.error("[storage] writeJSON failed for key", key, err);
+    throw new Error("STORAGE_QUOTA_EXCEEDED");
+  }
 }
 
 function notifyChange() {
@@ -140,12 +145,51 @@ function uuid(): string {
 }
 
 async function fileToDataUrl(file: File): Promise<string> {
+  // Compress images to keep localStorage under quota.
+  if (file.type.startsWith("image/")) {
+    try {
+      return await compressImageToDataUrl(file);
+    } catch (e) {
+      console.warn("[storage] image compression failed, falling back", e);
+    }
+  }
   return await new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result));
     r.onerror = reject;
     r.readAsDataURL(file);
   });
+}
+
+async function compressImageToDataUrl(
+  file: File,
+  maxDim = 1600,
+  quality = 0.7,
+): Promise<string> {
+  const dataUrl: string = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = reject;
+    im.src = dataUrl;
+  });
+  let { width, height } = img;
+  const scale = Math.min(1, maxDim / Math.max(width, height));
+  width = Math.round(width * scale);
+  height = Math.round(height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return dataUrl;
+  ctx.drawImage(img, 0, 0, width, height);
+  const mime = file.type === "image/png" ? "image/jpeg" : (file.type || "image/jpeg");
+  return canvas.toDataURL(mime, quality);
 }
 
 // ---------------------------------------------------------------------------
