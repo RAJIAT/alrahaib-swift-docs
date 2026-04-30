@@ -1,9 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Check, LayoutDashboard } from "lucide-react";
+import { Check } from "lucide-react";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
 import { useLang } from "@/i18n/LanguageProvider";
-import { getCurrentUser } from "@/services/api";
 
 type Search = { id?: string };
 
@@ -23,8 +22,6 @@ export const Route = createFileRoute("/success")({
 function SuccessPage() {
   const { t } = useLang();
   const { id } = Route.useSearch();
-  const user = typeof window !== "undefined" ? getCurrentUser() : null;
-  const dashboardTo = user?.role === "admin" ? "/admin" : user?.role === "agent" ? "/agent" : null;
 
   return (
     <div className="min-h-screen bg-background animate-fade-in">
@@ -48,22 +45,13 @@ function SuccessPage() {
           </div>
         )}
 
-        <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row">
+        <div className="mt-10 flex justify-center">
           <Link
             to="/"
             className="inline-flex h-12 items-center justify-center rounded-2xl bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-soft transition hover:bg-primary/90 active:scale-[0.98]"
           >
             {t.success.back}
           </Link>
-          {dashboardTo && (
-            <Link
-              to={dashboardTo}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-6 text-sm font-semibold text-foreground transition hover:bg-muted active:scale-[0.98]"
-            >
-              <LayoutDashboard className="h-4 w-4" />
-              {t.success.goToDashboard}
-            </Link>
-          )}
         </div>
       </main>
     </div>
