@@ -22,6 +22,7 @@ export type Database = {
           email: string | null
           id: string
           name: string
+          supervisor_user_id: string | null
           updated_at: string
           user_id: string | null
         }
@@ -32,6 +33,7 @@ export type Database = {
           email?: string | null
           id: string
           name: string
+          supervisor_user_id?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -42,8 +44,112 @@ export type Database = {
           email?: string | null
           id?: string
           name?: string
+          supervisor_user_id?: string | null
           updated_at?: string
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      chat_messages: {
+        Row: {
+          attachment_mime: string | null
+          attachment_name: string | null
+          attachment_url: string | null
+          body: string | null
+          created_at: string
+          id: string
+          sender_name: string | null
+          sender_role: Database["public"]["Enums"]["app_role"]
+          sender_user_id: string
+          thread_id: string
+        }
+        Insert: {
+          attachment_mime?: string | null
+          attachment_name?: string | null
+          attachment_url?: string | null
+          body?: string | null
+          created_at?: string
+          id?: string
+          sender_name?: string | null
+          sender_role: Database["public"]["Enums"]["app_role"]
+          sender_user_id: string
+          thread_id: string
+        }
+        Update: {
+          attachment_mime?: string | null
+          attachment_name?: string | null
+          attachment_url?: string | null
+          body?: string | null
+          created_at?: string
+          id?: string
+          sender_name?: string | null
+          sender_role?: Database["public"]["Enums"]["app_role"]
+          sender_user_id?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "chat_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_reads: {
+        Row: {
+          last_read_at: string
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          last_read_at?: string
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          last_read_at?: string
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_reads_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "chat_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_threads: {
+        Row: {
+          agent_id: string
+          agent_user_id: string
+          created_at: string
+          id: string
+          last_message_at: string | null
+          supervisor_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          agent_user_id: string
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          supervisor_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          agent_user_id?: string
+          created_at?: string
+          id?: string
+          last_message_at?: string | null
+          supervisor_user_id?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -142,9 +248,13 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_thread_participant: {
+        Args: { _thread_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      app_role: "admin" | "agent"
+      app_role: "admin" | "agent" | "supervisor"
       request_status: "new" | "processing" | "sold" | "rejected" | "reupload"
     }
     CompositeTypes: {
@@ -273,7 +383,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "agent"],
+      app_role: ["admin", "agent", "supervisor"],
       request_status: ["new", "processing", "sold", "rejected", "reupload"],
     },
   },

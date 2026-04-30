@@ -1,98 +1,101 @@
-# خطة تحديثات صفحة المشرف ورفع الملفات
+# لايف شات بين الايجنت والسوبرفايزر
 
-## 1. إخفاء زر تسجيل الدخول من صفحة العميل
-**الملف:** `src/routes/index.tsx`
-- حذف الـ `<Link to="/login">` (السطور 134-140) من header صفحة الرفع
-- يبقى الشعار والـ LanguageSwitcher فقط — الشعار ما يحوّل لأي مكان للعميل
-- ملاحظة: المسؤولون لسا يقدروا يفتحوا `/login` مباشرة من شريط العنوان
+شات مباشر (1-on-1) بين كل **ايجنت** والسوبرفايزر المسؤول عنه، مدعوم بقاعدة البيانات + Realtime، مع إشعارات، إرفاق ملفات، ومؤشرات typing/read.
 
-## 2. حالة جديدة "تم إرسال الرابط" (linkSent)
-**الملفات:**
-- `src/services/api.ts`: إضافة `"linkSent"` إلى `RequestStatus`
-- `src/i18n/translations.ts`: ترجمات AR/EN (مثلاً "تم إرسال الرابط" / "Link sent")
-- `src/components/StatusBadge.tsx`: لون مميز (مثلاً أزرق فاتح)
-- `src/routes/requests.$id.tsx`: إضافة الحالة في dropdown تغيير الحالة
-- متاح يدوياً للعميل (الايجنت) وللسوبرفايزر
+## نموذج العلاقة
 
-## 3. نظام الكومنتات (نواقص + ملاحظات داخلية)
-**هيكل البيانات الجديد** على كل طلب:
+كل ايجنت = محادثة واحدة مع السوبرفايزر تبعه. السوبرفايزر يشوف قائمة كل الايجنتس تحته، الايجنت يشوف محادثة واحدة فقط (مع سوبرفايزره). الادمن يقدر يشوف كل المحادثات (للمراقبة).
+
+```text
+Agent A ──┐
+Agent B ──┼──► Supervisor X
+Agent C ──┘
+Agent D ─────► Supervisor Y
 ```
-notes: Array<{
-  id, authorId, authorName, authorRole,
-  text, kind: "comment" | "missing",
-  createdAt, resolvedAt?
-}>
-```
-**الملفات:**
-- `src/services/api.ts`: إضافة `notes[]` لـ `InsuranceRequest` + دوال `addNote` / `resolveNote`
-- `src/routes/requests.$id.tsx`: قسم جديد "ملاحظات ونواقص" جنب الـ Actions (مش thread منفصل):
-  - حقل إدخال + زرّين: "إضافة كومنت" و "إضافة نقص"
-  - عرض كرونولوجي مع: اسم الكاتب، الدور (Agent/Supervisor/Admin)، الوقت، نوع المدخل (شارة)
-  - النواقص لها زر "تم الحل" (يضيف `resolvedAt`)
-- يشوفه: agent + supervisor + admin (الكل على نفس الطلب)
 
-## 4. رابط النواقص للعميل (نفس الكيس)
-**التصرف:** الرابط الموجود حالياً للطلب الجديد (`/`) يُعاد استخدامه — لما السوبرفايزر يضيف "نقص" + يحوّل الحالة لـ `reupload`، يقدر ينسخ رابط خاص بنفس الكيس:
+## التغييرات على قاعدة البيانات
 
-**الرابط الجديد:** `/r/$requestId` (route جديد)
-- يفتح صفحة رفع مبسطة للعميل (بدون header login، بدون KYC)
-- يعرض قائمة النواقص المطلوبة (من `notes` كنوع `missing` غير محلولة)
-- يسمح برفع ملفات جديدة تنضاف لنفس الـ request
-- بعد الرفع: الحالة ترجع `processing` تلقائياً والنواقص تتعلّم resolved
+### 1. إضافة دور supervisor + ربط الايجنت بسوبرفايزر
+- إضافة `'supervisor'` لـ `app_role` enum.
+- إضافة عمود `supervisor_user_id uuid` على جدول `agents` (يشير لـ `auth.users.id` للسوبرفايزر).
 
-**الملفات:**
-- `src/routes/r.$requestId.tsx` (route جديد)
-- `src/services/api.ts`: دالة `appendFilesToRequest(id, files[])`
-- زر "نسخ رابط النواقص" بصفحة `requests/$id` يظهر فقط لما الحالة `reupload`
+### 2. جدول `chat_threads`
+- `id uuid pk`, `agent_id text` (FK→agents), `supervisor_user_id uuid`, `agent_user_id uuid`, `last_message_at timestamptz`, `created_at`.
+- Unique على `agent_id` (محادثة واحدة لكل ايجنت).
 
-## 5. رفع الصور: الأولى إجبارية، الثانية اختيارية (حتى لو PDF)
-**الوضع الحالي:** بطاقة الملكية/الرخصة/الهوية كلها `min={2} max={2}` (إجباري وجه + ظهر)
-**التعديل:** تصير `min={1} max={2}` — الوجه إجباري، الظهر اختياري
-**الملفات:**
-- `src/routes/index.tsx`: تحديث الـ 3 بطاقات (registration, license, emirates)
-- `src/components/MultiUploadCard.tsx`: التحقق من سلوك min=1
-- تحديث رسائل التحقق + النصوص التلميحية (`registrationHint`, `licenseHint`, `emiratesHint`)
-- تحديث `docsReady` و `remaining` بحيث يكفي ملف واحد لكل بطاقة
+### 3. جدول `chat_messages`
+- `id uuid pk`, `thread_id uuid`, `sender_user_id uuid`, `sender_role app_role`, `body text`, `attachment_url text`, `attachment_name text`, `attachment_mime text`, `created_at`.
 
-## 6. مرفقات إضافية (اختيارية، عدد مفتوح، كل الصيغ ما عدا الفيديو)
-**ملاحظة:** "بدون" بنهاية طلبك غير مكتملة — أفترض المقصود **بدون فيديو** (نفس منطق `vehiclePhotos` الحالي يقبل فيديو، نخلي الجديد صور/PDF/أوفيس فقط). إذا قصدك شي تاني وضّحلي.
+### 4. جدول `chat_reads`
+- `thread_id uuid`, `user_id uuid`, `last_read_at timestamptz`, PK مركّب. لحساب عدد الرسائل غير المقروءة.
 
-**الملفات:**
-- `src/services/api.ts`: حقل جديد `images.attachments: Array<{name, type, size, url}>`
-- `src/routes/index.tsx`: قسم Optional uploads — إضافة `MultiUploadCard` جديد:
-  - `min={0}`, `max={Infinity}` (أو 20 كحد أمان)
-  - accept: `image/*,application/pdf,.doc,.docx,.xls,.xlsx` (بدون فيديو)
-- `src/routes/requests.$id.tsx`: عرض المرفقات الإضافية بقسم منفصل + ZIP يضمها
+### 5. جدول `chat_typing` (اختياري خفيف، يكفينا Realtime broadcast بدون جدول)
+سنستخدم Supabase **Realtime Presence/Broadcast** لحالة typing بدون تخزين.
 
-## 7. رفع حد حجم الملف من 2MB إلى 5MB
-**الملفات:**
-- `src/lib/imageUtils.ts`: `MAX_PDF_BYTES = 5 * 1024 * 1024`
-- `src/components/MultiUploadCard.tsx`: `IMAGE_MAX_BYTES = 5 * 1024 * 1024`
-- `src/components/UploadCard.tsx`: `MAX_BYTES = 5 * 1024 * 1024`
-- تحديث رسائل الخطأ (`tooLarge`) لتعكس 5MB
+### RLS
+- `chat_threads`: SELECT للسوبرفايزر/الايجنت المعنيين + admin.
+- `chat_messages`: SELECT/INSERT لأطراف الـ thread فقط + admin يقرأ الكل.
+- `chat_reads`: كل user يحدّث صفه فقط.
+- تفعيل Realtime على `chat_messages` و `chat_threads`.
 
-## تفاصيل تقنية
+### Storage
+- استخدام bucket `request-docs` نفسه أو إنشاء bucket جديد `chat-attachments` (private) مع policies لأطراف المحادثة.
 
-### Migration للبيانات الموجودة
-- `readRequests` في `api.ts` ينضاف له:
-  - تعبئة `notes: []` للطلبات القديمة
-  - تعبئة `images.attachments: []`
-- لا migrations DB لأن المشروع localStorage demo حالياً
+## التغييرات في الواجهة
 
-### الحالات النهائية
-`new` → `linkSent` → `processing` → (`sold` | `rejected` | `reupload`)
+### مكوّن `<ChatWidget />` (يظهر بكل صفحات Dashboard)
+- زر عائم أسفل يمين فيه badge بعدد الرسائل غير المقروءة (مجموع كل الـ threads).
+- بالضغط يفتح Drawer/Sheet:
+  - **للسوبرفايزر**: قائمة الايجنتس (مع badge لكل واحد + آخر رسالة + الوقت)، الضغط يفتح المحادثة.
+  - **للايجنت**: يفتح مباشرة على المحادثة الوحيدة مع سوبرفايزره.
+  - **للادمن**: قائمة كل الـ threads (read-only أو participate).
 
-### ملفات ستُعدّل (ملخص)
-- `src/services/api.ts` (types + notes API + attachments + appendFiles)
-- `src/i18n/translations.ts` (AR/EN strings كثيرة)
-- `src/routes/index.tsx` (إخفاء login + min=1 + attachments card)
-- `src/routes/requests.$id.tsx` (notes section + linkSent + copy reupload link + attachments)
-- `src/routes/r.$requestId.tsx` (جديد — صفحة رفع نواقص)
-- `src/router.tsx` / route tree (auto-gen)
-- `src/components/StatusBadge.tsx` (لون linkSent)
-- `src/components/MultiUploadCard.tsx` (5MB + min=1 path)
-- `src/components/UploadCard.tsx` (5MB)
-- `src/lib/imageUtils.ts` (5MB)
+### مكوّن `<ChatThread />`
+- Header: اسم الطرف الآخر + حالة online (presence).
+- Body: رسائل بترتيب زمني، فقاعات (مرسل يمين / مستقبِل يسار)، الوقت، اسم المرسل، حالة قراءة (✓ / ✓✓).
+- مؤشر "يكتب الآن…" تحت آخر رسالة.
+- Input: نص + زر 📎 مرفق + زر إرسال. Enter للإرسال، Shift+Enter سطر جديد.
+- المرفقات: صور preview inline، باقي الملفات chip قابل للتحميل.
 
-## نقطة تحتاج تأكيد
-- المرفقات الإضافية: **بدون فيديو** صح؟ أم **بدون نوع معين آخر**؟
+### إشعارات
+- subscribe على `chat_messages` realtime → تحديث badge مباشرة + toast لو الـ widget مغلق.
+- favicon/title prefix: `(3) Dashboard…` لما في رسائل غير مقروءة.
+
+### Typing & Read
+- **Typing**: Supabase Channel `chat:thread:{id}` + presence/broadcast لحدث `typing` (debounce 1s).
+- **Read receipts**: لما الـ thread مفتوح + الرسالة ظاهرة → upsert `chat_reads.last_read_at = now()`. الطرف الآخر يستعلم/يشترك ويعرض ✓✓.
+
+## التغييرات في الادمن
+
+في صفحة `/agents`: عند تحرير ايجنت، إضافة dropdown **"السوبرفايزر المسؤول"** يختار من user_roles=supervisor → يحفظ في `agents.supervisor_user_id`.
+
+في صفحة `/admin`: زر **"المحادثات"** لعرض كل الـ threads (للمراقبة).
+
+## التغييرات على القائمة الموجودة
+
+- إضافة الـ `<ChatWidget />` داخل `DashboardShell.tsx` (يظهر تلقائياً في admin/agent/audit/agents/requests).
+- لا يظهر للعميل (صفحة `/` و `/r/$requestId`).
+- إضافة ترجمات AR/EN لكل نصوص الشات.
+
+## الملفات الجديدة/المعدّلة
+
+**جديدة:**
+- `src/components/ChatWidget.tsx`
+- `src/components/ChatThread.tsx`
+- `src/components/ChatThreadList.tsx` (للسوبرفايزر/الادمن)
+- `src/services/chat.ts` (CRUD + realtime helpers)
+- `src/hooks/useUnreadChatCount.ts`
+
+**معدّلة:**
+- `src/components/DashboardShell.tsx` — حقن ChatWidget
+- `src/components/AgentFormDialog.tsx` — حقل اختيار السوبرفايزر
+- `src/i18n/translations.ts` — نصوص الشات
+- migration واحدة لكل التغييرات أعلاه
+
+## ملاحظات وقرارات
+
+1. **هل نحتاج إنشاء أدوار supervisor الآن؟** نعم، لازم يكون عندك على الأقل user واحد بدور `supervisor` ثم تربط الايجنتس فيه من شاشة Agents. تحب أضيف صفحة لإدارة السوبرفايزرز أو يكفي ترقية user يدوياً من الادمن؟
+2. **حد حجم المرفق**: نفس حد الرفع الحالي (5MB) — موافق؟
+3. **سجل/أرشفة**: الرسائل تبقى محفوظة بدون حذف تلقائي.
+
+بعد موافقتك، أنفّذ كل الخطوات بمرّة واحدة (migration + realtime + UI + إشعارات).

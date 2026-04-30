@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Lock, Loader2, X } from "lucide-react";
 import { useLang } from "@/i18n/LanguageProvider";
-import { listBranches, type Agent, type AgentRole } from "@/services/api";
+import { listAgents, listBranches, type Agent, type AgentRole } from "@/services/api";
 
 export type AgentFormValues = {
   name: string;
@@ -10,6 +10,7 @@ export type AgentFormValues = {
   agentId: string;
   branch: string;
   role: AgentRole;
+  supervisorId?: string;
 };
 
 export function AgentFormDialog({
@@ -31,9 +32,12 @@ export function AgentFormDialog({
     name: "", email: "", password: "", agentId: "",
     branch: listBranches()[0] ?? "",
     role: lockedRole ?? defaultRole ?? "agent",
+    supervisorId: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const supervisors = useMemo(() => listAgents().filter((a) => a.role === "supervisor"), [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -45,6 +49,7 @@ export function AgentFormDialog({
       agentId: initial?.id ?? "",
       branch: lockedBranch ?? initial?.branch ?? (listBranches()[0] ?? ""),
       role: lockedRole ?? initial?.role ?? defaultRole ?? "agent",
+      supervisorId: initial?.supervisorId ?? "",
     });
   }, [open, initial, lockedBranch, lockedRole, defaultRole]);
 
@@ -167,6 +172,23 @@ export function AgentFormDialog({
               />
             </Field>
           </div>
+
+          {!isSupervisorForm && (
+            <Field label={t.agents.supervisorLabel ?? "السوبرفايزر"}>
+              <select
+                value={values.supervisorId ?? ""}
+                onChange={(e) => setValues((v) => ({ ...v, supervisorId: e.target.value }))}
+                className="h-11 w-full rounded-xl border border-input bg-surface px-3 text-sm text-foreground"
+              >
+                <option value="">{t.agents.supervisorAuto ?? "تلقائي حسب الفرع"}</option>
+                {supervisors.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}{s.branch ? ` — ${s.branch}` : ""}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
 
           {error && <p className="text-sm font-medium text-destructive">{error}</p>}
 
