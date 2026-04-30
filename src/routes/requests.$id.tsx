@@ -383,30 +383,11 @@ function RequestDetails() {
             </div>
           )}
 
-          {/* Notes & missing items + copy reupload link */}
-          <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-start">
-            <NotesSection
-              req={req}
-              onUpdated={(r) => setReq(r)}
-            />
-            <div className="lg:pt-1">
-              <button
-                onClick={async () => {
-                  const url = `${window.location.origin}/r/${encodeURIComponent(req.id)}`;
-                  try {
-                    await navigator.clipboard.writeText(url);
-                    toast.success(t.details.reuploadLinkCopied);
-                  } catch {
-                    window.prompt(t.details.copyReuploadLink, url);
-                  }
-                }}
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-semibold text-foreground shadow-soft transition hover:bg-muted active:scale-95 lg:w-auto"
-              >
-                <Link2 className="h-4 w-4" />
-                {t.details.copyReuploadLink}
-              </button>
-            </div>
-          </div>
+          {/* Notes & missing items (copy link button is inside the section header) */}
+          <NotesSection
+            req={req}
+            onUpdated={(r) => setReq(r)}
+          />
 
           {/* Actions */}
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -629,6 +610,16 @@ function NotesSection({
     }
   };
 
+  const copyReuploadLink = async () => {
+    const url = `${window.location.origin}/r/${encodeURIComponent(req.id)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(t.details.reuploadLinkCopied);
+    } catch {
+      window.prompt(t.details.copyReuploadLink, url);
+    }
+  };
+
   const notes = req.notes ?? [];
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString(lang === "ar" ? "ar-AE" : "en-GB", {
@@ -638,9 +629,18 @@ function NotesSection({
 
   return (
     <section className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-card">
-      <div className="mb-3 flex items-center gap-2">
-        <MessageSquare className="h-4 w-4 text-primary" />
-        <h3 className="text-sm font-bold text-foreground">{t.details.notesTitle}</h3>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-bold text-foreground">{t.details.notesTitle}</h3>
+        </div>
+        <button
+          onClick={copyReuploadLink}
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-foreground shadow-soft transition hover:bg-muted active:scale-95"
+        >
+          <Link2 className="h-3.5 w-3.5" />
+          {t.details.copyReuploadLink}
+        </button>
       </div>
 
       {notes.length === 0 ? (
