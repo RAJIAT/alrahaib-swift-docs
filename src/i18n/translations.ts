@@ -400,6 +400,10 @@ export const translations = {
       downloadAll: "Download all (ZIP)",
       downloadStarted: "Download started",
       downloadFailed: "Download failed",
+      shareEmail: "Share via email",
+      shareEmailSubject: "Request documents",
+      shareEmailBody: "Attached is a ZIP file containing all request documents",
+      shareEmailHint: "ZIP downloaded — attach it to the email before sending",
     },
     agent: {
       yoursOnly: "These requests are yours only",
