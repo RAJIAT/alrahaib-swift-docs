@@ -82,6 +82,10 @@ function UploadPage() {
 
   const onSubmit = async () => {
     const parsed = kycSchema.safeParse({ customerName, customerEmail, customerPhone });
+    const missing: string[] = [];
+    if (!registrationOk) missing.push(t.upload.cards.registration);
+    if (!emiratesOk) missing.push(t.upload.cards.emirates);
+    if (!licenseOk) missing.push(t.upload.cards.license);
     if (!parsed.success) {
       const fieldErrors: { name?: string; email?: string; phone?: string } = {};
       for (const issue of parsed.error.issues) {
@@ -90,11 +94,15 @@ function UploadPage() {
         if (issue.path[0] === "customerPhone") fieldErrors.phone = issue.message;
       }
       setErrors(fieldErrors);
+      if (missing.length > 0) toast.error(t.upload.errors.missingDocs(missing.join("، ")));
       scrollToKyc();
       return;
     }
     setErrors({});
-    if (!docsReady || license.length < 1) return;
+    if (missing.length > 0) {
+      toast.error(t.upload.errors.missingDocs(missing.join("، ")));
+      return;
+    }
     setSubmitting(true);
     try {
       const { id } = await submitUpload({
@@ -256,7 +264,7 @@ function UploadPage() {
             hint={t.upload.registrationHint}
             files={registration}
             onChange={setRegistration}
-            min={2}
+            min={1}
             max={2}
           />
           <MultiUploadCard
@@ -264,7 +272,7 @@ function UploadPage() {
             hint={t.upload.emiratesHint}
             files={emirates}
             onChange={setEmirates}
-            min={2}
+            min={1}
             max={2}
           />
           <MultiUploadCard
@@ -272,7 +280,7 @@ function UploadPage() {
             hint={t.upload.licenseHint}
             files={license}
             onChange={setLicense}
-            min={2}
+            min={1}
             max={2}
           />
         </section>
@@ -318,7 +326,7 @@ function UploadPage() {
 
       <div className="mx-auto mt-8 max-w-2xl px-4 pb-8">
         <button
-          disabled={!ready || submitting}
+          disabled={submitting}
           onClick={onSubmit}
           className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-base font-bold text-primary-foreground shadow-elevated transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
         >
