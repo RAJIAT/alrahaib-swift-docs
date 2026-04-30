@@ -1,6 +1,6 @@
-import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
-import { Loader2, Check, ShieldCheck, User, Zap } from "lucide-react";
+import { Loader2, Check, ShieldCheck, User, Zap, LogIn } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
