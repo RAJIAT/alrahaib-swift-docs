@@ -242,19 +242,55 @@ export async function refreshCurrentUser(): Promise<AuthUser | null> {
 
 function readRequests(): InsuranceRequest[] {
   const list = readJSON<InsuranceRequest[]>(REQUESTS_KEY, []);
-  // Migration: older requests stored single registration/emirates fields.
+  // Migration: older requests stored single registration/emirates strings,
+  // separate front/back fields, and a vehiclePhotos[] + vehicleVideo split.
+  // Normalize to the current shape so existing pages keep working.
   return list.map((r) => {
-    const img = r.images as InsuranceRequest["images"] & { registration?: string; emirates?: string };
-    if (img.registration && !img.registrationFront) {
-      img.registrationFront = img.registration;
-      img.registrationBack = img.registrationBack ?? "";
+    type LegacyImg = {
+      registration?: string | string[];
+      registrationFront?: string;
+      registrationBack?: string;
+      license?: string;
+      emirates?: string | string[];
+      emiratesFront?: string;
+      emiratesBack?: string;
+      vehiclePhotos?: string[];
+      vehicleMedia?: InsuranceRequest["images"]["vehicleMedia"];
+      vehicleVideo?: { name: string; size: number; type: string };
+      inspection?: string;
+    };
+    const img = r.images as unknown as LegacyImg;
+    // Registration → string[]
+    let registration: string[];
+    if (Array.isArray(img.registration)) registration = img.registration.filter(Boolean);
+    else {
+      registration = [img.registrationFront, img.registrationBack, typeof img.registration === "string" ? img.registration : undefined]
+        .filter((x): x is string => !!x);
     }
-    if (img.emirates && !img.emiratesFront) {
-      img.emiratesFront = img.emirates;
-      img.emiratesBack = img.emiratesBack ?? "";
+    // Emirates → string[]
+    let emirates: string[];
+    if (Array.isArray(img.emirates)) emirates = img.emirates.filter(Boolean);
+    else {
+      emirates = [img.emiratesFront, img.emiratesBack, typeof img.emirates === "string" ? img.emirates : undefined]
+        .filter((x): x is string => !!x);
     }
-    if (!img.vehiclePhotos) img.vehiclePhotos = [];
-    return r;
+    // vehicleMedia from old vehiclePhotos[] + vehicleVideo
+    let vehicleMedia = img.vehicleMedia;
+    if (!vehicleMedia) {
+      vehicleMedia = [];
+      (img.vehiclePhotos ?? []).forEach((url) => vehicleMedia!.push({ kind: "image", url }));
+      if (img.vehicleVideo) vehicleMedia.push({ kind: "video", ...img.vehicleVideo });
+    }
+    return {
+      ...r,
+      images: {
+        registration,
+        license: img.license ?? "",
+        emirates,
+        vehicleMedia,
+        inspection: img.inspection,
+      },
+    };
   });
 }
 
@@ -313,29 +349,32 @@ export async function submitUpload(input: {
   customerName?: string;
   customerEmail?: string;
   images: {
-    registrationFront: File;
-    registrationBack: File;
+    /** Front + back images of the registration card (in this order). */
+    registration: File[];
     license: File;
-    emiratesFront: File;
-    emiratesBack: File;
-    vehiclePhotos: File[];
+    /** Front + back images of the Emirates ID (in this order). */
+    emirates: File[];
+    /** Mix of vehicle photos and videos. */
+    vehicleMedia: File[];
   };
-  optional?: { inspection?: File | null; vehicleVideo?: File | null };
+  optional?: { inspection?: File | null };
 }): Promise<{ id: string }> {
-  const [registrationFront, registrationBack, license, emiratesFront, emiratesBack] = await Promise.all([
-    fileToDataUrl(input.images.registrationFront),
-    fileToDataUrl(input.images.registrationBack),
+  const [license, registration, emirates] = await Promise.all([
     fileToDataUrl(input.images.license),
-    fileToDataUrl(input.images.emiratesFront),
-    fileToDataUrl(input.images.emiratesBack),
+    Promise.all(input.images.registration.map((f) => fileToDataUrl(f))),
+    Promise.all(input.images.emirates.map((f) => fileToDataUrl(f))),
   ]);
-  const vehiclePhotos = await Promise.all(input.images.vehiclePhotos.map((f) => fileToDataUrl(f)));
   const inspection = input.optional?.inspection ? await fileToDataUrl(input.optional.inspection) : undefined;
-  // Demo mode: avoid storing the full video data URL in localStorage (quota
-  // limits ~5MB). Store metadata only — the real upload happens in backend mode.
-  const vehicleVideo = input.optional?.vehicleVideo
-    ? { name: input.optional.vehicleVideo.name, size: input.optional.vehicleVideo.size, type: input.optional.vehicleVideo.type }
-    : undefined;
+  // Demo mode: store image data URLs but only video metadata (localStorage
+  // ~5MB quota). Real backend will replace with object storage URLs.
+  const vehicleMedia: InsuranceRequest["images"]["vehicleMedia"] = [];
+  for (const f of input.images.vehicleMedia) {
+    if (f.type.startsWith("video/")) {
+      vehicleMedia.push({ kind: "video", name: f.name, size: f.size, type: f.type });
+    } else {
+      vehicleMedia.push({ kind: "image", url: await fileToDataUrl(f) });
+    }
+  }
 
   const agent = listAgents().find((a) => a.id === input.agentId);
   const all = readRequests();
@@ -350,7 +389,7 @@ export async function submitUpload(input: {
     createdAt: new Date().toISOString(),
     customerName: input.customerName,
     customerEmail: input.customerEmail,
-    images: { registrationFront, registrationBack, license, emiratesFront, emiratesBack, vehiclePhotos, inspection, vehicleVideo },
+    images: { registration, license, emirates, vehicleMedia, inspection },
   };
   all.unshift(req);
   writeRequests(all);
