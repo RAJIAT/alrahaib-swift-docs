@@ -368,8 +368,52 @@ function RequestDetails() {
             </div>
           )}
 
+          {/* Other attachments */}
+          {req.images.attachments && req.images.attachments.length > 0 && (
+            <div className="mt-6">
+              <h3 className="mb-3 text-sm font-bold text-foreground">{t.details.attachments}</h3>
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                {req.images.attachments.map((a, idx) => (
+                  <a
+                    key={idx}
+                    href={a.url}
+                    download={a.name}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-soft transition hover:bg-muted"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold text-foreground" title={a.name}>{a.name}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {(a.size / 1024).toFixed(0)} KB · {a.type || "file"}
+                      </div>
+                    </div>
+                    <Download className="h-4 w-4 text-muted-foreground" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Notes & missing items */}
+          <NotesSection
+            req={req}
+            onUpdated={(r) => setReq(r)}
+          />
+
           {/* Actions */}
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <button
+              onClick={() => setStatus("linkSent", "linkSent")}
+              disabled={saving}
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface text-sm font-semibold text-foreground shadow-soft transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {savingAction === "linkSent" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {t.details.markLinkSent}
+            </button>
             <button
               onClick={() => setStatus("processing", "quote")}
               disabled={saving}
