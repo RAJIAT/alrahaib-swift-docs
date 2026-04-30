@@ -193,8 +193,17 @@ function AdminAgents() {
               <IconBtn label={a.active ? t.agents.suspend : t.agents.activate} onClick={() => onToggle(a)}>
                 <Power className="h-4 w-4" />
               </IconBtn>
-              {canDelete && (
+              {canDelete ? (
                 <IconBtn danger label={t.agents.delete} onClick={() => onDelete(a)}>
+                  <Trash2 className="h-4 w-4" />
+                </IconBtn>
+              ) : (
+                <IconBtn
+                  danger
+                  disabledLook
+                  label={t.agents.supervisorNoDelete}
+                  onClick={() => toast.error(t.agents.supervisorNoDelete)}
+                >
                   <Trash2 className="h-4 w-4" />
                 </IconBtn>
               )}
