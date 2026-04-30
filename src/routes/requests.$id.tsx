@@ -353,6 +353,41 @@ function RequestDetails() {
             </div>
           )}
 
+          {/* Missing docs uploaded by the customer (separate from agent's attachments) */}
+          {req.images.missingAttachments && req.images.missingAttachments.length > 0 && (
+            <div className="mt-6">
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-foreground">
+                <span className="inline-flex h-5 items-center rounded-full bg-warning/20 px-2 text-[11px] font-semibold text-warning-foreground">
+                  {t.details.noteKindMissing}
+                </span>
+                {t.details.missingAttachments}
+              </h3>
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                {req.images.missingAttachments.map((a, idx) => (
+                  <a
+                    key={idx}
+                    href={a.url}
+                    download={a.name}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-3 rounded-xl border border-warning/30 bg-warning/5 p-3 shadow-soft transition hover:bg-warning/10"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-warning/20 text-warning-foreground">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold text-foreground" title={a.name}>{a.name}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {(a.size / 1024).toFixed(0)} KB · {a.type || "file"}
+                      </div>
+                    </div>
+                    <Download className="h-4 w-4 text-muted-foreground" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Other attachments */}
           {req.images.attachments && req.images.attachments.length > 0 && (
             <div className="mt-6">
