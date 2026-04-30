@@ -6,7 +6,33 @@
  * any server.
  */
 
-export type RequestStatus = "new" | "processing" | "sold" | "rejected" | "reupload";
+export type RequestStatus =
+  | "new"
+  | "linkSent"
+  | "processing"
+  | "sold"
+  | "rejected"
+  | "reupload";
+
+export type RequestNoteKind = "comment" | "missing";
+
+export type RequestNote = {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorRole: "admin" | "supervisor" | "agent";
+  text: string;
+  kind: RequestNoteKind;
+  createdAt: string;
+  resolvedAt?: string;
+};
+
+export type AttachmentMeta = {
+  name: string;
+  type: string;
+  size: number;
+  url: string;
+};
 
 export type InsuranceRequest = {
   id: string;
@@ -19,6 +45,7 @@ export type InsuranceRequest = {
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
+  notes: RequestNote[];
   images: {
     /** Vehicle registration card images (front + back, in that order). */
     registration: string[];
@@ -32,6 +59,8 @@ export type InsuranceRequest = {
       | { kind: "video"; name: string; size: number; type: string }
     >;
     inspection?: string;
+    /** Free-form attachments (images, PDF, docs — no video). */
+    attachments: AttachmentMeta[];
   };
 };
 
@@ -261,30 +290,27 @@ function readRequests(): InsuranceRequest[] {
       vehicleMedia?: InsuranceRequest["images"]["vehicleMedia"];
       vehicleVideo?: { name: string; size: number; type: string };
       inspection?: string;
+      attachments?: AttachmentMeta[];
     };
     const img = r.images as unknown as LegacyImg;
-    // Registration → string[]
     let registration: string[];
     if (Array.isArray(img.registration)) registration = img.registration.filter(Boolean);
     else {
       registration = [img.registrationFront, img.registrationBack, typeof img.registration === "string" ? img.registration : undefined]
         .filter((x): x is string => !!x);
     }
-    // Emirates → string[]
     let emirates: string[];
     if (Array.isArray(img.emirates)) emirates = img.emirates.filter(Boolean);
     else {
       emirates = [img.emiratesFront, img.emiratesBack, typeof img.emirates === "string" ? img.emirates : undefined]
         .filter((x): x is string => !!x);
     }
-    // vehicleMedia from old vehiclePhotos[] + vehicleVideo
     let vehicleMedia = img.vehicleMedia;
     if (!vehicleMedia) {
       vehicleMedia = [];
       (img.vehiclePhotos ?? []).forEach((url) => vehicleMedia!.push({ kind: "image", url }));
       if (img.vehicleVideo) vehicleMedia.push({ kind: "video", ...img.vehicleVideo });
     }
-    // License → string[]
     let license: string[];
     if (Array.isArray(img.license)) license = img.license.filter(Boolean);
     else {
@@ -293,12 +319,16 @@ function readRequests(): InsuranceRequest[] {
     }
     return {
       ...r,
+      notes: Array.isArray((r as unknown as { notes?: RequestNote[] }).notes)
+        ? (r as unknown as { notes: RequestNote[] }).notes
+        : [],
       images: {
         registration,
         license,
         emirates,
         vehicleMedia,
         inspection: img.inspection,
+        attachments: Array.isArray(img.attachments) ? img.attachments : [],
       },
     };
   });
@@ -360,14 +390,11 @@ export async function submitUpload(input: {
   customerEmail?: string;
   customerPhone?: string;
   images: {
-    /** Front + back images of the registration card (in this order). */
     registration: File[];
-    /** Front + back images of the driving license (in this order). */
     license: File[];
-    /** Front + back images of the Emirates ID (in this order). */
     emirates: File[];
-    /** Mix of vehicle photos and videos. */
     vehicleMedia: File[];
+    attachments?: File[];
   };
   optional?: { inspection?: File | null };
 }): Promise<{ id: string }> {
@@ -377,8 +404,6 @@ export async function submitUpload(input: {
     Promise.all(input.images.emirates.map((f) => fileToDataUrl(f))),
   ]);
   const inspection = input.optional?.inspection ? await fileToDataUrl(input.optional.inspection) : undefined;
-  // Demo mode: store image data URLs but only video metadata (localStorage
-  // ~5MB quota). Real backend will replace with object storage URLs.
   const vehicleMedia: InsuranceRequest["images"]["vehicleMedia"] = [];
   for (const f of input.images.vehicleMedia) {
     if (f.type.startsWith("video/")) {
@@ -386,6 +411,15 @@ export async function submitUpload(input: {
     } else {
       vehicleMedia.push({ kind: "image", url: await fileToDataUrl(f) });
     }
+  }
+  const attachments: AttachmentMeta[] = [];
+  for (const f of input.images.attachments ?? []) {
+    attachments.push({
+      name: f.name,
+      type: f.type,
+      size: f.size,
+      url: await fileToDataUrl(f),
+    });
   }
 
   const agent = listAgents().find((a) => a.id === input.agentId);
@@ -402,12 +436,94 @@ export async function submitUpload(input: {
     customerName: input.customerName,
     customerEmail: input.customerEmail,
     customerPhone: input.customerPhone,
-    images: { registration, license, emirates, vehicleMedia, inspection },
+    notes: [],
+    images: { registration, license, emirates, vehicleMedia, inspection, attachments },
   };
   all.unshift(req);
   writeRequests(all);
   notifyChange();
   return { id };
+}
+
+// ---------------------------------------------------------------------------
+// Notes / missing items
+// ---------------------------------------------------------------------------
+
+export async function addRequestNote(
+  requestId: string,
+  input: { text: string; kind: RequestNoteKind },
+): Promise<InsuranceRequest> {
+  const me = getCurrentUser();
+  if (!me) throw new Error("Not authenticated");
+  const all = readRequests();
+  const idx = all.findIndex((r) => r.id === requestId || r.uuid === requestId);
+  if (idx === -1) throw new Error("Request not found");
+  const note: RequestNote = {
+    id: uuid(),
+    authorId: me.id,
+    authorName: me.name,
+    authorRole: me.role,
+    text: input.text.trim(),
+    kind: input.kind,
+    createdAt: new Date().toISOString(),
+  };
+  all[idx] = { ...all[idx], notes: [...(all[idx].notes ?? []), note] };
+  writeRequests(all);
+  notifyChange();
+  return all[idx];
+}
+
+export async function resolveRequestNote(
+  requestId: string,
+  noteId: string,
+): Promise<InsuranceRequest> {
+  const all = readRequests();
+  const idx = all.findIndex((r) => r.id === requestId || r.uuid === requestId);
+  if (idx === -1) throw new Error("Request not found");
+  const notes = (all[idx].notes ?? []).map((n) =>
+    n.id === noteId && !n.resolvedAt ? { ...n, resolvedAt: new Date().toISOString() } : n,
+  );
+  all[idx] = { ...all[idx], notes };
+  writeRequests(all);
+  notifyChange();
+  return all[idx];
+}
+
+/** Append additional attachments to an existing request (used by /r/$id reupload page). */
+export async function appendAttachmentsToRequest(
+  requestId: string,
+  files: File[],
+): Promise<InsuranceRequest> {
+  const all = readRequests();
+  const idx = all.findIndex((r) => r.id === requestId || r.uuid === requestId);
+  if (idx === -1) throw new Error("Request not found");
+  const newAttachments: AttachmentMeta[] = [];
+  for (const f of files) {
+    if (f.type.startsWith("video/")) continue;
+    newAttachments.push({
+      name: f.name,
+      type: f.type,
+      size: f.size,
+      url: await fileToDataUrl(f),
+    });
+  }
+  const cur = all[idx];
+  // Auto-resolve open "missing" notes and move status back to processing.
+  const notes = (cur.notes ?? []).map((n) =>
+    n.kind === "missing" && !n.resolvedAt ? { ...n, resolvedAt: new Date().toISOString() } : n,
+  );
+  all[idx] = {
+    ...cur,
+    status: "processing",
+    notes,
+    images: {
+      ...cur.images,
+      attachments: [...(cur.images.attachments ?? []), ...newAttachments],
+    },
+  };
+  writeRequests(all);
+  notifyChange();
+  return all[idx];
 }
 
 export function isDemoMode() { return true; }

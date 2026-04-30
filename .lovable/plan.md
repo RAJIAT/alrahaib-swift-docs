@@ -1,49 +1,98 @@
-## إضافة حقل رقم الهاتف الإجباري
+# خطة تحديثات صفحة المشرف ورفع الملفات
 
-### الهدف
-إضافة حقل **رقم الهاتف** كحقل ثالث إجباري ضمن قسم "بيانات العميل" (KYC) في الصفحة الرئيسية `/`، بنفس مستوى الإلزامية للاسم والبريد، مع عرضه في صفحة تفاصيل الطلب.
+## 1. إخفاء زر تسجيل الدخول من صفحة العميل
+**الملف:** `src/routes/index.tsx`
+- حذف الـ `<Link to="/login">` (السطور 134-140) من header صفحة الرفع
+- يبقى الشعار والـ LanguageSwitcher فقط — الشعار ما يحوّل لأي مكان للعميل
+- ملاحظة: المسؤولون لسا يقدروا يفتحوا `/login` مباشرة من شريط العنوان
 
-### الملفات المعدّلة
+## 2. حالة جديدة "تم إرسال الرابط" (linkSent)
+**الملفات:**
+- `src/services/api.ts`: إضافة `"linkSent"` إلى `RequestStatus`
+- `src/i18n/translations.ts`: ترجمات AR/EN (مثلاً "تم إرسال الرابط" / "Link sent")
+- `src/components/StatusBadge.tsx`: لون مميز (مثلاً أزرق فاتح)
+- `src/routes/requests.$id.tsx`: إضافة الحالة في dropdown تغيير الحالة
+- متاح يدوياً للعميل (الايجنت) وللسوبرفايزر
 
-**1. `src/services/api.ts`**
-- إضافة `customerPhone?: string` إلى نوع `InsuranceRequest`.
-- إضافة `customerPhone?: string` إلى مدخلات `submitUpload` وحفظه ضمن الطلب.
+## 3. نظام الكومنتات (نواقص + ملاحظات داخلية)
+**هيكل البيانات الجديد** على كل طلب:
+```
+notes: Array<{
+  id, authorId, authorName, authorRole,
+  text, kind: "comment" | "missing",
+  createdAt, resolvedAt?
+}>
+```
+**الملفات:**
+- `src/services/api.ts`: إضافة `notes[]` لـ `InsuranceRequest` + دوال `addNote` / `resolveNote`
+- `src/routes/requests.$id.tsx`: قسم جديد "ملاحظات ونواقص" جنب الـ Actions (مش thread منفصل):
+  - حقل إدخال + زرّين: "إضافة كومنت" و "إضافة نقص"
+  - عرض كرونولوجي مع: اسم الكاتب، الدور (Agent/Supervisor/Admin)، الوقت، نوع المدخل (شارة)
+  - النواقص لها زر "تم الحل" (يضيف `resolvedAt`)
+- يشوفه: agent + supervisor + admin (الكل على نفس الطلب)
 
-**2. `src/routes/index.tsx`**
-- إضافة state جديد: `const [customerPhone, setCustomerPhone] = useState("")`.
-- إضافة الحقل في `errors` state: `phone?: string`.
-- توسيع `kycSchema` (Zod) بحقل phone:
-  ```ts
-  customerPhone: z.string()
-    .trim()
-    .min(1, t.upload.errors.phoneRequired)
-    .regex(/^\+?[0-9\s-]{7,20}$/, t.upload.errors.phoneInvalid)
-    .max(20)
-  ```
-- تحديث `safeParse` و `onSubmit` لتمرير `customerPhone` ومعالجة أخطائه.
-- تحويل grid قسم KYC إلى 3 أعمدة على الشاشات المتوسطة فأكبر (`sm:grid-cols-2 md:grid-cols-3`) لاستيعاب الحقل الثالث.
-- إضافة input للهاتف بعد الإيميل: `type="tel"`, `inputMode="tel"`, `autoComplete="tel"`, `dir="ltr"`, `maxLength={20}`، placeholder مثل `+971 50 123 4567`.
+## 4. رابط النواقص للعميل (نفس الكيس)
+**التصرف:** الرابط الموجود حالياً للطلب الجديد (`/`) يُعاد استخدامه — لما السوبرفايزر يضيف "نقص" + يحوّل الحالة لـ `reupload`، يقدر ينسخ رابط خاص بنفس الكيس:
 
-**3. `src/i18n/translations.ts`**
-- إضافة في قسم `upload.kyc` (عربي وإنجليزي):
-  - `phoneLabel`: "رقم الهاتف" / "Phone Number"
-  - `phonePlaceholder`: "+971 50 123 4567"
-- إضافة في `upload.errors`:
-  - `phoneRequired`: "رقم الهاتف مطلوب" / "Phone number is required"
-  - `phoneInvalid`: "صيغة رقم الهاتف غير صحيحة" / "Invalid phone number format"
-- إضافة في `details`:
-  - `customerPhone`: "رقم الهاتف" / "Phone"
+**الرابط الجديد:** `/r/$requestId` (route جديد)
+- يفتح صفحة رفع مبسطة للعميل (بدون header login، بدون KYC)
+- يعرض قائمة النواقص المطلوبة (من `notes` كنوع `missing` غير محلولة)
+- يسمح برفع ملفات جديدة تنضاف لنفس الـ request
+- بعد الرفع: الحالة ترجع `processing` تلقائياً والنواقص تتعلّم resolved
 
-**4. `src/routes/requests.$id.tsx`**
-- توسيع شرط عرض بطاقة العميل ليشمل `customerPhone`.
-- إضافة سطر لعرض رقم الهاتف بـ `dir="ltr"` بجانب الاسم والإيميل.
+**الملفات:**
+- `src/routes/r.$requestId.tsx` (route جديد)
+- `src/services/api.ts`: دالة `appendFilesToRequest(id, files[])`
+- زر "نسخ رابط النواقص" بصفحة `requests/$id` يظهر فقط لما الحالة `reupload`
 
-### التحقق من الإدخال (Security)
-- التحقق من جانب العميل عبر Zod مع regex بسيط يقبل أرقام دولية (`+`, أرقام، مسافات، شرطات).
-- حد أقصى 20 حرف.
-- لا تسجيل (logging) للبيانات الحساسة.
-- عند تفعيل السيرفر لاحقاً، يجب التحقق نفسه على جهة Supabase.
+## 5. رفع الصور: الأولى إجبارية، الثانية اختيارية (حتى لو PDF)
+**الوضع الحالي:** بطاقة الملكية/الرخصة/الهوية كلها `min={2} max={2}` (إجباري وجه + ظهر)
+**التعديل:** تصير `min={1} max={2}` — الوجه إجباري، الظهر اختياري
+**الملفات:**
+- `src/routes/index.tsx`: تحديث الـ 3 بطاقات (registration, license, emirates)
+- `src/components/MultiUploadCard.tsx`: التحقق من سلوك min=1
+- تحديث رسائل التحقق + النصوص التلميحية (`registrationHint`, `licenseHint`, `emiratesHint`)
+- تحديث `docsReady` و `remaining` بحيث يكفي ملف واحد لكل بطاقة
 
-### ملاحظات
-- لا يتغير شيء في تخزين الـ Demo Mode عدا إضافة حقل جديد إلى الكائن المخزن في `localStorage` — البيانات القديمة تبقى سليمة لأن الحقل اختياري في النوع.
-- لا يتم ذكر اسم الشركة في أي نص جديد.
+## 6. مرفقات إضافية (اختيارية، عدد مفتوح، كل الصيغ ما عدا الفيديو)
+**ملاحظة:** "بدون" بنهاية طلبك غير مكتملة — أفترض المقصود **بدون فيديو** (نفس منطق `vehiclePhotos` الحالي يقبل فيديو، نخلي الجديد صور/PDF/أوفيس فقط). إذا قصدك شي تاني وضّحلي.
+
+**الملفات:**
+- `src/services/api.ts`: حقل جديد `images.attachments: Array<{name, type, size, url}>`
+- `src/routes/index.tsx`: قسم Optional uploads — إضافة `MultiUploadCard` جديد:
+  - `min={0}`, `max={Infinity}` (أو 20 كحد أمان)
+  - accept: `image/*,application/pdf,.doc,.docx,.xls,.xlsx` (بدون فيديو)
+- `src/routes/requests.$id.tsx`: عرض المرفقات الإضافية بقسم منفصل + ZIP يضمها
+
+## 7. رفع حد حجم الملف من 2MB إلى 5MB
+**الملفات:**
+- `src/lib/imageUtils.ts`: `MAX_PDF_BYTES = 5 * 1024 * 1024`
+- `src/components/MultiUploadCard.tsx`: `IMAGE_MAX_BYTES = 5 * 1024 * 1024`
+- `src/components/UploadCard.tsx`: `MAX_BYTES = 5 * 1024 * 1024`
+- تحديث رسائل الخطأ (`tooLarge`) لتعكس 5MB
+
+## تفاصيل تقنية
+
+### Migration للبيانات الموجودة
+- `readRequests` في `api.ts` ينضاف له:
+  - تعبئة `notes: []` للطلبات القديمة
+  - تعبئة `images.attachments: []`
+- لا migrations DB لأن المشروع localStorage demo حالياً
+
+### الحالات النهائية
+`new` → `linkSent` → `processing` → (`sold` | `rejected` | `reupload`)
+
+### ملفات ستُعدّل (ملخص)
+- `src/services/api.ts` (types + notes API + attachments + appendFiles)
+- `src/i18n/translations.ts` (AR/EN strings كثيرة)
+- `src/routes/index.tsx` (إخفاء login + min=1 + attachments card)
+- `src/routes/requests.$id.tsx` (notes section + linkSent + copy reupload link + attachments)
+- `src/routes/r.$requestId.tsx` (جديد — صفحة رفع نواقص)
+- `src/router.tsx` / route tree (auto-gen)
+- `src/components/StatusBadge.tsx` (لون linkSent)
+- `src/components/MultiUploadCard.tsx` (5MB + min=1 path)
+- `src/components/UploadCard.tsx` (5MB)
+- `src/lib/imageUtils.ts` (5MB)
+
+## نقطة تحتاج تأكيد
+- المرفقات الإضافية: **بدون فيديو** صح؟ أم **بدون نوع معين آخر**؟

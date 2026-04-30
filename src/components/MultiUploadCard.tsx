@@ -15,9 +15,11 @@ type Props = {
   optional?: boolean;
   /** Allow video files alongside images/PDF. Bumps max size to 50MB. */
   allowVideo?: boolean;
+  /** Allow any file type EXCEPT video (images, PDF, Office docs, etc.). */
+  acceptAny?: boolean;
 };
 
-const IMAGE_MAX_BYTES = 2 * 1024 * 1024; // 2MB for images / PDF
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024; // 5MB for images / PDF / docs
 const VIDEO_MAX_BYTES = 50 * 1024 * 1024; // 50MB for video
 const IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
 
@@ -30,6 +32,7 @@ export function MultiUploadCard({
   min = 0,
   optional,
   allowVideo,
+  acceptAny,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const { t } = useLang();
@@ -50,6 +53,11 @@ export function MultiUploadCard({
   const open = () => inputRef.current?.click();
 
   const isAllowed = (f: File) => {
+    if (acceptAny) {
+      // Any non-video file (images, PDF, Office docs, text, etc.)
+      if (f.type.startsWith("video/")) return false;
+      return f.size <= IMAGE_MAX_BYTES;
+    }
     if (IMAGE_TYPES.includes(f.type)) return f.size <= IMAGE_MAX_BYTES;
     if (allowVideo && f.type.startsWith("video/")) return f.size <= VIDEO_MAX_BYTES;
     return false;
@@ -80,12 +88,16 @@ export function MultiUploadCard({
   };
 
   const canAddMore = files.length < max;
-  const acceptAttr = allowVideo
-    ? "image/jpeg,image/jpg,image/png,application/pdf,video/*"
-    : "image/jpeg,image/jpg,image/png,application/pdf";
-  const formatHint = allowVideo
-    ? "JPG · PNG · PDF · MP4 / MOV (≤ 50MB)"
-    : "JPG · PNG · PDF · ≤ 2MB";
+  const acceptAttr = acceptAny
+    ? "image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.zip"
+    : allowVideo
+      ? "image/jpeg,image/jpg,image/png,application/pdf,video/*"
+      : "image/jpeg,image/jpg,image/png,application/pdf";
+  const formatHint = acceptAny
+    ? "Images · PDF · Docs · ≤ 5MB"
+    : allowVideo
+      ? "JPG · PNG · PDF · MP4 / MOV (≤ 50MB)"
+      : "JPG · PNG · PDF · ≤ 5MB";
   const counterTotal = Math.max(max, min);
   const counterCurrent = files.length;
   const showCounter = files.length > 0 || min > 0;

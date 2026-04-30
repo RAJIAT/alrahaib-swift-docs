@@ -5,7 +5,7 @@
 
 const MAX_EDGE = 1600;
 const JPEG_QUALITY = 0.85;
-const MAX_PDF_BYTES = 2 * 1024 * 1024;
+const MAX_PDF_BYTES = 5 * 1024 * 1024;
 
 export async function fileToStoredDataUrl(file: File): Promise<string> {
   if (file.type.startsWith("image/")) {

@@ -1,6 +1,6 @@
-import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
-import { Loader2, Check, LogIn, ShieldCheck, User, Zap } from "lucide-react";
+import { Loader2, Check, ShieldCheck, User, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -24,14 +24,12 @@ function UploadPage() {
   const navigate = useNavigate();
   const { agent } = useSearch({ from: "/" });
 
-  // Two-image cards (front + back) — single picker each.
+  // Two-image cards (front + back) — front required, back optional.
   const [registration, setRegistration] = useState<File[]>([]);
   const [emirates, setEmirates] = useState<File[]>([]);
-  // License: front + back.
   const [license, setLicense] = useState<File[]>([]);
-  // Combined photos + videos card.
   const [vehicleMedia, setVehicleMedia] = useState<File[]>([]);
-  // Optional.
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [inspection, setInspection] = useState<File | null>(null);
 
   const [customerName, setCustomerName] = useState("");
@@ -46,9 +44,9 @@ function UploadPage() {
     kycRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const registrationOk = registration.length >= 2;
-  const emiratesOk = emirates.length >= 2;
-  const licenseOk = license.length >= 2;
+  const registrationOk = registration.length >= 1;
+  const emiratesOk = emirates.length >= 1;
+  const licenseOk = license.length >= 1;
   const completed = [registrationOk, emiratesOk, licenseOk].filter(Boolean).length;
   const docsReady = completed === 3;
   const remaining = 3 - completed;
@@ -96,7 +94,7 @@ function UploadPage() {
       return;
     }
     setErrors({});
-    if (!docsReady || license.length < 2) return;
+    if (!docsReady || license.length < 1) return;
     setSubmitting(true);
     try {
       const { id } = await submitUpload({
@@ -109,6 +107,7 @@ function UploadPage() {
           license,
           emirates,
           vehicleMedia,
+          attachments,
         },
         optional: { inspection },
       });
@@ -127,18 +126,9 @@ function UploadPage() {
       <header className="px-4 pt-5">
         <div className="mx-auto flex max-w-2xl items-center justify-between gap-2">
           <LanguageSwitcher />
-          <div className="flex items-center gap-3">
-            {agent && (
-              <span className="text-xs text-muted-foreground">{`Agent: ${agent}`}</span>
-            )}
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-muted"
-            >
-              <LogIn className="h-3.5 w-3.5" />
-              {t.auth.title}
-            </Link>
-          </div>
+          {agent && (
+            <span className="text-xs text-muted-foreground">{`Agent: ${agent}`}</span>
+          )}
         </div>
       </header>
 

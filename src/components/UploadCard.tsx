@@ -10,7 +10,7 @@ type Props = {
   optional?: boolean;
 };
 
-const MAX_BYTES = 2 * 1024 * 1024;
+const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
 
 function formatBytes(b: number) {
@@ -152,7 +152,7 @@ export function UploadCard({ label, file, onChange, optional }: Props) {
             <Camera className="h-7 w-7" />
           </div>
           <span className="text-sm font-semibold">{t.upload.capture}</span>
-          <span className="text-[10px] font-medium text-muted-foreground">JPG · PNG · PDF · ≤ 2MB</span>
+          <span className="text-[10px] font-medium text-muted-foreground">JPG · PNG · PDF · ≤ 5MB</span>
         </button>
       )}
     </div>
