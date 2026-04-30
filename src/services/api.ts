@@ -1,10 +1,29 @@
 /**
- * API service layer — DEMO MODE (localStorage only, no backend).
+ * API service layer — Directus-backed.
  *
- * Keeps the same exports as before so the rest of the app keeps working,
- * but every call reads/writes browser localStorage. Nothing is sent to
- * any server.
+ * Every read and write goes to the on-premise Directus instance via the
+ * /api/directus same-origin proxy (see src/routes/api/directus.$.ts). No
+ * business data lives in localStorage anymore — only the Directus session
+ * tokens (handled inside src/services/directus.ts) and a small cached copy
+ * of the current user (so synchronous getCurrentUser() keeps working).
  */
+
+import {
+  dxLogin, dxLogout, dxFetchMe, dxHasSession, isDirectusEnabled,
+  dxListRequests, dxGetRequest, dxCreateRequest, dxUpdateRequestStatus,
+  dxListNotes, dxCreateNote, dxResolveNote,
+  dxListAttachments, dxCreateAttachment,
+  dxListVehicleMedia, dxCreateVehicleMedia,
+  dxListBranches, dxCreateBranch, dxUpdateBranch, dxDeleteBranch,
+  dxListAgents, dxCreateAgent, dxUpdateAgent, dxDeleteAgent,
+  dxUploadFile, dxAssetUrl, dxFetchAsset, isDirectusAssetUrl,
+  type DxUser, type DxRequest, type DxNote, type DxAttachment,
+  type DxVehicleMedia, type DxBranch,
+} from "./directus";
+
+// ---------------------------------------------------------------------------
+// Public types (kept stable so the rest of the app keeps working)
+// ---------------------------------------------------------------------------
 
 export type RequestStatus =
   | "new"
@@ -47,21 +66,15 @@ export type InsuranceRequest = {
   customerPhone?: string;
   notes: RequestNote[];
   images: {
-    /** Vehicle registration card images (front + back, in that order). */
     registration: string[];
-    /** Driving license images (front + back, in that order). */
     license: string[];
-    /** Emirates ID images (front + back, in that order). */
     emirates: string[];
-    /** Vehicle media: photos (data URLs) + video metadata in demo mode. */
     vehicleMedia: Array<
       | { kind: "image"; url: string }
       | { kind: "video"; name: string; size: number; type: string }
     >;
     inspection?: string;
-    /** Free-form attachments (images, PDF, docs — no video). */
     attachments: AttachmentMeta[];
-    /** Attachments uploaded by the customer via the missing-docs reupload link. */
     missingAttachments?: AttachmentMeta[];
   };
 };
@@ -77,7 +90,6 @@ export type AuthUser = {
   branch?: string;
 };
 
-/** Permission helpers — single source of truth for role gates. */
 export function canDelete(u: AuthUser | null | undefined): boolean {
   return u?.role === "admin";
 }
@@ -91,141 +103,55 @@ export function canSeeAllBranches(u: AuthUser | null | undefined): boolean {
   return u?.role === "admin";
 }
 
-const REQUESTS_KEY = "aib_requests";
-const AGENTS_KEY = "aib_agents";
+// Re-export so existing callers keep working.
+export { dxAssetUrl, dxFetchAsset, isDirectusAssetUrl };
+
+// ---------------------------------------------------------------------------
+// Local state — only the auth cache and a small in-memory mirror so that
+// synchronous list*() helpers can return immediately while the network
+// request refreshes the cache in the background.
+// ---------------------------------------------------------------------------
+
 const AUTH_KEY = "aib_auth_user";
-const SEQ_KEY = "aib_req_seq";
 const CHANGE_EVENT = "aib:requests-changed";
 const AGENTS_CHANGE_EVENT = "aib:agents-changed";
-
-const BRANCHES = ["Abu Dhabi", "Dubai", "Sharjah"];
-
-// ---------------------------------------------------------------------------
-// storage helpers
-// ---------------------------------------------------------------------------
-
-function readJSON<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeJSON(key: string, value: unknown) {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (err) {
-    console.error("[storage] writeJSON failed for key", key, err);
-    throw new Error("STORAGE_QUOTA_EXCEEDED");
-  }
-}
+const BRANCHES_CHANGE_EVENT = "aib:branches-changed";
 
 function notifyChange() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
 }
-
 function notifyAgentsChange() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(AGENTS_CHANGE_EVENT));
 }
-
-function nextDisplayId(): string {
-  const cur = Number(localStorage.getItem(SEQ_KEY) ?? "1000");
-  const next = cur + 1;
-  localStorage.setItem(SEQ_KEY, String(next));
-  return `REQ-${next}`;
+function notifyBranchesChange() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(BRANCHES_CHANGE_EVENT));
 }
-
-function uuid(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
-
-async function fileToDataUrl(file: File): Promise<string> {
-  // Compress images to keep localStorage under quota.
-  if (file.type.startsWith("image/")) {
-    try {
-      return await compressImageToDataUrl(file);
-    } catch (e) {
-      console.warn("[storage] image compression failed, falling back", e);
-    }
-  }
-  return await new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-}
-
-async function compressImageToDataUrl(
-  file: File,
-  maxDim = 1600,
-  quality = 0.7,
-): Promise<string> {
-  const dataUrl: string = await new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result));
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const im = new Image();
-    im.onload = () => resolve(im);
-    im.onerror = reject;
-    im.src = dataUrl;
-  });
-  let { width, height } = img;
-  const scale = Math.min(1, maxDim / Math.max(width, height));
-  width = Math.round(width * scale);
-  height = Math.round(height * scale);
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return dataUrl;
-  ctx.drawImage(img, 0, 0, width, height);
-  const mime = file.type === "image/png" ? "image/jpeg" : (file.type || "image/jpeg");
-  return canvas.toDataURL(mime, quality);
-}
-
-// ---------------------------------------------------------------------------
-// Live updates
-// ---------------------------------------------------------------------------
 
 export function subscribeRequests(cb: () => void): () => void {
   if (typeof window === "undefined") return () => {};
   const onChange = () => cb();
   window.addEventListener(CHANGE_EVENT, onChange);
-  window.addEventListener("storage", onChange);
-  return () => {
-    window.removeEventListener(CHANGE_EVENT, onChange);
-    window.removeEventListener("storage", onChange);
-  };
+  return () => window.removeEventListener(CHANGE_EVENT, onChange);
 }
-
 export function subscribeAgents(cb: () => void): () => void {
   if (typeof window === "undefined") return () => {};
   const onChange = () => cb();
   window.addEventListener(AGENTS_CHANGE_EVENT, onChange);
-  window.addEventListener("storage", onChange);
-  return () => {
-    window.removeEventListener(AGENTS_CHANGE_EVENT, onChange);
-    window.removeEventListener("storage", onChange);
-  };
+  return () => window.removeEventListener(AGENTS_CHANGE_EVENT, onChange);
+}
+export function subscribeBranches(cb: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const onChange = () => cb();
+  window.addEventListener(BRANCHES_CHANGE_EVENT, onChange);
+  return () => window.removeEventListener(BRANCHES_CHANGE_EVENT, onChange);
 }
 
 // ---------------------------------------------------------------------------
-// Auth — backed by Directus (with a localStorage cache of the current user
-// so that synchronous getCurrentUser() keeps working as before).
+// Auth
 // ---------------------------------------------------------------------------
-
-import { dxLogin, dxLogout, dxFetchMe, dxHasSession, isDirectusEnabled } from "./directus";
 
 function mapDxUserToAuth(me: {
   id: string; email: string;
@@ -269,7 +195,6 @@ export async function login(email: string, password: string): Promise<AuthUser> 
 }
 
 export async function signUp(_email: string, _password: string, _fullName: string): Promise<AuthUser> {
-  // Self-signup is disabled — agents are provisioned by an admin/supervisor.
   throw new Error("Sign up is disabled. Contact your administrator.");
 }
 
@@ -298,7 +223,6 @@ export function getCurrentUser(): AuthUser | null {
   try { return JSON.parse(raw) as AuthUser; } catch { return null; }
 }
 
-/** Re-fetch the current user from Directus and refresh the local cache. */
 export async function refreshCurrentUser(): Promise<AuthUser | null> {
   if (typeof window === "undefined") return null;
   if (!isDirectusEnabled() || !dxHasSession()) {
@@ -316,123 +240,189 @@ export async function refreshCurrentUser(): Promise<AuthUser | null> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Branches
+// ---------------------------------------------------------------------------
+
+let _branchesCache: DxBranch[] = [];
+
+export function listBranches(): string[] {
+  // Returns branch codes for legacy callers that expect string[].
+  return _branchesCache.length
+    ? _branchesCache.filter(b => b.is_active).map(b => b.code)
+    : [];
+}
+
+export function listBranchObjects(): DxBranch[] {
+  return _branchesCache;
+}
+
+export async function getBranches(opts?: { onlyActive?: boolean }): Promise<DxBranch[]> {
+  const list = await dxListBranches(opts);
+  _branchesCache = list;
+  notifyBranchesChange();
+  return list;
+}
+
+export async function createBranch(input: {
+  name: string; code: string; address?: string; phone?: string; is_active?: boolean;
+}): Promise<DxBranch> {
+  const created = await dxCreateBranch({
+    name: input.name,
+    code: input.code,
+    address: input.address ?? "",
+    phone: input.phone ?? "",
+    is_active: input.is_active ?? true,
+  });
+  await getBranches();
+  return created;
+}
+
+export async function updateBranch(id: number, patch: Partial<{
+  name: string; code: string; address: string; phone: string; is_active: boolean;
+}>): Promise<DxBranch> {
+  const updated = await dxUpdateBranch(id, patch);
+  await getBranches();
+  return updated;
+}
+
+export async function deleteBranch(id: number): Promise<void> {
+  await dxDeleteBranch(id);
+  await getBranches();
+}
 
 // ---------------------------------------------------------------------------
 // Requests
 // ---------------------------------------------------------------------------
 
-function readRequests(): InsuranceRequest[] {
-  const list = readJSON<InsuranceRequest[]>(REQUESTS_KEY, []);
-  // Migration: older requests stored single registration/emirates strings,
-  // separate front/back fields, and a vehiclePhotos[] + vehicleVideo split.
-  // Normalize to the current shape so existing pages keep working.
-  return list.map((r) => {
-    type LegacyImg = {
-      registration?: string | string[];
-      registrationFront?: string;
-      registrationBack?: string;
-      license?: string | string[];
-      licenseFront?: string;
-      licenseBack?: string;
-      emirates?: string | string[];
-      emiratesFront?: string;
-      emiratesBack?: string;
-      vehiclePhotos?: string[];
-      vehicleMedia?: InsuranceRequest["images"]["vehicleMedia"];
-      vehicleVideo?: { name: string; size: number; type: string };
-      inspection?: string;
-      attachments?: AttachmentMeta[];
-    };
-    const img = r.images as unknown as LegacyImg;
-    let registration: string[];
-    if (Array.isArray(img.registration)) registration = img.registration.filter(Boolean);
-    else {
-      registration = [img.registrationFront, img.registrationBack, typeof img.registration === "string" ? img.registration : undefined]
-        .filter((x): x is string => !!x);
-    }
-    let emirates: string[];
-    if (Array.isArray(img.emirates)) emirates = img.emirates.filter(Boolean);
-    else {
-      emirates = [img.emiratesFront, img.emiratesBack, typeof img.emirates === "string" ? img.emirates : undefined]
-        .filter((x): x is string => !!x);
-    }
-    let vehicleMedia = img.vehicleMedia;
-    if (!vehicleMedia) {
-      vehicleMedia = [];
-      (img.vehiclePhotos ?? []).forEach((url) => vehicleMedia!.push({ kind: "image", url }));
-      if (img.vehicleVideo) vehicleMedia.push({ kind: "video", ...img.vehicleVideo });
-    }
-    let license: string[];
-    if (Array.isArray(img.license)) license = img.license.filter(Boolean);
-    else {
-      license = [img.licenseFront, img.licenseBack, typeof img.license === "string" ? img.license : undefined]
-        .filter((x): x is string => !!x);
-    }
-    return {
-      ...r,
-      notes: Array.isArray((r as unknown as { notes?: RequestNote[] }).notes)
-        ? (r as unknown as { notes: RequestNote[] }).notes
-        : [],
-      images: {
-        registration,
-        license,
-        emirates,
-        vehicleMedia,
-        inspection: img.inspection,
-        attachments: Array.isArray(img.attachments) ? img.attachments : [],
-      },
-    };
-  });
+function fileIdToUrl(fileId: string | null | undefined): string {
+  if (!fileId) return "";
+  return dxAssetUrl(fileId);
 }
 
-function writeRequests(list: InsuranceRequest[]) {
-  writeJSON(REQUESTS_KEY, list);
+function mapDxRequestToInsurance(
+  r: DxRequest,
+  notes: DxNote[],
+  attachments: DxAttachment[],
+  missingAttachments: DxAttachment[],
+  vehicleMedia: DxVehicleMedia[],
+): InsuranceRequest {
+  const noteRoleMap: Record<string, RequestNote["authorRole"]> = {
+    admin: "admin", supervisor: "supervisor", agent: "agent",
+  };
+  return {
+    id: r.request_display_id || String(r.id),
+    uuid: String(r.id),
+    agentId: r.agent_id ?? "",
+    agentName: r.agent_name ?? "",
+    branch: r.branch ?? "",
+    status: (r.status as RequestStatus) || "new",
+    createdAt: r.date_created,
+    customerName: r.customer_name ?? undefined,
+    customerEmail: r.customer_email ?? undefined,
+    customerPhone: r.customer_phone ?? undefined,
+    notes: notes.map((n) => ({
+      id: String(n.id),
+      authorId: n.author_id ?? "",
+      authorName: n.author_name ?? "",
+      authorRole: noteRoleMap[(n.author_role ?? "").toLowerCase()] ?? "agent",
+      text: n.text,
+      kind: (n.kind as RequestNoteKind) || "comment",
+      createdAt: n.date_created,
+      resolvedAt: n.resolved_at ?? undefined,
+    })),
+    images: {
+      registration: r.registration ? [fileIdToUrl(r.registration)] : [],
+      license: r.license ? [fileIdToUrl(r.license)] : [],
+      emirates: r.emirates ? [fileIdToUrl(r.emirates)] : [],
+      vehicleMedia: vehicleMedia.map((m) =>
+        m.kind === "video"
+          ? { kind: "video" as const, name: "video", size: 0, type: "video/mp4" }
+          : { kind: "image" as const, url: fileIdToUrl(m.file) },
+      ),
+      inspection: r.inspection ? fileIdToUrl(r.inspection) : undefined,
+      attachments: attachments.map((a) => ({
+        name: a.original_name ?? "file",
+        type: "",
+        size: 0,
+        url: fileIdToUrl(a.file),
+      })),
+      missingAttachments: missingAttachments.length
+        ? missingAttachments.map((a) => ({
+            name: a.original_name ?? "file",
+            type: "",
+            size: 0,
+            url: fileIdToUrl(a.file),
+          }))
+        : undefined,
+    },
+  };
+}
+
+export async function listRequests(opts?: { agentId?: string; branch?: string }): Promise<InsuranceRequest[]> {
+  const rows = await dxListRequests({ agentId: opts?.agentId, branch: opts?.branch });
+  // For list view we don't fetch notes/attachments per row (too many round-trips).
+  return rows.map((r) => mapDxRequestToInsurance(r, [], [], [], []));
+}
+
+export async function getRequest(id: string): Promise<InsuranceRequest | null> {
+  const row = await dxGetRequest(id);
+  if (!row) return null;
+  const reqId = String(row.id);
+  const [notes, attachments, missing, vehicleMedia] = await Promise.all([
+    dxListNotes(reqId).catch(() => [] as DxNote[]),
+    dxListAttachments(reqId, false).catch(() => [] as DxAttachment[]),
+    dxListAttachments(reqId, true).catch(() => [] as DxAttachment[]),
+    dxListVehicleMedia(reqId).catch(() => [] as DxVehicleMedia[]),
+  ]);
+  return mapDxRequestToInsurance(row, notes, attachments, missing, vehicleMedia);
 }
 
 export async function resolveAssetUrl(stored: string): Promise<{ url: string; mime: string }> {
   if (!stored) return { url: "", mime: "" };
-  // In demo mode we store data URLs directly.
+  // For Directus assets we fetch with auth and return a blob URL.
+  if (isDirectusAssetUrl(stored)) {
+    const m = stored.match(/\/assets\/([^/?#]+)/);
+    if (m) {
+      const fetched = await dxFetchAsset(m[1]);
+      if (fetched) return fetched;
+    }
+  }
+  // Fallback: treat as direct URL or data URL.
   let mime = "";
   const m = stored.match(/^data:([^;]+);/);
   if (m) mime = m[1];
   return { url: stored, mime };
 }
 
-export async function listRequests(opts?: { agentId?: string; branch?: string }): Promise<InsuranceRequest[]> {
-  const all = readRequests().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  let out = all;
-  if (opts?.agentId) out = out.filter((r) => r.agentId === opts.agentId);
-  if (opts?.branch) out = out.filter((r) => r.branch === opts.branch);
-  return out;
-}
-
-export async function getRequest(id: string): Promise<InsuranceRequest | null> {
-  const all = readRequests();
-  return all.find((r) => r.id === id || r.uuid === id) ?? null;
-}
-
 export async function updateRequestStatus(id: string, status: RequestStatus): Promise<InsuranceRequest> {
-  const all = readRequests();
-  const idx = all.findIndex((r) => r.id === id || r.uuid === id);
-  if (idx === -1) throw new Error("Request not found");
-  const before = all[idx];
-  all[idx] = { ...before, status };
-  writeRequests(all);
+  const cur = await dxGetRequest(id);
+  if (!cur) throw new Error("Request not found");
+  const before = cur.status;
+  await dxUpdateRequestStatus(String(cur.id), status);
+  const fresh = await getRequest(String(cur.id));
+  if (!fresh) throw new Error("Request not found");
   notifyChange();
-  if (before.status !== status) {
+  if (before !== status) {
     import("./audit").then(({ logEvent }) =>
       logEvent({
         action: "request.status_changed",
         entityType: "request",
-        entityId: before.id,
-        entityLabel: before.id,
-        branch: before.branch ?? null,
-        before: { status: before.status },
+        entityId: fresh.id,
+        entityLabel: fresh.id,
+        branch: fresh.branch ?? null,
+        before: { status: before },
         after: { status },
       }),
     );
   }
-  return all[idx];
+  return fresh;
+}
+
+async function uploadFirst(files: File[]): Promise<string | null> {
+  const f = files[0];
+  if (!f) return null;
+  return await dxUploadFile(f);
 }
 
 export async function submitUpload(input: {
@@ -449,55 +439,83 @@ export async function submitUpload(input: {
   };
   optional?: { inspection?: File | null };
 }): Promise<{ id: string }> {
-  const [license, registration, emirates] = await Promise.all([
-    Promise.all(input.images.license.map((f) => fileToDataUrl(f))),
-    Promise.all(input.images.registration.map((f) => fileToDataUrl(f))),
-    Promise.all(input.images.emirates.map((f) => fileToDataUrl(f))),
+  // Upload "front" file for the three doc types — Directus stores one file id
+  // per slot in the request row; the rest go into the *_attachments tables.
+  const [registration, license, emirates] = await Promise.all([
+    uploadFirst(input.images.registration),
+    uploadFirst(input.images.license),
+    uploadFirst(input.images.emirates),
   ]);
-  const inspection = input.optional?.inspection ? await fileToDataUrl(input.optional.inspection) : undefined;
-  const vehicleMedia: InsuranceRequest["images"]["vehicleMedia"] = [];
+  const inspection = input.optional?.inspection
+    ? await dxUploadFile(input.optional.inspection)
+    : null;
+
+  // Resolve agent's branch label from the cache (best-effort).
+  const agent = listAgents().find((a) => a.id === input.agentId || a.userId === input.agentId);
+  const branch = agent?.branch ?? "";
+  const agentName = agent?.name ?? input.agentId;
+
+  const created = await dxCreateRequest({
+    agent_id: input.agentId,
+    agent_name: agentName,
+    branch,
+    registration,
+    license,
+    emirates,
+    inspection,
+    customer_name: input.customerName,
+    customer_email: input.customerEmail,
+    customer_phone: input.customerPhone,
+  });
+  const reqId = String(created.id);
+
+  // Vehicle media (mixed images + videos).
   for (const f of input.images.vehicleMedia) {
-    if (f.type.startsWith("video/")) {
-      vehicleMedia.push({ kind: "video", name: f.name, size: f.size, type: f.type });
-    } else {
-      vehicleMedia.push({ kind: "image", url: await fileToDataUrl(f) });
-    }
-  }
-  const attachments: AttachmentMeta[] = [];
-  for (const f of input.images.attachments ?? []) {
-    attachments.push({
-      name: f.name,
-      type: f.type,
-      size: f.size,
-      url: await fileToDataUrl(f),
-    });
+    try {
+      const fileId = await dxUploadFile(f);
+      await dxCreateVehicleMedia({
+        request: reqId,
+        file: fileId,
+        kind: f.type.startsWith("video/") ? "video" : "image",
+      });
+    } catch (e) { console.error("vehicle media upload failed", e); }
   }
 
-  const agent = listAgents().find((a) => a.id === input.agentId);
-  const all = readRequests();
-  const id = nextDisplayId();
-  const req: InsuranceRequest = {
-    id,
-    uuid: uuid(),
-    agentId: input.agentId,
-    agentName: agent?.name ?? input.agentId,
-    branch: agent?.branch ?? "—",
-    status: "new",
-    createdAt: new Date().toISOString(),
-    customerName: input.customerName,
-    customerEmail: input.customerEmail,
-    customerPhone: input.customerPhone,
-    notes: [],
-    images: { registration, license, emirates, vehicleMedia, inspection, attachments },
-  };
-  all.unshift(req);
-  writeRequests(all);
+  // Free-form attachments.
+  for (const f of input.images.attachments ?? []) {
+    try {
+      const fileId = await dxUploadFile(f);
+      await dxCreateAttachment({
+        request: reqId,
+        file: fileId,
+        original_name: f.name,
+      }, false);
+    } catch (e) { console.error("attachment upload failed", e); }
+  }
+
+  // Also persist any extra registration/license/emirates pages as attachments.
+  const extras = [
+    ...input.images.registration.slice(1),
+    ...input.images.license.slice(1),
+    ...input.images.emirates.slice(1),
+  ];
+  for (const f of extras) {
+    try {
+      const fileId = await dxUploadFile(f);
+      await dxCreateAttachment({
+        request: reqId,
+        file: fileId,
+        original_name: f.name,
+      }, false);
+    } catch (e) { console.error("extra page upload failed", e); }
+  }
+
   notifyChange();
-  return { id };
+  return { id: created.request_display_id || reqId };
 }
 
 // ---------------------------------------------------------------------------
-// Notes / missing items
+// Notes
 // ---------------------------------------------------------------------------
 
 export async function addRequestNote(
@@ -506,85 +524,75 @@ export async function addRequestNote(
 ): Promise<InsuranceRequest> {
   const me = getCurrentUser();
   if (!me) throw new Error("Not authenticated");
-  const all = readRequests();
-  const idx = all.findIndex((r) => r.id === requestId || r.uuid === requestId);
-  if (idx === -1) throw new Error("Request not found");
-  const note: RequestNote = {
-    id: uuid(),
-    authorId: me.id,
-    authorName: me.name,
-    authorRole: me.role,
+  const row = await dxGetRequest(requestId);
+  if (!row) throw new Error("Request not found");
+  await dxCreateNote({
+    request: String(row.id),
     text: input.text.trim(),
     kind: input.kind,
-    createdAt: new Date().toISOString(),
-  };
-  all[idx] = { ...all[idx], notes: [...(all[idx].notes ?? []), note] };
-  writeRequests(all);
+    author_id: me.id,
+    author_name: me.name,
+    author_role: me.role,
+  });
+  const fresh = await getRequest(String(row.id));
+  if (!fresh) throw new Error("Request not found");
   notifyChange();
-  return all[idx];
+  return fresh;
 }
 
 export async function resolveRequestNote(
   requestId: string,
   noteId: string,
 ): Promise<InsuranceRequest> {
-  const all = readRequests();
-  const idx = all.findIndex((r) => r.id === requestId || r.uuid === requestId);
-  if (idx === -1) throw new Error("Request not found");
-  const notes = (all[idx].notes ?? []).map((n) =>
-    n.id === noteId && !n.resolvedAt ? { ...n, resolvedAt: new Date().toISOString() } : n,
-  );
-  all[idx] = { ...all[idx], notes };
-  writeRequests(all);
+  const numericId = Number(noteId);
+  if (Number.isFinite(numericId)) {
+    await dxResolveNote(numericId);
+  }
+  const fresh = await getRequest(requestId);
+  if (!fresh) throw new Error("Request not found");
   notifyChange();
-  return all[idx];
+  return fresh;
 }
 
-/** Append additional attachments to an existing request (used by /r/$id reupload page). */
 export async function appendAttachmentsToRequest(
   requestId: string,
   files: File[],
 ): Promise<InsuranceRequest> {
-  const all = readRequests();
-  const idx = all.findIndex((r) => r.id === requestId || r.uuid === requestId);
-  if (idx === -1) throw new Error("Request not found");
-  const newAttachments: AttachmentMeta[] = [];
+  const row = await dxGetRequest(requestId);
+  if (!row) throw new Error("Request not found");
+  const reqId = String(row.id);
   for (const f of files) {
     if (f.type.startsWith("video/")) continue;
-    newAttachments.push({
-      name: f.name,
-      type: f.type,
-      size: f.size,
-      url: await fileToDataUrl(f),
-    });
+    try {
+      const fileId = await dxUploadFile(f);
+      await dxCreateAttachment({
+        request: reqId,
+        file: fileId,
+        original_name: f.name,
+      }, true);
+    } catch (e) { console.error("missing attachment upload failed", e); }
   }
-  const cur = all[idx];
   // Auto-resolve open "missing" notes and move status back to processing.
-  const notes = (cur.notes ?? []).map((n) =>
-    n.kind === "missing" && !n.resolvedAt ? { ...n, resolvedAt: new Date().toISOString() } : n,
-  );
-  all[idx] = {
-    ...cur,
-    status: "processing",
-    notes,
-    images: {
-      ...cur.images,
-      missingAttachments: [...(cur.images.missingAttachments ?? []), ...newAttachments],
-    },
-  };
-  writeRequests(all);
+  try {
+    const notes = await dxListNotes(reqId);
+    for (const n of notes) {
+      if (n.kind === "missing" && !n.resolved_at) {
+        await dxResolveNote(n.id);
+      }
+    }
+    await dxUpdateRequestStatus(reqId, "processing");
+  } catch (e) { console.error("failed to flip request status to processing", e); }
+  const fresh = await getRequest(reqId);
+  if (!fresh) throw new Error("Request not found");
   notifyChange();
-  return all[idx];
+  return fresh;
 }
 
 export function isDemoMode() { return false; }
 
 export function resetDemo() {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(REQUESTS_KEY);
-  localStorage.removeItem(AUTH_KEY);
-  localStorage.removeItem(SEQ_KEY);
-  localStorage.removeItem(AGENTS_KEY);
+  // Demo mode no longer exists — keeping the export so old callers don't break.
+  if (typeof window !== "undefined") localStorage.removeItem(AUTH_KEY);
   notifyChange();
   notifyAgentsChange();
 }
@@ -593,16 +601,10 @@ export function resetDemo() {
 // Agents directory — backed by Directus Users (role = "Agent" or "Supervisor")
 // ---------------------------------------------------------------------------
 
-import {
-  dxListAgents, dxCreateAgent, dxUpdateAgent, dxDeleteAgent, type DxUser,
-} from "./directus";
-
 export type AgentRole = "agent" | "supervisor";
 
 export type Agent = {
-  /** Directus user id (UUID). */
   userId?: string;
-  /** Business agent code (e.g. A001). */
   id: string;
   name: string;
   email?: string;
@@ -627,37 +629,15 @@ function dxUserToAgent(u: DxUser): Agent {
   };
 }
 
-// In-memory cache so synchronous listAgents() keeps working for legacy callers.
 let _agentsCache: Agent[] = [];
-const AGENTS_CACHE_KEY = "aib_agents_cache";
 
-function readAgentsCache(): Agent[] {
-  if (_agentsCache.length) return _agentsCache;
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(AGENTS_CACHE_KEY);
-    if (raw) _agentsCache = JSON.parse(raw) as Agent[];
-  } catch { /* ignore */ }
-  return _agentsCache;
-}
-
-function writeAgentsCache(list: Agent[]) {
-  _agentsCache = list;
-  if (typeof window !== "undefined") {
-    try { localStorage.setItem(AGENTS_CACHE_KEY, JSON.stringify(list)); } catch { /* ignore */ }
-  }
-  notifyAgentsChange();
-}
-
-/** @deprecated synchronous; use getAgents() to fetch fresh data. */
-export function listAgents(): Agent[] { return readAgentsCache(); }
-export function listBranches(): string[] { return BRANCHES; }
+export function listAgents(): Agent[] { return _agentsCache; }
 
 export async function getAgents(): Promise<Agent[]> {
   const users = await dxListAgents();
-  const list = users.map(dxUserToAgent);
-  writeAgentsCache(list);
-  return list;
+  _agentsCache = users.map(dxUserToAgent);
+  notifyAgentsChange();
+  return _agentsCache;
 }
 
 export async function createAgent(input: {
@@ -676,7 +656,7 @@ export async function createAgent(input: {
     branch: input.branch,
   });
   const agent = dxUserToAgent(created);
-  await getAgents(); // refresh cache
+  await getAgents();
   import("./audit").then(({ logEvent }) =>
     logEvent({
       action: "agent.created",
@@ -694,8 +674,7 @@ export async function updateAgent(id: string, patch: Partial<{
   name: string; email: string | null; branch: string | null; active: boolean; supervisorId: string | null;
   password: string;
 }>): Promise<Agent> {
-  const list = readAgentsCache();
-  const before = list.find((a) => a.id === id || a.userId === id);
+  const before = _agentsCache.find((a) => a.id === id || a.userId === id);
   if (!before || !before.userId) throw new Error("Agent not found");
   const dxPatch: Parameters<typeof dxUpdateAgent>[1] = {};
   if (patch.name !== undefined) {
@@ -708,10 +687,12 @@ export async function updateAgent(id: string, patch: Partial<{
   if (patch.password) dxPatch.password = patch.password;
   const updated = await dxUpdateAgent(before.userId, dxPatch);
   const after = dxUserToAgent(updated);
-  await getAgents(); // refresh cache
+  await getAgents();
   const changed: Record<string, { before: unknown; after: unknown }> = {};
   (["name", "email", "branch", "active"] as const).forEach((k) => {
-    if ((before as any)[k] !== (after as any)[k]) changed[k] = { before: (before as any)[k], after: (after as any)[k] };
+    if ((before as any)[k] !== (after as any)[k]) {
+      changed[k] = { before: (before as any)[k], after: (after as any)[k] };
+    }
   });
   let action: "agent.updated" | "agent.activated" | "agent.deactivated" = "agent.updated";
   if (Object.keys(changed).length === 1 && "active" in changed) {
@@ -732,10 +713,10 @@ export async function updateAgent(id: string, patch: Partial<{
 }
 
 export async function deleteAgent(id: string): Promise<void> {
-  const before = readAgentsCache().find((a) => a.id === id || a.userId === id);
+  const before = _agentsCache.find((a) => a.id === id || a.userId === id);
   if (!before || !before.userId) throw new Error("Agent not found");
   await dxDeleteAgent(before.userId);
-  await getAgents(); // refresh cache
+  await getAgents();
   import("./audit").then(({ logEvent }) =>
     logEvent({
       action: "agent.deleted",
@@ -747,4 +728,3 @@ export async function deleteAgent(id: string): Promise<void> {
     }),
   );
 }
-
