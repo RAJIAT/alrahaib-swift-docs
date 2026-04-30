@@ -173,7 +173,7 @@ function AdminAgents() {
               <tr><td colSpan={6} className="px-5 py-12 text-center text-muted-foreground">…</td></tr>
             ) : agents.length === 0 ? (
               <tr><td colSpan={6} className="px-5 py-8">
-                <EmptyState icon={<Users className="h-7 w-7" />} title={t.agents.empty} />
+                <EmptyState icon={<Users className="h-7 w-7" />} title={emptyLabel} />
               </td></tr>
             ) : agents.map((a) => (
               <tr key={a.userId ?? a.id} className="border-t border-border hover:bg-muted/30">
@@ -217,7 +217,7 @@ function AdminAgents() {
       {/* Mobile cards */}
       <div className="space-y-3 md:hidden">
         {!loading && agents.length === 0 ? (
-          <EmptyState icon={<Users className="h-7 w-7" />} title={t.agents.empty} />
+          <EmptyState icon={<Users className="h-7 w-7" />} title={emptyLabel} />
         ) : agents.map((a) => (
           <div key={a.userId ?? a.id} className="rounded-2xl border border-border bg-card p-4 shadow-card">
             <div className="flex items-start justify-between">
