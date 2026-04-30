@@ -21,8 +21,9 @@ function AdminAgents() {
   const { t, dir } = useLang();
   const navigate = useNavigate();
   const [user, setUser] = useState<AuthUser | null>(() => getCurrentUser());
-  const [agents, setAgents] = useState<Agent[]>([]);
+  const [allAgents, setAllAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<AgentRole>("agent");
   const [dialog, setDialog] = useState<{ open: boolean; mode: "create" | "edit"; target?: Agent }>({
     open: false, mode: "create",
   });
@@ -30,8 +31,14 @@ function AdminAgents() {
   const Back = dir === "rtl" ? ArrowRight : ArrowLeft;
 
   const isSupervisor = user?.role === "supervisor";
+  const isAdmin = user?.role === "admin";
   const lockedBranch = isSupervisor ? user?.branch : undefined;
   const canDelete = canDeleteAgents(user);
+
+  // Supervisors can only see/manage agents in their own branch — never the
+  // supervisors tab.
+  const effectiveTab: AgentRole = isSupervisor ? "agent" : tab;
+  const agents = allAgents.filter((a) => (a.role ?? "agent") === effectiveTab);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -44,7 +51,7 @@ function AdminAgents() {
         const filtered = u.role === "supervisor" && u.branch
           ? list.filter((a) => a.branch === u.branch)
           : list;
-        setAgents(filtered);
+        setAllAgents(filtered);
         setLoading(false);
       });
     };
@@ -62,6 +69,8 @@ function AdminAgents() {
     await createAgent({
       id: v.agentId, name: v.name, email: v.email,
       branch: lockedBranch ?? v.branch,
+      // Supervisors can only ever create plain agents; admins use the form's role.
+      role: isSupervisor ? "agent" : v.role,
     });
     toast.success(t.agents.created);
   };
