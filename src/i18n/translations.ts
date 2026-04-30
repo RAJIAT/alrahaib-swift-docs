@@ -200,6 +200,7 @@ export const translations = {
     },
     agents: {
       title: "الوكلاء والمشرفون",
+      titleAgentsOnly: "الوكلاء",
       subtitle: "أنشئ حسابات الوكلاء وتحكم بصلاحياتهم",
       add: "إضافة وكيل",
       addTitle: "إضافة وكيل جديد",
@@ -512,6 +513,7 @@ export const translations = {
     },
     agents: {
       title: "Agents & Supervisors",
+      titleAgentsOnly: "Agents",
       subtitle: "Create agent accounts and manage their access",
       add: "Add Agent",
       addTitle: "Add New Agent",
