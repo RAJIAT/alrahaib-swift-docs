@@ -1,83 +1,87 @@
-## Goal
 
-Extend the customer upload form on `/` to capture:
-- **KYC (mandatory):** Customer Full Name + Email
-- **Optional uploads:** Passport photo + Vehicle Photos (multiple)
+## الهدف
+1. إضافة دور **Supervisor** بين Admin و Agent — يشوف فرعه فقط، ما يقدر يحذف.
+2. خيار **حفظ الصور** اللي ينرفعها العميل (تنزيل لجهازه).
+3. إصلاح مشكلة تعليق الصفحة عند تغيير حالة الطلب (Sold/Quote/...).
+4. مراجعة شاملة لمنع الكراش/الـ redirect loops.
 
-These should flow through to the request details page so admins/agents can see them.
+---
 
-## Scope
+## 1) دور Supervisor (الجديد)
 
-### 1. Upload form (`src/routes/index.tsx`)
-Add a small KYC card above the document upload grid with two inputs (validated with `zod`):
-- `customerName` — required, trimmed, 2–100 chars
-- `customerEmail` — required, valid email, ≤ 255 chars
+**الصلاحيات:**
+| الإجراء | Admin | Supervisor | Agent |
+|---|---|---|---|
+| رؤية كل الفروع | ✓ | ✗ (فرعه فقط) | ✗ |
+| رؤية كل الوكلاء بفرعه | ✓ | ✓ | ✗ (نفسه فقط) |
+| تغيير حالة الطلب | ✓ | ✓ | ✓ |
+| حذف وكيل/طلب | ✓ | ✗ | ✗ |
+| إدارة الوكلاء (إضافة/تعديل) | ✓ | ✗ | ✗ |
 
-Add two optional upload sections below the existing 3 cards:
-- **Passport** — single optional upload (reuse `UploadCard` with an `optional` flag)
-- **Vehicle Photos** — multi-image optional upload (new `MultiUploadCard` component, max ~6 photos)
+**التعديلات التقنية:**
+- `src/services/api.ts`: إضافة `"supervisor"` إلى type `Role`. إضافة مستخدم تجريبي `supervisor@aib.com` مرتبط بفرع `Abu Dhabi`. إضافة helper `canDelete(user)` و `canSeeAllBranches(user)`.
+- `src/routes/agent.tsx` → تحويلها لتدعم Supervisor: لو الدور supervisor، تجيب طلبات كل الوكلاء اللي بنفس فرعه (بدل agentId واحد). `listRequests` يدعم خيار جديد `{ branch?: string }`.
+- `src/routes/admin.tsx`: السماح للـ supervisor بالدخول لكن مع فلتر فرع مقفول على فرعه + إخفاء أزرار الحذف.
+- `src/components/DashboardShell.tsx`: قائمة جانبية مخصّصة للـ supervisor (Dashboard فقط، بدون Manage Agents).
+- `src/routes/agents.tsx` و `requests.$id.tsx`: إخفاء زر **Delete** إذا الدور ليس admin.
+- `src/routes/login.tsx`: إضافة زر "Quick fill as Supervisor".
+- Translations: مفاتيح `roles.supervisor`, `nav.supervisorView`, إلخ.
 
-Submit button stays disabled until 3 mandatory docs + valid KYC are present. Optional fields don't block submit.
+---
 
-### 2. New component `src/components/MultiUploadCard.tsx`
-Same visual style as `UploadCard`, but accepts multiple images, shows them as a small thumbnail grid with remove buttons and an "add more" tile.
+## 2) حفظ الصور بعد الرفع
 
-### 3. `UploadCard` minor change
-Add an `optional?: boolean` prop to render an "(Optional)" badge next to the label. No behavior change.
+في صفحة **تفاصيل الطلب** (`requests.$id.tsx`):
+- إضافة زر **تنزيل** على كل بطاقة صورة/PDF (icon Download فوق الصورة).
+- إضافة زر **تنزيل الكل (ZIP)** أعلى الصفحة — يبني ZIP في المتصفح باستخدام مكتبة خفيفة (`jszip`) ويحمّله باسم `REQ-1001.zip`.
+- داخل modal التكبير: زر تنزيل إضافي.
+- يدعم الصور (PNG/JPG) و PDF بنفس الآلية (data URL → Blob → download).
 
-### 4. API layer (`src/services/api.ts`)
-Extend `submitUpload` input:
-```ts
-{
-  agentId, customerName, customerEmail,
-  images: { registration, license, emirates },
-  optional?: { passport?: File; vehiclePhotos?: File[] }
-}
-```
-Extend `InsuranceRequest` type:
-```ts
-customerName?: string;
-customerEmail?: string;
-images: { registration; license; emirates; passport?: string; vehiclePhotos?: string[] }
-```
+اختياري: زر "حفظ نسخة" بعد نجاح الرفع في صفحة Success (يحفظ ملفات العميل اللي رفعها للتو).
 
-**Mock path:** store via `fileToStoredDataUrl` (vehicle photos as array of data URLs) in localStorage.
+---
 
-**Directus path:** upload optional files via `dxUploadFile`, send `customer_name`, `customer_email`, `passport` (file id), `vehicle_photos` (array of file ids or M2M depending on schema) to `/items/requests`.
+## 3) تعليق الصفحة عند تغيير الحالة + Crashes
 
-### 5. Directus client (`src/services/directus.ts`)
-Extend `DxRequest` type and `dxCreateRequest` payload with `customer_name`, `customer_email`, `passport`, `vehicle_photos`. Update `mapDx` in `api.ts` to expose them.
+**التشخيص:**
+- `requests.$id.tsx` فيه `useEffect` يعتمد على `user` (object من `getCurrentUser()`) — كل render يرجع reference جديد → infinite loop محتمل.
+- `DashboardShell` كمان فيه `useEffect` بيستدعي `navigate({ to: "/login" })` بدون شرط دقيق — لو state ما تحدّث لحظياً يصير redirect-then-back.
+- `updateRequestStatus` بيعمل `notifyChange()` → كل المشتركين بـ `useRequestsLive` يعيدوا `listRequests` → re-render كبير على صفحة التفاصيل.
 
-### 6. Request details (`src/routes/requests.$id.tsx`)
-- Show "Customer" block (name + email) under the request header.
-- Render Passport `ImgCard` if present.
-- Render a Vehicle Photos gallery (grid of `ImgCard`s) if present.
+**الإصلاحات:**
+- `requests.$id.tsx`: إزالة `user` من dependency array، استخدام `useRef` أو قراءة `getCurrentUser()` مرة واحدة. إضافة guard `if (req.status === s) return` قبل التحديث.
+- `DashboardShell.tsx`: تشغيل التحقق من الدور مرة واحدة فقط (`useEffect` بـ `[]` + قراءة المستخدم داخلها)، وإلغاء `setUser(getCurrentUser())` المتكرر.
+- `useRequestsLive.ts`: عدم استدعاء `setLoading(true)` في كل refresh — فقط أول مرة. منع state update لو الـ list ما تغيّرت فعلياً (مقارنة طول + آخر updatedAt).
+- إضافة **Error Boundary** على الـ root (`__root.tsx`) — أي exception يظهر شاشة خطأ نظيفة بدل blank/redirect.
+- `index.tsx` (صفحة العميل): تحويل تحويل الملفات إلى data URL كبيرة من sync إلى chunked — لو الملف أكبر من 1MB يرفع `setSubmitting(false)` على exception ويظهر toast واضح بدل تجميد الصفحة.
 
-### 7. Translations (`src/i18n/translations.ts`)
-Add to both `ar` and `en`:
-- `upload.kyc.title`, `nameLabel`, `namePlaceholder`, `emailLabel`, `emailPlaceholder`, `optional`
-- `upload.cards.passport`, `vehiclePhotos`, `addPhoto`
-- `upload.errors.nameRequired`, `nameTooShort`, `emailRequired`, `emailInvalid`
-- `details.customer`, `passport`, `vehiclePhotos`
+---
 
-### 8. Backend (Directus) — user action required
-The Directus `requests` collection needs new fields. Document in chat after implementation:
-- `customer_name` (string)
-- `customer_email` (string)
-- `passport` (file, nullable)
-- `vehicle_photos` (files M2M, nullable)
-Public role needs create permission on these fields.
+## 4) Stability Sweep (مراجعة شاملة)
 
-## Out of scope
-- Editing KYC after submit
-- Email verification / OTP
-- Admin filtering by customer name/email (can be a follow-up)
+- فحص كل `useEffect` في المشروع للتأكد من dependency arrays صحيحة (لا references غير مستقرة).
+- فحص كل `navigate({ to: "/login" })` للتأكد من ما في loops (إذا أصلاً على /login، ما يعمل redirect).
+- التأكد من إن `localStorage` reads كلها داخل `typeof window !== "undefined"` guards (مهم لـ SSR في TanStack Start).
+- إضافة `try/catch` حول كل `JSON.parse` من localStorage.
+- التأكد من إن أي async مع `await` فيه catch — خاصة في handlers الأزرار.
 
-## Files touched
-- `src/routes/index.tsx` (KYC + optional uploads + validation)
-- `src/components/UploadCard.tsx` (optional badge)
-- `src/components/MultiUploadCard.tsx` (new)
-- `src/services/api.ts` (types + submitUpload)
-- `src/services/directus.ts` (DxRequest + create payload)
-- `src/routes/requests.$id.tsx` (display new data)
-- `src/i18n/translations.ts` (strings)
+---
+
+## الملفات اللي رح تتعدّل
+- `src/services/api.ts` — supervisor role + branch filtering
+- `src/routes/agent.tsx` — supervisor view
+- `src/routes/admin.tsx` — branch lock for supervisor
+- `src/routes/agents.tsx` — hide delete for non-admin
+- `src/routes/requests.$id.tsx` — fix loop + download buttons + branch-scoped status update
+- `src/routes/login.tsx` — supervisor quick-fill
+- `src/routes/__root.tsx` — Error Boundary
+- `src/routes/index.tsx` — robust submit error handling
+- `src/components/DashboardShell.tsx` — supervisor nav + fix redirect loop
+- `src/hooks/useRequestsLive.ts` — منع re-render غير ضروري
+- `src/i18n/translations.ts` — مفاتيح جديدة (AR/EN)
+- إضافة dependency: `jszip`
+
+---
+
+## ملاحظة للعميل
+الديمو رح يضل شغّال على **localStorage** بدون باكند — كل التحسينات هنا UX/استقرار + ميزات. بمجرد تجهيز السيرفر بالإمارات، نوصل كل هاد بقاعدة بيانات حقيقية بدون تغيير الواجهة.
