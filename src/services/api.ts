@@ -22,8 +22,8 @@ export type InsuranceRequest = {
   images: {
     /** Vehicle registration card images (front + back, in that order). */
     registration: string[];
-    /** Driving license image. */
-    license: string;
+    /** Driving license images (front + back, in that order). */
+    license: string[];
     /** Emirates ID images (front + back, in that order). */
     emirates: string[];
     /** Vehicle media: photos (data URLs) + video metadata in demo mode. */
@@ -353,7 +353,8 @@ export async function submitUpload(input: {
   images: {
     /** Front + back images of the registration card (in this order). */
     registration: File[];
-    license: File;
+    /** Front + back images of the driving license (in this order). */
+    license: File[];
     /** Front + back images of the Emirates ID (in this order). */
     emirates: File[];
     /** Mix of vehicle photos and videos. */
@@ -362,7 +363,7 @@ export async function submitUpload(input: {
   optional?: { inspection?: File | null };
 }): Promise<{ id: string }> {
   const [license, registration, emirates] = await Promise.all([
-    fileToDataUrl(input.images.license),
+    Promise.all(input.images.license.map((f) => fileToDataUrl(f))),
     Promise.all(input.images.registration.map((f) => fileToDataUrl(f))),
     Promise.all(input.images.emirates.map((f) => fileToDataUrl(f))),
   ]);
