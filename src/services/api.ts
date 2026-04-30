@@ -221,43 +221,40 @@ export function subscribeAgents(cb: () => void): () => void {
 }
 
 // ---------------------------------------------------------------------------
-// Auth (demo)
+// Auth — backed by Directus (with a localStorage cache of the current user
+// so that synchronous getCurrentUser() keeps working as before).
 // ---------------------------------------------------------------------------
 
-const DEMO_USERS: Array<AuthUser & { password: string }> = [
-  {
-    id: "u-admin",
-    email: "admin@aib.com",
-    password: "admin123",
-    name: "Admin",
-    role: "admin",
-  },
-  {
-    id: "u-supervisor",
-    email: "supervisor@aib.com",
-    password: "demo",
-    name: "Demo Supervisor",
-    role: "supervisor",
-    branch: "Abu Dhabi",
-  },
-  {
-    id: "u-agent",
-    email: "agent@aib.com",
-    password: "agent123",
-    name: "Demo Agent",
-    role: "agent",
-    agentId: "A001",
-    branch: "Abu Dhabi",
-  },
-];
+import { dxLogin, dxLogout, dxFetchMe, dxHasSession, isDirectusEnabled } from "./directus";
 
-export async function login(email: string, _password: string): Promise<AuthUser> {
-  // Demo mode: any password is accepted for the demo accounts.
-  const u = DEMO_USERS.find((x) => x.email.toLowerCase() === email.trim().toLowerCase());
-  if (!u) throw new Error("Invalid credentials");
-  const { password: _pw, ...auth } = u;
-  localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
-  // Audit (lazy import to avoid circular dep)
+function mapDxUserToAuth(me: {
+  id: string; email: string;
+  first_name?: string; last_name?: string;
+  role?: { name?: string };
+  agent_id?: string; branch?: string;
+}): AuthUser {
+  const roleName = (me.role?.name ?? "").toLowerCase();
+  let role: Role = "agent";
+  if (roleName.includes("admin")) role = "admin";
+  else if (roleName.includes("supervisor")) role = "supervisor";
+  const name = [me.first_name, me.last_name].filter(Boolean).join(" ").trim() || me.email;
+  return {
+    id: me.id,
+    email: me.email,
+    name,
+    role,
+    agentId: me.agent_id,
+    branch: me.branch,
+  };
+}
+
+export async function login(email: string, password: string): Promise<AuthUser> {
+  if (!isDirectusEnabled()) throw new Error("Backend not configured");
+  const me = await dxLogin(email, password);
+  const auth = mapDxUserToAuth(me);
+  if (typeof window !== "undefined") {
+    localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+  }
   import("./audit").then(({ logEvent }) =>
     logEvent({
       action: "auth.login",
@@ -271,17 +268,9 @@ export async function login(email: string, _password: string): Promise<AuthUser>
   return auth;
 }
 
-export async function signUp(email: string, _password: string, fullName: string): Promise<AuthUser> {
-  const auth: AuthUser = {
-    id: uuid(),
-    email,
-    name: fullName || email,
-    role: "agent",
-    agentId: "A" + Math.floor(100 + Math.random() * 900),
-    branch: BRANCHES[0],
-  };
-  localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
-  return auth;
+export async function signUp(_email: string, _password: string, _fullName: string): Promise<AuthUser> {
+  // Self-signup is disabled — agents are provisioned by an admin/supervisor.
+  throw new Error("Sign up is disabled. Contact your administrator.");
 }
 
 export async function logout() {
@@ -298,7 +287,8 @@ export async function logout() {
       }),
     );
   }
-  localStorage.removeItem(AUTH_KEY);
+  try { dxLogout(); } catch { /* ignore */ }
+  if (typeof window !== "undefined") localStorage.removeItem(AUTH_KEY);
 }
 
 export function getCurrentUser(): AuthUser | null {
@@ -308,9 +298,24 @@ export function getCurrentUser(): AuthUser | null {
   try { return JSON.parse(raw) as AuthUser; } catch { return null; }
 }
 
+/** Re-fetch the current user from Directus and refresh the local cache. */
 export async function refreshCurrentUser(): Promise<AuthUser | null> {
-  return getCurrentUser();
+  if (typeof window === "undefined") return null;
+  if (!isDirectusEnabled() || !dxHasSession()) {
+    localStorage.removeItem(AUTH_KEY);
+    return null;
+  }
+  try {
+    const me = await dxFetchMe();
+    const auth = mapDxUserToAuth(me);
+    localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+    return auth;
+  } catch {
+    localStorage.removeItem(AUTH_KEY);
+    return null;
+  }
 }
+
 
 // ---------------------------------------------------------------------------
 // Requests
