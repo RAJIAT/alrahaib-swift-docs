@@ -173,6 +173,23 @@ export function AgentFormDialog({
             </Field>
           </div>
 
+          {!isSupervisorForm && (
+            <Field label={t.agents.supervisorLabel ?? "السوبرفايزر"}>
+              <select
+                value={values.supervisorId ?? ""}
+                onChange={(e) => setValues((v) => ({ ...v, supervisorId: e.target.value }))}
+                className="h-11 w-full rounded-xl border border-input bg-surface px-3 text-sm text-foreground"
+              >
+                <option value="">{t.agents.supervisorAuto ?? "تلقائي حسب الفرع"}</option>
+                {supervisors.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}{s.branch ? ` — ${s.branch}` : ""}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
+
           {error && <p className="text-sm font-medium text-destructive">{error}</p>}
 
           <div className="flex items-center justify-end gap-2 pt-2">
