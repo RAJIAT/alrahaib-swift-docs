@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Download, RotateCcw, FileText, Loader2, X, Mail } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Download, RotateCcw, FileText, Loader2, X, Mail, Send, Link2, MessageSquare, AlertTriangle, CheckCircle2 } from "lucide-react";
 import JSZip from "jszip";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/DashboardShell";
@@ -9,7 +9,8 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { isPdfDataUrl } from "@/lib/imageUtils";
 import {
   getCurrentUser, refreshCurrentUser, getRequest, updateRequestStatus, resolveAssetUrl,
-  type AuthUser, type InsuranceRequest, type RequestStatus,
+  addRequestNote, resolveRequestNote,
+  type AuthUser, type InsuranceRequest, type RequestStatus, type RequestNoteKind,
 } from "@/services/api";
 
 export const Route = createFileRoute("/requests/$id")({
