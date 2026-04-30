@@ -283,18 +283,19 @@ function StatCard({
 }
 
 function Select({
-  value, onChange, label, all, options,
+  value, onChange, label, all, options, disabled,
 }: {
   value: string; onChange: (v: string) => void; label: string; all: string;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string }[]; disabled?: boolean;
 }) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-xs font-semibold text-muted-foreground">{label}</span>
       <select
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="h-11 w-full rounded-xl border border-input bg-surface px-3 text-sm text-foreground"
+        className="h-11 w-full rounded-xl border border-input bg-surface px-3 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-60"
       >
         <option value="">{all}</option>
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
