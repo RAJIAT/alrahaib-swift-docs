@@ -184,6 +184,8 @@ export const translations = {
       empty: "لا يوجد وكلاء بعد. ابدأ بإضافة أول وكيل.",
       backToAdmin: "لوحة المدير",
       supervisorNoDelete: "ليس لديك صلاحية حذف الوكلاء. يمكن للمدير فقط القيام بذلك.",
+      branchLockedNotice: (branch: string) => `سيتم إنشاء الوكيل ضمن فرعك (${branch}) ولا يمكن تغيير الفرع. لتغيير الفرع، يرجى التواصل مع المدير.`,
+      branchLockedHint: "الفرع مقفول حسب صلاحياتك",
     },
     audit: {
       title: "سجل التدقيق",
@@ -403,6 +405,8 @@ export const translations = {
       empty: "No agents yet. Add your first agent to get started.",
       backToAdmin: "Admin Dashboard",
       supervisorNoDelete: "You don't have permission to delete agents. Only admins can do that.",
+      branchLockedNotice: (branch: string) => `This agent will be created under your branch (${branch}). The branch field cannot be changed. To assign a different branch, please contact an admin.`,
+      branchLockedHint: "Branch is locked by your permissions",
     },
     audit: {
       title: "Audit Log",
