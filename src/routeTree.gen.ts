@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SuccessRouteImport } from './routes/success'
+import { Route as SetupDirectusRouteImport } from './routes/setup-directus'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuditRouteImport } from './routes/audit'
 import { Route as AgentsRouteImport } from './routes/agents'
@@ -22,6 +23,11 @@ import { Route as RRequestIdRouteImport } from './routes/r.$requestId'
 const SuccessRoute = SuccessRouteImport.update({
   id: '/success',
   path: '/success',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupDirectusRoute = SetupDirectusRouteImport.update({
+  id: '/setup-directus',
+  path: '/setup-directus',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/agents': typeof AgentsRoute
   '/audit': typeof AuditRoute
   '/login': typeof LoginRoute
+  '/setup-directus': typeof SetupDirectusRoute
   '/success': typeof SuccessRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/agents': typeof AgentsRoute
   '/audit': typeof AuditRoute
   '/login': typeof LoginRoute
+  '/setup-directus': typeof SetupDirectusRoute
   '/success': typeof SuccessRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/agents': typeof AgentsRoute
   '/audit': typeof AuditRoute
   '/login': typeof LoginRoute
+  '/setup-directus': typeof SetupDirectusRoute
   '/success': typeof SuccessRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
@@ -108,6 +117,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/audit'
     | '/login'
+    | '/setup-directus'
     | '/success'
     | '/r/$requestId'
     | '/requests/$id'
@@ -119,6 +129,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/audit'
     | '/login'
+    | '/setup-directus'
     | '/success'
     | '/r/$requestId'
     | '/requests/$id'
@@ -130,6 +141,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/audit'
     | '/login'
+    | '/setup-directus'
     | '/success'
     | '/r/$requestId'
     | '/requests/$id'
@@ -142,6 +154,7 @@ export interface RootRouteChildren {
   AgentsRoute: typeof AgentsRoute
   AuditRoute: typeof AuditRoute
   LoginRoute: typeof LoginRoute
+  SetupDirectusRoute: typeof SetupDirectusRoute
   SuccessRoute: typeof SuccessRoute
   RRequestIdRoute: typeof RRequestIdRoute
   RequestsIdRoute: typeof RequestsIdRoute
@@ -154,6 +167,13 @@ declare module '@tanstack/react-router' {
       path: '/success'
       fullPath: '/success'
       preLoaderRoute: typeof SuccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup-directus': {
+      id: '/setup-directus'
+      path: '/setup-directus'
+      fullPath: '/setup-directus'
+      preLoaderRoute: typeof SetupDirectusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -222,6 +242,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgentsRoute: AgentsRoute,
   AuditRoute: AuditRoute,
   LoginRoute: LoginRoute,
+  SetupDirectusRoute: SetupDirectusRoute,
   SuccessRoute: SuccessRoute,
   RRequestIdRoute: RRequestIdRoute,
   RequestsIdRoute: RequestsIdRoute,
