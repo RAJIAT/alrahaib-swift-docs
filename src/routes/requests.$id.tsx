@@ -156,10 +156,6 @@ function RequestDetails() {
     if (!req || sharing) return;
     setSharing(true);
     try {
-      const out = await buildZipBlob();
-      if (!out) return;
-      triggerDownload(out, `${req.id}.zip`);
-      toast.success(t.details.shareEmailHint);
       const subject = `${t.details.shareEmailSubject} — ${req.id}`;
       const body = `${t.details.shareEmailBody}\n\n${t.table.agent}: ${req.agentName}\n${t.table.branch}: ${req.branch}\n${t.details.title}: ${req.id}`;
       const to = req.customerEmail ?? "";
