@@ -32,9 +32,12 @@ export function AgentFormDialog({
     name: "", email: "", password: "", agentId: "",
     branch: listBranches()[0] ?? "",
     role: lockedRole ?? defaultRole ?? "agent",
+    supervisorId: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const supervisors = useMemo(() => listAgents().filter((a) => a.role === "supervisor"), [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -46,6 +49,7 @@ export function AgentFormDialog({
       agentId: initial?.id ?? "",
       branch: lockedBranch ?? initial?.branch ?? (listBranches()[0] ?? ""),
       role: lockedRole ?? initial?.role ?? defaultRole ?? "agent",
+      supervisorId: initial?.supervisorId ?? "",
     });
   }, [open, initial, lockedBranch, lockedRole, defaultRole]);
 
