@@ -8,8 +8,11 @@
  * See DIRECTUS_SETUP.md for the full schema, roles and permissions.
  */
 
+const DEFAULT_DIRECTUS_URL = "http://74.162.122.193:8055";
+
 export const DIRECTUS_URL: string | undefined =
-  (import.meta as any).env?.VITE_DIRECTUS_URL?.replace(/\/$/, "") || undefined;
+  ((import.meta as any).env?.VITE_DIRECTUS_URL || DEFAULT_DIRECTUS_URL)
+    ?.replace(/\/$/, "") || undefined;
 
 export const isDirectusEnabled = () => !!DIRECTUS_URL;
 
