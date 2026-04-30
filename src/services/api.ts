@@ -600,7 +600,7 @@ export async function createAgent(input: {
 }
 
 export async function updateAgent(id: string, patch: Partial<{
-  name: string; email: string | null; branch: string | null; active: boolean;
+  name: string; email: string | null; branch: string | null; active: boolean; supervisorId: string | null;
 }>): Promise<Agent> {
   const list = readAgents();
   const idx = list.findIndex((a) => a.id === id);
@@ -612,13 +612,14 @@ export async function updateAgent(id: string, patch: Partial<{
     ...(patch.email !== undefined ? { email: patch.email ?? undefined } : {}),
     ...(patch.branch !== undefined ? { branch: patch.branch ?? undefined } : {}),
     ...(patch.active !== undefined ? { active: patch.active } : {}),
+    ...(patch.supervisorId !== undefined ? { supervisorId: patch.supervisorId ?? undefined } : {}),
   };
   list[idx] = after;
   writeJSON(AGENTS_KEY, list);
   notifyAgentsChange();
   // Detect changed fields
   const changed: Record<string, { before: unknown; after: unknown }> = {};
-  (["name", "email", "branch", "active"] as const).forEach((k) => {
+  (["name", "email", "branch", "active", "supervisorId"] as const).forEach((k) => {
     if (before[k] !== after[k]) changed[k] = { before: before[k], after: after[k] };
   });
   let action: "agent.updated" | "agent.activated" | "agent.deactivated" = "agent.updated";
