@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Loader2, Shield, ShieldCheck, User } from "lucide-react";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -36,7 +36,7 @@ function LoginPage() {
     <div className="min-h-screen bg-background">
       <header className="px-4 pt-5">
         <div className="mx-auto flex max-w-md items-center justify-between">
-          <Logo size={40} />
+          <Link to="/" aria-label="Home"><Logo size={40} /></Link>
           <LanguageSwitcher />
         </div>
       </header>
