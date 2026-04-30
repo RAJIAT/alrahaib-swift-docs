@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { Lock, Loader2, X } from "lucide-react";
 import { useLang } from "@/i18n/LanguageProvider";
 import { listBranches, type Agent } from "@/services/api";
 
@@ -77,6 +77,15 @@ export function AgentFormDialog({
         </div>
 
         <form onSubmit={submit} className="space-y-4 p-5">
+          {lockedBranch && (
+            <div
+              role="note"
+              className="flex items-start gap-2 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-foreground"
+            >
+              <Lock className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <p className="leading-relaxed">{t.agents.branchLockedNotice(lockedBranch)}</p>
+            </div>
+          )}
           <Field label={t.agents.fullName}>
             <input
               value={values.name}
@@ -116,6 +125,12 @@ export function AgentFormDialog({
               >
                 {listBranches().map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
+              {lockedBranch && (
+                <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                  <Lock className="h-3 w-3" />
+                  {t.agents.branchLockedHint}
+                </p>
+              )}
             </Field>
             <Field label={mode === "create" ? t.agents.password : t.agents.newPassword}>
               <input
