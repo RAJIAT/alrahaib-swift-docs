@@ -55,9 +55,7 @@ export function DashboardShell({
         { to: "/agents", label: t.admin.manageAgents, icon: <Users className="h-5 w-5" /> },
         { to: "/branches", label: t.admin.manageBranches, icon: <Building2 className="h-5 w-5" /> },
         { to: "/audit", label: t.admin.auditLog, icon: <ScrollText className="h-5 w-5" /> },
-      ];
-    }
-    if (user.role === "supervisor") {
+        { to: "/admin-setup", label: "إعدادات النظام", icon: <Wrench className="h-5 w-5" /> },
       return [
         { to: "/admin", label: t.nav.dashboard, icon: <LayoutDashboard className="h-5 w-5" /> },
         { to: "/agents", label: t.admin.manageAgents, icon: <Users className="h-5 w-5" /> },
