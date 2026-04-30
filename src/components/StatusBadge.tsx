@@ -3,6 +3,7 @@ import type { RequestStatus } from "@/services/api";
 
 const STYLES: Record<RequestStatus, string> = {
   new: "bg-info/10 text-info ring-info/20",
+  linkSent: "bg-primary/10 text-primary ring-primary/20",
   processing: "bg-warning/15 text-warning-foreground ring-warning/30",
   sold: "bg-success/10 text-success ring-success/20",
   rejected: "bg-destructive/10 text-destructive ring-destructive/20",
