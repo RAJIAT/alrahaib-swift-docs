@@ -48,7 +48,7 @@ function SetupDirectusPage() {
   };
 
   return (
-    <DashboardShell>
+    <DashboardShell role="admin">
       <div className="mx-auto max-w-3xl p-4 sm:p-6">
         <Link
           to="/admin"
