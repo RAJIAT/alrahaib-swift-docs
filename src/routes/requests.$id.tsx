@@ -620,13 +620,6 @@ function NotesSection({
     }
   };
 
-    } catch {
-      toast.error("Failed");
-    } finally {
-      setResolvingId(null);
-    }
-  };
-
   const notes = req.notes ?? [];
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString(lang === "ar" ? "ar-AE" : "en-GB", {
@@ -636,9 +629,18 @@ function NotesSection({
 
   return (
     <section className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-card">
-      <div className="mb-3 flex items-center gap-2">
-        <MessageSquare className="h-4 w-4 text-primary" />
-        <h3 className="text-sm font-bold text-foreground">{t.details.notesTitle}</h3>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-bold text-foreground">{t.details.notesTitle}</h3>
+        </div>
+        <button
+          onClick={copyReuploadLink}
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-foreground shadow-soft transition hover:bg-muted active:scale-95"
+        >
+          <Link2 className="h-3.5 w-3.5" />
+          {t.details.copyReuploadLink}
+        </button>
       </div>
 
       {notes.length === 0 ? (
