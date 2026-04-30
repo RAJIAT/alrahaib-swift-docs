@@ -174,6 +174,17 @@ export async function login(email: string, _password: string): Promise<AuthUser>
   if (!u) throw new Error("Invalid credentials");
   const { password: _pw, ...auth } = u;
   localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+  // Audit (lazy import to avoid circular dep)
+  import("./audit").then(({ logEvent }) =>
+    logEvent({
+      action: "auth.login",
+      entityType: "auth",
+      entityId: auth.id,
+      entityLabel: auth.name,
+      branch: auth.branch ?? null,
+      actor: { id: auth.id, name: auth.name, role: auth.role, branch: auth.branch ?? null },
+    }),
+  );
   return auth;
 }
 
@@ -191,6 +202,19 @@ export async function signUp(email: string, _password: string, fullName: string)
 }
 
 export async function logout() {
+  const cur = getCurrentUser();
+  if (cur) {
+    import("./audit").then(({ logEvent }) =>
+      logEvent({
+        action: "auth.logout",
+        entityType: "auth",
+        entityId: cur.id,
+        entityLabel: cur.name,
+        branch: cur.branch ?? null,
+        actor: { id: cur.id, name: cur.name, role: cur.role, branch: cur.branch ?? null },
+      }),
+    );
+  }
   localStorage.removeItem(AUTH_KEY);
 }
 
@@ -243,9 +267,23 @@ export async function updateRequestStatus(id: string, status: RequestStatus): Pr
   const all = readRequests();
   const idx = all.findIndex((r) => r.id === id || r.uuid === id);
   if (idx === -1) throw new Error("Request not found");
-  all[idx] = { ...all[idx], status };
+  const before = all[idx];
+  all[idx] = { ...before, status };
   writeRequests(all);
   notifyChange();
+  if (before.status !== status) {
+    import("./audit").then(({ logEvent }) =>
+      logEvent({
+        action: "request.status_changed",
+        entityType: "request",
+        entityId: before.id,
+        entityLabel: before.id,
+        branch: before.branch ?? null,
+        before: { status: before.status },
+        after: { status },
+      }),
+    );
+  }
   return all[idx];
 }
 
@@ -340,6 +378,16 @@ export async function createAgent(input: {
   list.push(agent);
   writeJSON(AGENTS_KEY, list);
   notifyAgentsChange();
+  import("./audit").then(({ logEvent }) =>
+    logEvent({
+      action: "agent.created",
+      entityType: "agent",
+      entityId: agent.id,
+      entityLabel: agent.name,
+      branch: agent.branch ?? null,
+      after: agent,
+    }),
+  );
   return agent;
 }
 
@@ -349,20 +397,56 @@ export async function updateAgent(id: string, patch: Partial<{
   const list = readAgents();
   const idx = list.findIndex((a) => a.id === id);
   if (idx === -1) throw new Error("Agent not found");
-  list[idx] = {
-    ...list[idx],
+  const before = list[idx];
+  const after: Agent = {
+    ...before,
     ...(patch.name !== undefined ? { name: patch.name } : {}),
     ...(patch.email !== undefined ? { email: patch.email ?? undefined } : {}),
     ...(patch.branch !== undefined ? { branch: patch.branch ?? undefined } : {}),
     ...(patch.active !== undefined ? { active: patch.active } : {}),
   };
+  list[idx] = after;
   writeJSON(AGENTS_KEY, list);
   notifyAgentsChange();
-  return list[idx];
+  // Detect changed fields
+  const changed: Record<string, { before: unknown; after: unknown }> = {};
+  (["name", "email", "branch", "active"] as const).forEach((k) => {
+    if (before[k] !== after[k]) changed[k] = { before: before[k], after: after[k] };
+  });
+  let action: "agent.updated" | "agent.activated" | "agent.deactivated" = "agent.updated";
+  if (Object.keys(changed).length === 1 && "active" in changed) {
+    action = after.active ? "agent.activated" : "agent.deactivated";
+  }
+  import("./audit").then(({ logEvent }) =>
+    logEvent({
+      action,
+      entityType: "agent",
+      entityId: after.id,
+      entityLabel: after.name,
+      branch: after.branch ?? null,
+      before,
+      after,
+      meta: { changed: Object.keys(changed) },
+    }),
+  );
+  return after;
 }
 
 export async function deleteAgent(id: string): Promise<void> {
+  const before = readAgents().find((a) => a.id === id);
   const list = readAgents().filter((a) => a.id !== id);
   writeJSON(AGENTS_KEY, list);
   notifyAgentsChange();
+  if (before) {
+    import("./audit").then(({ logEvent }) =>
+      logEvent({
+        action: "agent.deleted",
+        entityType: "agent",
+        entityId: before.id,
+        entityLabel: before.name,
+        branch: before.branch ?? null,
+        before,
+      }),
+    );
+  }
 }
