@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Download, RotateCcw, FileText, Loader2, X, Mail } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Download, RotateCcw, FileText, Loader2, X, Mail, Send, Link2, MessageSquare, AlertTriangle, CheckCircle2 } from "lucide-react";
 import JSZip from "jszip";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/DashboardShell";
@@ -9,14 +9,15 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { isPdfDataUrl } from "@/lib/imageUtils";
 import {
   getCurrentUser, refreshCurrentUser, getRequest, updateRequestStatus, resolveAssetUrl,
-  type AuthUser, type InsuranceRequest, type RequestStatus,
+  addRequestNote, resolveRequestNote,
+  type AuthUser, type InsuranceRequest, type RequestStatus, type RequestNoteKind,
 } from "@/services/api";
 
 export const Route = createFileRoute("/requests/$id")({
   component: RequestDetails,
 });
 
-type SavingAction = "quote" | "sold" | "reupload" | "select" | null;
+type SavingAction = "quote" | "sold" | "reupload" | "linkSent" | "select" | null;
 
 function dataUrlToBlob(dataUrl: string): Blob {
   const [meta, b64] = dataUrl.split(",");
@@ -184,24 +185,43 @@ function RequestDetails() {
           <Back className="h-4 w-4" />
           {t.details.back}
         </Link>
-        {req && allAssets.length > 0 && (
+        {req && (
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={shareByEmail}
-              disabled={sharing || zipping}
-              className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-semibold text-foreground shadow-soft transition hover:bg-muted active:scale-95 disabled:opacity-60"
+              onClick={async () => {
+                const url = `${window.location.origin}/r/${encodeURIComponent(req.id)}`;
+                try {
+                  await navigator.clipboard.writeText(url);
+                  toast.success(t.details.reuploadLinkCopied);
+                } catch {
+                  window.prompt(t.details.copyReuploadLink, url);
+                }
+              }}
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-semibold text-foreground shadow-soft transition hover:bg-muted active:scale-95"
             >
-              {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-              {t.details.shareEmail}
+              <Link2 className="h-4 w-4" />
+              {t.details.copyReuploadLink}
             </button>
-            <button
-              onClick={downloadAllZip}
-              disabled={zipping || sharing}
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-95 disabled:opacity-60"
-            >
-              {zipping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              {t.details.downloadAll}
-            </button>
+            {allAssets.length > 0 && (
+              <>
+                <button
+                  onClick={shareByEmail}
+                  disabled={sharing || zipping}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-semibold text-foreground shadow-soft transition hover:bg-muted active:scale-95 disabled:opacity-60"
+                >
+                  {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                  {t.details.shareEmail}
+                </button>
+                <button
+                  onClick={downloadAllZip}
+                  disabled={zipping || sharing}
+                  className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-95 disabled:opacity-60"
+                >
+                  {zipping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  {t.details.downloadAll}
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -348,8 +368,52 @@ function RequestDetails() {
             </div>
           )}
 
+          {/* Other attachments */}
+          {req.images.attachments && req.images.attachments.length > 0 && (
+            <div className="mt-6">
+              <h3 className="mb-3 text-sm font-bold text-foreground">{t.details.attachments}</h3>
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                {req.images.attachments.map((a, idx) => (
+                  <a
+                    key={idx}
+                    href={a.url}
+                    download={a.name}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-soft transition hover:bg-muted"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold text-foreground" title={a.name}>{a.name}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {(a.size / 1024).toFixed(0)} KB · {a.type || "file"}
+                      </div>
+                    </div>
+                    <Download className="h-4 w-4 text-muted-foreground" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Notes & missing items */}
+          <NotesSection
+            req={req}
+            onUpdated={(r) => setReq(r)}
+          />
+
           {/* Actions */}
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <button
+              onClick={() => setStatus("linkSent", "linkSent")}
+              disabled={saving}
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface text-sm font-semibold text-foreground shadow-soft transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {savingAction === "linkSent" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {t.details.markLinkSent}
+            </button>
             <button
               onClick={() => setStatus("processing", "quote")}
               disabled={saving}
@@ -514,5 +578,164 @@ function ImgCard({
         </button>
       )}
     </div>
+  );
+}
+
+function NotesSection({
+  req,
+  onUpdated,
+}: {
+  req: InsuranceRequest;
+  onUpdated: (r: InsuranceRequest) => void;
+}) {
+  const { t, lang } = useLang();
+  const [text, setText] = useState("");
+  const [kind, setKind] = useState<RequestNoteKind>("comment");
+  const [busy, setBusy] = useState(false);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+
+  const me = getCurrentUser();
+  const canResolve = me?.role === "admin" || me?.role === "supervisor" || me?.role === "agent";
+
+  const submit = async () => {
+    const trimmed = text.trim();
+    if (!trimmed || busy) return;
+    setBusy(true);
+    try {
+      const updated = await addRequestNote(req.id, { text: trimmed, kind });
+      onUpdated(updated);
+      setText("");
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resolve = async (noteId: string) => {
+    setResolvingId(noteId);
+    try {
+      const updated = await resolveRequestNote(req.id, noteId);
+      onUpdated(updated);
+    } catch {
+      toast.error("Failed");
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
+  const notes = req.notes ?? [];
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString(lang === "ar" ? "ar-AE" : "en-GB", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+
+  return (
+    <section className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-card">
+      <div className="mb-3 flex items-center gap-2">
+        <MessageSquare className="h-4 w-4 text-primary" />
+        <h3 className="text-sm font-bold text-foreground">{t.details.notesTitle}</h3>
+      </div>
+
+      {notes.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t.details.notesEmpty}</p>
+      ) : (
+        <ul className="space-y-2">
+          {notes.map((n) => {
+            const isMissing = n.kind === "missing";
+            const resolved = !!n.resolvedAt;
+            return (
+              <li
+                key={n.id}
+                className={`rounded-xl border p-3 text-sm ${
+                  isMissing && !resolved
+                    ? "border-warning/30 bg-warning/10"
+                    : resolved
+                      ? "border-success/30 bg-success/5"
+                      : "border-border bg-muted/40"
+                }`}
+              >
+                <div className="mb-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${
+                    isMissing ? "bg-warning/20 text-warning-foreground" : "bg-primary/10 text-primary"
+                  }`}>
+                    {isMissing ? <AlertTriangle className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}
+                    {isMissing ? t.details.noteKindMissing : t.details.noteKindComment}
+                  </span>
+                  <span className="text-foreground">{n.authorName}</span>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="text-muted-foreground">{fmt(n.createdAt)}</span>
+                  {resolved && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-success">
+                      <CheckCircle2 className="h-3 w-3" />
+                      {t.details.noteResolved}
+                    </span>
+                  )}
+                </div>
+                <p className="whitespace-pre-wrap text-foreground">{n.text}</p>
+                {isMissing && !resolved && canResolve && (
+                  <button
+                    onClick={() => resolve(n.id)}
+                    disabled={resolvingId === n.id}
+                    className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:underline disabled:opacity-60"
+                  >
+                    {resolvingId === n.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                    {t.details.noteResolve}
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <div className="mt-4 space-y-2">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setKind("comment")}
+            className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
+              kind === "comment"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/70"
+            }`}
+          >
+            <MessageSquare className="h-3 w-3" />
+            {t.details.noteAdd}
+          </button>
+          <button
+            type="button"
+            onClick={() => setKind("missing")}
+            className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
+              kind === "missing"
+                ? "bg-warning text-warning-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/70"
+            }`}
+          >
+            <AlertTriangle className="h-3 w-3" />
+            {t.details.missingAdd}
+          </button>
+        </div>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={2}
+          placeholder={kind === "missing" ? t.details.missingPlaceholder : t.details.notePlaceholder}
+          className="w-full rounded-xl border border-input bg-surface p-3 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+        />
+        <div className="flex justify-end">
+          <button
+            onClick={submit}
+            disabled={!text.trim() || busy}
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-95 disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {kind === "missing" ? t.details.missingAdd : t.details.noteAdd}
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }

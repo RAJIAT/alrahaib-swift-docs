@@ -17,6 +17,7 @@ import { Route as AgentRouteImport } from './routes/agent'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RequestsIdRouteImport } from './routes/requests.$id'
+import { Route as RRequestIdRouteImport } from './routes/r.$requestId'
 
 const SuccessRoute = SuccessRouteImport.update({
   id: '/success',
@@ -58,6 +59,11 @@ const RequestsIdRoute = RequestsIdRouteImport.update({
   path: '/requests/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RRequestIdRoute = RRequestIdRouteImport.update({
+  id: '/r/$requestId',
+  path: '/r/$requestId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -67,6 +73,7 @@ export interface FileRoutesByFullPath {
   '/audit': typeof AuditRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
+  '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
 }
 export interface FileRoutesByTo {
@@ -77,6 +84,7 @@ export interface FileRoutesByTo {
   '/audit': typeof AuditRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
+  '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
 }
 export interface FileRoutesById {
@@ -88,6 +96,7 @@ export interface FileRoutesById {
   '/audit': typeof AuditRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
+  '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
 }
 export interface FileRouteTypes {
@@ -100,6 +109,7 @@ export interface FileRouteTypes {
     | '/audit'
     | '/login'
     | '/success'
+    | '/r/$requestId'
     | '/requests/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -110,6 +120,7 @@ export interface FileRouteTypes {
     | '/audit'
     | '/login'
     | '/success'
+    | '/r/$requestId'
     | '/requests/$id'
   id:
     | '__root__'
@@ -120,6 +131,7 @@ export interface FileRouteTypes {
     | '/audit'
     | '/login'
     | '/success'
+    | '/r/$requestId'
     | '/requests/$id'
   fileRoutesById: FileRoutesById
 }
@@ -131,6 +143,7 @@ export interface RootRouteChildren {
   AuditRoute: typeof AuditRoute
   LoginRoute: typeof LoginRoute
   SuccessRoute: typeof SuccessRoute
+  RRequestIdRoute: typeof RRequestIdRoute
   RequestsIdRoute: typeof RequestsIdRoute
 }
 
@@ -192,6 +205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RequestsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/r/$requestId': {
+      id: '/r/$requestId'
+      path: '/r/$requestId'
+      fullPath: '/r/$requestId'
+      preLoaderRoute: typeof RRequestIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -203,6 +223,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuditRoute: AuditRoute,
   LoginRoute: LoginRoute,
   SuccessRoute: SuccessRoute,
+  RRequestIdRoute: RRequestIdRoute,
   RequestsIdRoute: RequestsIdRoute,
 }
 export const routeTree = rootRouteImport
