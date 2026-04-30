@@ -71,6 +71,7 @@ function AdminAgents() {
       branch: lockedBranch ?? v.branch,
       // Supervisors can only ever create plain agents; admins use the form's role.
       role: isSupervisor ? "agent" : v.role,
+      supervisorId: v.supervisorId || undefined,
     });
     toast.success(t.agents.created);
   };
@@ -81,6 +82,7 @@ function AdminAgents() {
       name: v.name,
       branch: lockedBranch ?? v.branch,
       email: v.email,
+      supervisorId: v.supervisorId ? v.supervisorId : null,
     });
     toast.success(t.agents.updated);
   };
