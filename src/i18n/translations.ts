@@ -513,6 +513,7 @@ export const translations = {
       emptyTitle: "No matching requests",
       emptySubtitle: "Try adjusting or resetting your filters",
       manageAgents: "Agents & Supervisors",
+      manageBranches: "Branches",
       auditLog: "Audit Log",
     },
     agents: {
