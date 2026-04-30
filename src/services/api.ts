@@ -290,30 +290,27 @@ function readRequests(): InsuranceRequest[] {
       vehicleMedia?: InsuranceRequest["images"]["vehicleMedia"];
       vehicleVideo?: { name: string; size: number; type: string };
       inspection?: string;
+      attachments?: AttachmentMeta[];
     };
     const img = r.images as unknown as LegacyImg;
-    // Registration → string[]
     let registration: string[];
     if (Array.isArray(img.registration)) registration = img.registration.filter(Boolean);
     else {
       registration = [img.registrationFront, img.registrationBack, typeof img.registration === "string" ? img.registration : undefined]
         .filter((x): x is string => !!x);
     }
-    // Emirates → string[]
     let emirates: string[];
     if (Array.isArray(img.emirates)) emirates = img.emirates.filter(Boolean);
     else {
       emirates = [img.emiratesFront, img.emiratesBack, typeof img.emirates === "string" ? img.emirates : undefined]
         .filter((x): x is string => !!x);
     }
-    // vehicleMedia from old vehiclePhotos[] + vehicleVideo
     let vehicleMedia = img.vehicleMedia;
     if (!vehicleMedia) {
       vehicleMedia = [];
       (img.vehiclePhotos ?? []).forEach((url) => vehicleMedia!.push({ kind: "image", url }));
       if (img.vehicleVideo) vehicleMedia.push({ kind: "video", ...img.vehicleVideo });
     }
-    // License → string[]
     let license: string[];
     if (Array.isArray(img.license)) license = img.license.filter(Boolean);
     else {
@@ -322,12 +319,16 @@ function readRequests(): InsuranceRequest[] {
     }
     return {
       ...r,
+      notes: Array.isArray((r as unknown as { notes?: RequestNote[] }).notes)
+        ? (r as unknown as { notes: RequestNote[] }).notes
+        : [],
       images: {
         registration,
         license,
         emirates,
         vehicleMedia,
         inspection: img.inspection,
+        attachments: Array.isArray(img.attachments) ? img.attachments : [],
       },
     };
   });
