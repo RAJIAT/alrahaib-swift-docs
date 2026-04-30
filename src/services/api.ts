@@ -19,11 +19,18 @@ export type InsuranceRequest = {
   customerName?: string;
   customerEmail?: string;
   images: {
-    registration: string;
+    registrationFront: string;
+    registrationBack: string;
     license: string;
-    emirates: string;
+    emiratesFront: string;
+    emiratesBack: string;
+    vehiclePhotos: string[];
+    vehicleVideo?: { name: string; size: number; type: string };
     inspection?: string;
-    vehiclePhotos?: string[];
+    /** @deprecated legacy single registration image (pre split). */
+    registration?: string;
+    /** @deprecated legacy single emirates image (pre split). */
+    emirates?: string;
   };
 };
 
