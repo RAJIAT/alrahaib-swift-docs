@@ -290,6 +290,20 @@ function UploadPage() {
             optional
           />
         </section>
+
+        {/* Other attachments — fully optional, any file type except video */}
+        <section className="mt-4" dir={dir}>
+          <MultiUploadCard
+            label={t.upload.cards.attachments}
+            hint={t.upload.attachmentsHint}
+            files={attachments}
+            onChange={setAttachments}
+            min={0}
+            max={20}
+            acceptAny
+            optional
+          />
+        </section>
       </main>
 
       <div className="mx-auto mt-8 max-w-2xl px-4 pb-8">
