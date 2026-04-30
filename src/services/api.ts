@@ -174,6 +174,17 @@ export async function login(email: string, _password: string): Promise<AuthUser>
   if (!u) throw new Error("Invalid credentials");
   const { password: _pw, ...auth } = u;
   localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+  // Audit (lazy import to avoid circular dep)
+  import("./audit").then(({ logEvent }) =>
+    logEvent({
+      action: "auth.login",
+      entityType: "auth",
+      entityId: auth.id,
+      entityLabel: auth.name,
+      branch: auth.branch ?? null,
+      actor: { id: auth.id, name: auth.name, role: auth.role, branch: auth.branch ?? null },
+    }),
+  );
   return auth;
 }
 
@@ -191,6 +202,19 @@ export async function signUp(email: string, _password: string, fullName: string)
 }
 
 export async function logout() {
+  const cur = getCurrentUser();
+  if (cur) {
+    import("./audit").then(({ logEvent }) =>
+      logEvent({
+        action: "auth.logout",
+        entityType: "auth",
+        entityId: cur.id,
+        entityLabel: cur.name,
+        branch: cur.branch ?? null,
+        actor: { id: cur.id, name: cur.name, role: cur.role, branch: cur.branch ?? null },
+      }),
+    );
+  }
   localStorage.removeItem(AUTH_KEY);
 }
 
