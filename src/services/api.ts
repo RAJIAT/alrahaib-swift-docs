@@ -43,6 +43,9 @@ export function canDelete(u: AuthUser | null | undefined): boolean {
   return u?.role === "admin";
 }
 export function canManageAgents(u: AuthUser | null | undefined): boolean {
+  return u?.role === "admin" || u?.role === "supervisor";
+}
+export function canDeleteAgents(u: AuthUser | null | undefined): boolean {
   return u?.role === "admin";
 }
 export function canSeeAllBranches(u: AuthUser | null | undefined): boolean {
