@@ -8,8 +8,9 @@ import { AgentFormDialog, type AgentFormValues } from "@/components/AgentFormDia
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useLang } from "@/i18n/LanguageProvider";
 import {
+  canDeleteAgents,
   createAgent, deleteAgent, getAgents, getCurrentUser, refreshCurrentUser,
-  subscribeAgents, updateAgent, type Agent,
+  subscribeAgents, updateAgent, type Agent, type AuthUser,
 } from "@/services/api";
 
 export const Route = createFileRoute("/agents")({
