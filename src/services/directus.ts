@@ -504,4 +504,3 @@ export async function dxDeleteAgent(id: string): Promise<void> {
   await dxFetch(`/users/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export type { DxRequest };
