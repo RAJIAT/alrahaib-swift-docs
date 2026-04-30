@@ -27,7 +27,7 @@ export type InsuranceRequest = {
   };
 };
 
-export type Role = "agent" | "admin";
+export type Role = "agent" | "admin" | "supervisor";
 
 export type AuthUser = {
   id: string;
@@ -37,6 +37,17 @@ export type AuthUser = {
   agentId?: string;
   branch?: string;
 };
+
+/** Permission helpers — single source of truth for role gates. */
+export function canDelete(u: AuthUser | null | undefined): boolean {
+  return u?.role === "admin";
+}
+export function canManageAgents(u: AuthUser | null | undefined): boolean {
+  return u?.role === "admin";
+}
+export function canSeeAllBranches(u: AuthUser | null | undefined): boolean {
+  return u?.role === "admin";
+}
 
 const REQUESTS_KEY = "aib_requests";
 const AGENTS_KEY = "aib_agents";
@@ -136,6 +147,14 @@ const DEMO_USERS: Array<AuthUser & { password: string }> = [
     role: "admin",
   },
   {
+    id: "u-supervisor",
+    email: "supervisor@aib.com",
+    password: "demo",
+    name: "Demo Supervisor",
+    role: "supervisor",
+    branch: "Abu Dhabi",
+  },
+  {
     id: "u-agent",
     email: "agent@aib.com",
     password: "agent123",
@@ -204,10 +223,12 @@ export async function resolveAssetUrl(stored: string): Promise<{ url: string; mi
   return { url: stored, mime };
 }
 
-export async function listRequests(opts?: { agentId?: string }): Promise<InsuranceRequest[]> {
+export async function listRequests(opts?: { agentId?: string; branch?: string }): Promise<InsuranceRequest[]> {
   const all = readRequests().sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  if (opts?.agentId) return all.filter((r) => r.agentId === opts.agentId);
-  return all;
+  let out = all;
+  if (opts?.agentId) out = out.filter((r) => r.agentId === opts.agentId);
+  if (opts?.branch) out = out.filter((r) => r.branch === opts.branch);
+  return out;
 }
 
 export async function getRequest(id: string): Promise<InsuranceRequest | null> {
