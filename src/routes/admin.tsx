@@ -8,7 +8,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { useRequestsLive } from "@/hooks/useRequestsLive";
 import {
   getCurrentUser, refreshCurrentUser, listAgents, listBranches,
-  subscribeAgents, type Agent, type RequestStatus,
+  subscribeAgents, type Agent, type AuthUser, type RequestStatus,
 } from "@/services/api";
 
 export const Route = createFileRoute("/admin")({
@@ -18,27 +18,42 @@ export const Route = createFileRoute("/admin")({
 function AdminDashboard() {
   const { t, dir, lang } = useLang();
   const navigate = useNavigate();
-  const { items, loading } = useRequestsLive();
+  const [user] = useState<AuthUser | null>(() => getCurrentUser());
+
+  const isSupervisor = user?.role === "supervisor";
+  const lockedBranch = isSupervisor ? user?.branch ?? "" : "";
+
+  const { items, loading } = useRequestsLive(
+    isSupervisor && lockedBranch ? { branch: lockedBranch } : undefined,
+  );
 
   const [agentF, setAgentF] = useState("");
-  const [branchF, setBranchF] = useState("");
+  const [branchF, setBranchF] = useState(lockedBranch);
   const [statusF, setStatusF] = useState<"" | RequestStatus>("");
   const [dateF, setDateF] = useState("");
   const [isPending, startTransition] = useTransition();
 
   // Stable agents/branches snapshot — refreshed only on subscription change.
   const [agents, setAgents] = useState<Agent[]>(() => listAgents());
-  const branches = useMemo(() => listBranches(), []);
+  const allBranches = useMemo(() => listBranches(), []);
+  const branches = useMemo(
+    () => (isSupervisor && lockedBranch ? [lockedBranch] : allBranches),
+    [isSupervisor, lockedBranch, allBranches],
+  );
 
   useEffect(() => {
     const u = getCurrentUser();
-    if (!u || u.role !== "admin") { navigate({ to: "/login" }); return; }
+    if (!u || (u.role !== "admin" && u.role !== "supervisor")) {
+      navigate({ to: "/login" });
+      return;
+    }
     refreshCurrentUser().then((fresh) => {
-      if (!fresh || fresh.role !== "admin") navigate({ to: "/login" });
+      if (!fresh || (fresh.role !== "admin" && fresh.role !== "supervisor")) navigate({ to: "/login" });
     });
     const off = subscribeAgents(() => setAgents(listAgents()));
     return () => off();
-  }, [navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Defer date input — only field that fires per keystroke.
   const deferredDate = useDeferredValue(dateF);
