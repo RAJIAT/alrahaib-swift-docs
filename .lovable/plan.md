@@ -1,31 +1,39 @@
-وجدت سبب المشكلة: الطلب يُحفظ فعلاً في Directus، لكن الداشبورد يفشل عند قراءة قائمة الطلبات بسبب صلاحيات الحقول في Directus. الطلب الأخير موجود بـ `agent_id = A21`، لكن طلب القراءة يرجع 403 لأن Role الوكيل لا يملك صلاحية قراءة حقول مثل `agent_id`, `agent_name`, `branch`, `date_created`, `customer_name` وغيرها. لذلك الواجهة تعرض فارغ/لا تظهر الطلبات.
+## التشخيص النهائي
 
-الخطة عند الموافقة:
+البيانات في الـ backend سليمة تماماً:
+- المستخدم Reda موجود مع `agent_id = "A21"` و role = Agent.
+- 3 طلبات موجودة كلها مربوطة بـ `agent_id = "A21"`.
 
-1. إصلاح صلاحيات Directus تلقائياً من داخل proxy maintenance
-   - تحديث `src/routes/api/directus.$.ts` ليضمن أن Role الوكيل يستطيع قراءة الحقول المطلوبة في `requests`:
-     - `id`, `status`, `agent_id`, `agent_name`, `branch`, `date_created`, `request_display_id`, `registration`, `license`, `emirates`, `passport`, `inspection`, `customer_name`, `customer_email`, `customer_phone`
-   - ضبط فلتر القراءة للوكيل على:
-     - `agent_id = $CURRENT_USER.agent_id`
-   - ضبط قراءة المشرف لاحقاً حسب الفرع:
-     - `branch = $CURRENT_USER.branch`
-   - الإبقاء على صلاحيات العميل العام محدودة وعدم فتح بيانات العملاء للعامة.
+لكن دashboard الايجنت فاضي. السبب: filter القراءة على collection `requests` صار:
+```
+agent_id = $CURRENT_USER.agent_id
+```
+ولكي ينجح هذا الفلتر، Directus يحتاج لقراءة قيمة `agent_id` من جدول `directus_users` لحساب المستخدم الحالي. صلاحية `Agent.directus_users.read` موجودة فعلاً، **لكن الحقول المسموح قراءتها محدودة وغالباً لا تتضمن الحقل المخصص `agent_id`** (وكذلك `branch`). النتيجة: `$CURRENT_USER.agent_id` يُحسب كـ `null` → الفلتر يصير `agent_id = null` → 0 نتائج.
 
-2. منع فشل الداشبورد إذا كانت بيانات الوكيل لم تكتمل
-   - في `src/routes/agent.tsx` و/أو `useRequestsLive`، إذا كان `user.agentId` غير موجود لا يتم تنفيذ `listRequests` بدون فلتر.
-   - حالياً هناك احتمال أن أول render يطلب `/items/requests` بدون `agent_id` قبل اكتمال refresh، وهذا خطر وغير صحيح.
+نفس المشكلة ستظهر للمشرف لاحقاً مع `$CURRENT_USER.branch`.
 
-3. تحسين التشخيص المؤقت
-   - تحديث endpoint التشخيص بحيث يوضح صراحة:
-     - هل قراءة الوكيل للطلبات مفعّلة؟
-     - هل الحقول المطلوبة مسموحة؟
-     - هل الطلبات الجديدة مربوطة بنفس `agent_id` الموجود على المستخدم؟
-   - إن لزم، إزالة أو تضييق endpoint التشخيص بعد الإصلاح لأنه يعرض معلومات تشغيلية لا يجب أن تبقى مفتوحة قبل الإطلاق.
+## الإصلاح
 
-4. التحقق بعد الإصلاح
-   - تشغيل maintenance عبر زيارة أي مسار proxy أو endpoint تشخيص.
-   - التأكد أن طلبات A21 تظهر في داشبورد الوكيل.
-   - التأكد أن القراءة العامة ما زالت لا تعرض بيانات حساسة.
-   - التأكد أن الداشبورد لا يرسل طلب قراءة بدون فلتر agent_id.
+تحديث `src/routes/api/directus.$.ts` داخل `runDirectusMaintenance()` ليضمن:
 
-النتيجة المتوقعة: الطلبات الموجودة حالياً في Directus، ومنها الطلب الأخير باسم رضا/A21، ستظهر في داشبورد الوكيل بعد تحديث الصلاحيات، بدون الحاجة لإعادة رفع الطلب.
+1. **Agent policy** عنده permission `directus_users.read` يشمل صراحةً الحقول:
+   `id, first_name, last_name, email, role, agent_id, branch, supervisor_id, status`
+   
+   مع فلتر صف: `id = $CURRENT_USER.id` (الايجنت يقرأ نفسه فقط، ليس باقي المستخدمين).
+
+2. **Supervisor policy** عنده نفس permission على `directus_users.read` يشمل الحقول أعلاه، مع فلتر:
+   `_or: [ { id: $CURRENT_USER.id }, { branch: $CURRENT_USER.branch }, { supervisor_id: $CURRENT_USER.id } ]`
+
+3. استخدام `upsertPermission` (الموجودة سابقاً) لإعادة الكتابة فوق أي permission قديم محدود.
+
+4. زيادة رقم نسخة الـ maintenance state إلى `__aibDirectusMaintenance_v3` لإجبار إعادة التشغيل بعد النشر.
+
+## التحقق بعد النشر
+
+- الانتظار دقيقة، فتح أي صفحة تحت `/api/directus/*` ليعمل الـ maintenance.
+- تسجيل دخول Reda → داشبورد الايجنت يجب أن يظهر الطلبات الـ3.
+- إذا لم تظهر، نضيف log في `proxy()` عند GET `/items/requests` ليطبع status الرد من Directus لتحديد بقية المشكلة بدقة.
+
+## ملاحظة أمنية
+
+السماح للايجنت بقراءة `id, branch, agent_id, supervisor_id` لحسابه الشخصي فقط آمن. لا يكشف بيانات وكلاء آخرين.
