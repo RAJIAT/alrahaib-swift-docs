@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Lock, Loader2, X } from "lucide-react";
 import { useLang } from "@/i18n/LanguageProvider";
-import { listAgents, listBranches, type Agent, type AgentRole } from "@/services/api";
+import { getBranches, listAgents, listBranches, type Agent, type AgentRole } from "@/services/api";
 
 export type AgentFormValues = {
   name: string;
