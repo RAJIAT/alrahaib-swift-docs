@@ -7,12 +7,6 @@ export const translations = {
     dir: "rtl" as Dir,
     brand: "الراحة للوساطة التأمينية",
     langSwitch: "EN",
-    demo: {
-      banner: "نسخة تجريبية",
-      reset: "إعادة تعيين البيانات",
-      confirmReset: "سيتم حذف جميع الطلبات وإعادة تعيين البيانات. هل تريد المتابعة؟",
-      resetDone: "تمت إعادة تعيين البيانات",
-    },
     upload: {
       title: "ارفع مستنداتك خلال دقيقة",
       subtitle: "ارفع 3 صور فقط، والباقي علينا",
