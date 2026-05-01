@@ -79,6 +79,10 @@ export const translations = {
       remaining: (n: number) => `متبقي ${n} مستندات`,
       allDone: "كل المستندات جاهزة",
       tooLarge: "الملف كبير جدًا، حاول ملف أصغر",
+      multipleHint: "يمكنك رفع أكثر من صورة",
+      addMore: "إضافة صورة أخرى",
+      removeFile: "حذف",
+      filesCount: (n: number) => `${n} ملفات مرفوعة`,
     },
     success: {
       title: "تم إرسال المستندات بنجاح",
@@ -397,6 +401,10 @@ export const translations = {
       remaining: (n: number) => `${n} document${n === 1 ? "" : "s"} remaining`,
       allDone: "All documents ready",
       tooLarge: "File is too large, please try a smaller one",
+      multipleHint: "You can upload more than one image",
+      addMore: "Add another image",
+      removeFile: "Remove",
+      filesCount: (n: number) => `${n} files uploaded`,
     },
     success: {
       title: "Documents submitted successfully",
