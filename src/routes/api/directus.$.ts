@@ -85,9 +85,73 @@ async function ensurePermission(policyId: string, collection: string, action: st
   });
 }
 
+async function ensureUsersField(field: string, definition: Record<string, any>) {
+  try {
+    await adminDx(`/fields/directus_users/${field}`);
+    return; // already exists
+  } catch {
+    // not found → create
+  }
+  try {
+    await adminDx("/fields/directus_users", {
+      method: "POST",
+      body: JSON.stringify(definition),
+    });
+  } catch (error) {
+    console.error(`[directus-maintenance] failed to add field ${field}`, error);
+  }
+}
+
+async function ensureRole(name: string): Promise<string | null> {
+  try {
+    const existing = await adminDx<any[]>(
+      `/roles?filter[name][_eq]=${encodeURIComponent(name)}&fields=id&limit=1`,
+    );
+    if (existing.data?.[0]?.id) return existing.data[0].id;
+    const created = await adminDx<any>("/roles", {
+      method: "POST",
+      body: JSON.stringify({ name, icon: "supervised_user_circle", description: `${name} role (auto-created)` }),
+    });
+    return created.data?.id ?? null;
+  } catch (error) {
+    console.error(`[directus-maintenance] failed to ensure role ${name}`, error);
+    return null;
+  }
+}
+
 async function runDirectusMaintenance() {
   const token = process.env.DIRECTUS_ADMIN_TOKEN;
   if (!token) return;
+
+  // 1) Ensure custom fields on directus_users (agent_id, supervisor_id, branch).
+  await ensureUsersField("agent_id", {
+    field: "agent_id",
+    type: "string",
+    meta: { interface: "input", note: "Public agent identifier (e.g. A123)", width: "half" },
+    schema: { is_nullable: true, is_unique: false },
+  });
+  await ensureUsersField("supervisor_id", {
+    field: "supervisor_id",
+    type: "uuid",
+    meta: {
+      interface: "select-dropdown-m2o",
+      note: "Supervising user (for agents)",
+      width: "half",
+      special: ["m2o"],
+      options: { template: "{{first_name}} {{last_name}}" },
+    },
+    schema: { is_nullable: true, foreign_key_table: "directus_users", foreign_key_column: "id" },
+  });
+  await ensureUsersField("branch", {
+    field: "branch",
+    type: "string",
+    meta: { interface: "input", note: "Branch name", width: "half" },
+    schema: { is_nullable: true },
+  });
+
+  // 2) Ensure Agent + Supervisor roles exist.
+  await ensureRole("Agent");
+  await ensureRole("Supervisor");
 
   const [collections, roles, policies] = await Promise.all([
     adminDx<any[]>("/collections?limit=-1"),
@@ -104,6 +168,16 @@ async function runDirectusMaintenance() {
     if (collectionNames.has("request_missing_attachments")) {
       await ensurePermission(agentPolicy.id, "request_missing_attachments", "read");
       await ensurePermission(agentPolicy.id, "request_missing_attachments", "create");
+    }
+  }
+
+  const supervisorRole = (roles.data ?? []).find((role: any) => role.name === "Supervisor");
+  const supervisorPolicy = supervisorRole ? policyForRole(policies.data ?? [], supervisorRole.id) : null;
+  if (supervisorPolicy) {
+    if (collectionNames.has("audit_log")) await ensurePermission(supervisorPolicy.id, "audit_log", "create");
+    if (collectionNames.has("request_missing_attachments")) {
+      await ensurePermission(supervisorPolicy.id, "request_missing_attachments", "read");
+      await ensurePermission(supervisorPolicy.id, "request_missing_attachments", "create");
     }
   }
 
