@@ -15,7 +15,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { dxFetch, dxHasSession } from "@/services/directus";
+import { dxFetch } from "@/services/directus";
 import { getCurrentUser } from "@/services/api";
 import { Loader2, CheckCircle2, AlertCircle, Trash2, Shield, RefreshCw } from "lucide-react";
 
@@ -83,7 +83,7 @@ async function ensurePerm(policyId: string, collection: string, action: string, 
 
 export const Route = createFileRoute("/admin-setup")({
   beforeLoad: () => {
-    if (!dxHasSession()) throw redirect({ to: "/login" });
+    if (typeof window !== "undefined" && !getCurrentUser()) throw redirect({ to: "/login" });
   },
   component: AdminSetupPage,
 });
