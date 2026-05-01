@@ -422,7 +422,15 @@ export async function updateRequestStatus(id: string, status: RequestStatus): Pr
 async function uploadFirst(files: File[]): Promise<string | null> {
   const f = files[0];
   if (!f) return null;
-  return await dxUploadFile(f);
+  const { prepareForUpload } = await import("@/lib/imagePrep");
+  const prepared = await prepareForUpload(f);
+  return await dxUploadFile(prepared);
+}
+
+async function uploadPrepared(file: File): Promise<string> {
+  const { prepareForUpload } = await import("@/lib/imagePrep");
+  const prepared = await prepareForUpload(file);
+  return dxUploadFile(prepared);
 }
 
 export async function submitUpload(input: {
