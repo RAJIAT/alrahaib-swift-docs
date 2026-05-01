@@ -1,39 +1,28 @@
-## خطة الإنهاء النهائي لـ Directus Backend
+## التحقق من حالة Directus على السيرفر
 
-سأقوم بتنفيذ كل الإصلاحات المتبقية دفعة واحدة عبر Directus Admin API (باستخدام static admin token الموجود في proxy):
+أنشئ endpoint تشخيصي `/api/diag` (server route) يستخدم `DIRECTUS_ADMIN_TOKEN` المحفوظ كـ secret للاتصال المباشر بـ Directus وإرجاع تقرير شامل.
 
-### 1. إصلاح صلاحيات الأدوار (Permissions)
-- **Agent**: إضافة `create` على `audit_log` + `read/create` على `request_missing_attachments`
-- **Supervisor**: التأكد من صلاحيات الفرع الكاملة
-- **Public**: تشديد الوصول على `requests` (قراءة فقط بـ ID محدد، بدون list)
+### ما سيرجعه التقرير:
 
-### 2. تنظيف الـ Schema
-- حذف collection القديم `agents` (لم يعد مستخدماً، تم استبداله بـ directus_users)
-- حذف collection القديم `requests_files` (تم استبداله بـ `request_attachments`)
+1. **Collections** — قائمة بكل الجداول الموجودة (ما عدا الـ system tables)
+2. **Record counts** — عدد السجلات في كل جدول (requests, branches, audit_log, request_notes, request_attachments, request_missing_attachments, request_vehicle_media)
+3. **Users** — مجمّعين حسب الدور:
+   - Administrators (إيميلات + حالة + الفرع)
+   - Supervisors (إيميلات + حالة + الفرع)
+   - Agents (إيميلات + حالة + الفرع)
+4. **Roles** — الأدوار المعرّفة
+5. **Branches** — الفروع الموجودة
+6. **Permissions by role** — أي جدول/إجراء مسموح لأي دور
+7. **مقارنة** بين الـ collections الموجودة والـ collections المتوقعة
 
-### 3. إنشاء مستخدمين تجريبيين
-- `supervisor@alrahaib.com` / دور Supervisor / مرتبط بفرع رئيسي
-- `agent@alrahaib.com` / دور Agent / مرتبط بفرع رئيسي
-- كلمات سر مؤقتة قوية (سأعرضها لك بعد الإنشاء)
+### بعد الإنشاء:
 
-### 4. التحقق النهائي (Smoke Test)
-- تسجيل دخول كل دور والتأكد من:
-  - Admin → يرى كل الطلبات + Branches + Agents + Audit
-  - Supervisor → يرى طلبات فرعه فقط
-  - Agent → ينشئ طلبات تظهر تحت فرعه
-- فحص أن audit_log يستقبل الأحداث
+سأشغّله مباشرة عبر `stack_modern--invoke-server-function` أو `curl` عبر الـ preview URL، وأعطيك ملخص واضح:
+- ✅ ما الموجود وصحيح
+- ⚠️ ما الناقص أو فيه مشكلة
+- 📊 الأرقام (كم admin، كم agent، كم طلب، إلخ)
 
-### 5. تجهيز ملف توثيق النشر
-إنشاء `docs/DEPLOYMENT.md` يحتوي:
-- بيانات السيرفر (74.162.122.193)
-- خطوات بناء الـ frontend (`npm run build`)
-- إعدادات Nginx جاهزة (reverse proxy لـ Directus + static files)
-- خطوات Let's Encrypt (للتنفيذ لاحقاً عند ربط الدومين)
-- متغيرات البيئة المطلوبة
+### ملف واحد فقط:
+- `src/routes/api/diag.ts` (~80 سطر)
 
-### ما لن أعمله (حسب طلبك)
-- ❌ ربط الدومين `docportal.alrahaib.com`
-- ❌ إصدار شهادة SSL
-- ❌ نقل الـ frontend فعلياً للسيرفر
-
-كل شي تاني بكون جاهز 100% للضغط على زر النشر فقط.
+بدون لمس أي ملف آخر. آمن للترك في الكود — يتطلب admin token (إذا التوكن غير مضبوط، يرد بخطأ واضح بدون كشف معلومات).
