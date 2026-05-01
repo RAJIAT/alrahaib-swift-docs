@@ -15,7 +15,7 @@ import { createFileRoute } from "@tanstack/react-router";
 // Directus target. Use the public hostname (NOT the raw IP) — the server is
 // behind Cloudflare which blocks direct IP access with error code 1003.
 // Override via DIRECTUS_TARGET env var if the domain changes.
-const DIRECTUS_TARGET = process.env.DIRECTUS_TARGET || "https://docportal.alrahaib.com";
+const DIRECTUS_TARGET = process.env.DIRECTUS_TARGET || "https://directus.alrahaib.com";
 
 const HOP_BY_HOP = new Set([
   "connection",

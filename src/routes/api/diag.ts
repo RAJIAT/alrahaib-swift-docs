@@ -12,7 +12,7 @@
  */
 import { createFileRoute } from "@tanstack/react-router";
 
-const DIRECTUS = process.env.DIRECTUS_TARGET || "https://docportal.alrahaib.com";
+const DIRECTUS = process.env.DIRECTUS_TARGET || "https://directus.alrahaib.com";
 
 async function dx<T = any>(path: string): Promise<T> {
   const token = process.env.DIRECTUS_ADMIN_TOKEN;
