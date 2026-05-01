@@ -562,6 +562,12 @@ export async function addRequestNote(
     author_name: me.name,
     author_role: me.role,
   });
+  // When the agent/admin requests a missing document, automatically flip the
+  // request to `reupload` so the dashboard reflects the new state and the
+  // customer link makes sense.
+  if (input.kind === "missing" && row.status !== "reupload") {
+    try { await dxUpdateRequestStatus(String(row.id), "reupload"); } catch (e) { console.error("status flip failed", e); }
+  }
   const fresh = await getRequest(String(row.id));
   if (!fresh) throw new Error("Request not found");
   notifyChange();

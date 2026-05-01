@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { listRequests, subscribeRequests, type InsuranceRequest } from "@/services/api";
 
+const POLL_INTERVAL_MS = 8_000;
+
 export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
   const [items, setItems] = useState<InsuranceRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const sigRef = useRef<string>("");
 
   const agentId = opts?.agentId;
@@ -20,6 +23,7 @@ export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
       setLoading(false);
       return () => { alive = false; };
     }
+
     const refresh = () => {
       const filter: { agentId?: string; branch?: string } = {};
       if (agentId) filter.agentId = agentId;
@@ -27,6 +31,7 @@ export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
       listRequests(Object.keys(filter).length ? filter : undefined)
         .then((rs) => {
           if (!alive) return;
+          setError(null);
           // Cheap signature: length + ids+statuses concatenated. Skips state update if nothing changed.
           const sig = `${rs.length}|` + rs.map((r) => `${r.id}:${r.status}`).join(",");
           if (sig !== sigRef.current) {
@@ -35,12 +40,50 @@ export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
           }
           setLoading(false);
         })
-        .catch(() => { if (alive) setLoading(false); });
+        .catch((e) => {
+          if (!alive) return;
+          console.error("listRequests failed", e);
+          setError(e instanceof Error ? e.message : "Failed to load");
+          setLoading(false);
+        });
     };
+
     refresh();
     const unsub = subscribeRequests(refresh);
-    return () => { alive = false; unsub(); };
+
+    // Polling so new requests submitted by customers (other tabs / devices)
+    // appear without requiring the user to manually refresh the page.
+    // Pauses while the tab is hidden to avoid wasted requests.
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const startPolling = () => {
+      if (intervalId !== null) return;
+      intervalId = setInterval(() => {
+        if (typeof document !== "undefined" && document.hidden) return;
+        refresh();
+      }, POLL_INTERVAL_MS);
+    };
+    const stopPolling = () => {
+      if (intervalId !== null) { clearInterval(intervalId); intervalId = null; }
+    };
+    startPolling();
+
+    const onVisibility = () => {
+      if (typeof document === "undefined") return;
+      if (!document.hidden) refresh(); // immediate catch-up when tab returns
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibility);
+    }
+
+    return () => {
+      alive = false;
+      unsub();
+      stopPolling();
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
+    };
   }, [agentId, branch, opts]);
 
-  return { items, loading };
+  return { items, loading, error };
 }
