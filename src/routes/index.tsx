@@ -24,13 +24,16 @@ function UploadPage() {
   const navigate = useNavigate();
   const { agent } = useSearch({ from: "/" });
 
-  // Two-image cards (front + back) — front required, back optional.
+  // Required documents
   const [registration, setRegistration] = useState<File[]>([]);
   const [emirates, setEmirates] = useState<File[]>([]);
   const [license, setLicense] = useState<File[]>([]);
+  // Optional documents
   const [vehicleMedia, setVehicleMedia] = useState<File[]>([]);
+  const [ownership, setOwnership] = useState<File[]>([]);
+  const [contract, setContract] = useState<File[]>([]);
   const [attachments, setAttachments] = useState<File[]>([]);
-  const [inspection, setInspection] = useState<File | null>(null);
+  const [inspection] = useState<File | null>(null);
 
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
