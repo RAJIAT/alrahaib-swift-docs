@@ -162,7 +162,8 @@ export function AgentFormDialog({
                 disabled={!!lockedBranch}
                 className="h-11 w-full rounded-xl border border-input bg-surface px-3 text-sm text-foreground disabled:opacity-60"
               >
-                {listBranches().map((b) => <option key={b} value={b}>{b}</option>)}
+                {branches.length === 0 && <option value="">—</option>}
+                {branches.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
               {lockedBranch && (
                 <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
