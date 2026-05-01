@@ -31,7 +31,7 @@ const HOP_BY_HOP = new Set([
 type DirectusJson<T = any> = { data?: T } & Record<string, any>;
 type MaintenanceState = { done: boolean; promise: Promise<void> | null; lastFailure: number };
 
-const maintenanceState: MaintenanceState = ((globalThis as any).__aibDirectusMaintenance ??= {
+const maintenanceState: MaintenanceState = ((globalThis as any).__aibDirectusMaintenance_v2 ??= {
   done: false,
   promise: null,
   lastFailure: 0,
