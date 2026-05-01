@@ -362,6 +362,4 @@ function TrustBadge({ icon: Icon, title, sub }: { icon: typeof Clock; title: str
     </div>
   );
 }
-    </div>
-  );
-}
+
