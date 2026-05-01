@@ -86,6 +86,56 @@ async function ensurePermission(policyId: string, collection: string, action: st
   });
 }
 
+/**
+ * Create or update a permission row for (policy, collection, action) so that
+ * the listed fields and row filter are exactly what we want. Used to repair
+ * over-restrictive permissions that block the Agent/Supervisor dashboards.
+ */
+async function upsertPermission(
+  policyId: string,
+  collection: string,
+  action: string,
+  fields: string[],
+  permissions: Record<string, any> = {},
+) {
+  const existing = await adminDx<any[]>(
+    `/permissions?filter[policy][_eq]=${policyId}&filter[collection][_eq]=${collection}&filter[action][_eq]=${action}&limit=1`,
+  );
+  const body = {
+    policy: policyId,
+    collection,
+    action,
+    fields,
+    permissions,
+    validation: {},
+    presets: null,
+  };
+  if (existing.data?.length) {
+    const id = existing.data[0].id;
+    await adminDx(`/permissions/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+  } else {
+    await adminDx("/permissions", { method: "POST", body: JSON.stringify(body) });
+  }
+}
+
+const REQUEST_READ_FIELDS = [
+  "id",
+  "status",
+  "agent_id",
+  "agent_name",
+  "branch",
+  "date_created",
+  "request_display_id",
+  "registration",
+  "license",
+  "emirates",
+  "passport",
+  "inspection",
+  "customer_name",
+  "customer_email",
+  "customer_phone",
+];
+
 async function ensureUsersField(field: string, definition: Record<string, any>) {
   try {
     await adminDx(`/fields/directus_users/${field}`);
