@@ -440,12 +440,18 @@ export type DxUser = {
 const USER_FIELDS =
   "id,email,first_name,last_name,agent_id,branch,supervisor_id,status,role.id,role.name";
 
-/** Find a role's UUID by its display name (e.g. "Agent", "Admin"). */
+/** Find a role's UUID by its display name (e.g. "Agent", "Supervisor").
+ *  Goes through the server-side helper so non-admin users (Supervisor) can
+ *  resolve role ids without needing read permission on /roles. */
 export async function dxFindRoleId(name: string): Promise<string | null> {
-  const json = await dxFetch(
-    `/roles?filter[name][_eq]=${encodeURIComponent(name)}&fields=id,name&limit=1`,
-  );
-  return json.data?.[0]?.id ?? null;
+  try {
+    const r = await fetch(`/api/role-id?name=${encodeURIComponent(name)}`);
+    if (!r.ok) return null;
+    const j = (await r.json()) as { id?: string | null };
+    return j.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** List all users with role "Agent" OR "Supervisor". */

@@ -19,6 +19,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RequestsIdRouteImport } from './routes/requests.$id'
 import { Route as RRequestIdRouteImport } from './routes/r.$requestId'
+import { Route as ApiRoleIdRouteImport } from './routes/api/role-id'
 import { Route as ApiDiagRouteImport } from './routes/api/diag'
 import { Route as ApiDirectusSplatRouteImport } from './routes/api/directus.$'
 
@@ -72,6 +73,11 @@ const RRequestIdRoute = RRequestIdRouteImport.update({
   path: '/r/$requestId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRoleIdRoute = ApiRoleIdRouteImport.update({
+  id: '/api/role-id',
+  path: '/api/role-id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDiagRoute = ApiDiagRouteImport.update({
   id: '/api/diag',
   path: '/api/diag',
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
   '/api/diag': typeof ApiDiagRoute
+  '/api/role-id': typeof ApiRoleIdRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
   '/api/directus/$': typeof ApiDirectusSplatRoute
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
   '/api/diag': typeof ApiDiagRoute
+  '/api/role-id': typeof ApiRoleIdRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
   '/api/directus/$': typeof ApiDirectusSplatRoute
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
   '/api/diag': typeof ApiDiagRoute
+  '/api/role-id': typeof ApiRoleIdRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
   '/api/directus/$': typeof ApiDirectusSplatRoute
@@ -138,6 +147,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/success'
     | '/api/diag'
+    | '/api/role-id'
     | '/r/$requestId'
     | '/requests/$id'
     | '/api/directus/$'
@@ -152,6 +162,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/success'
     | '/api/diag'
+    | '/api/role-id'
     | '/r/$requestId'
     | '/requests/$id'
     | '/api/directus/$'
@@ -166,6 +177,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/success'
     | '/api/diag'
+    | '/api/role-id'
     | '/r/$requestId'
     | '/requests/$id'
     | '/api/directus/$'
@@ -181,6 +193,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   SuccessRoute: typeof SuccessRoute
   ApiDiagRoute: typeof ApiDiagRoute
+  ApiRoleIdRoute: typeof ApiRoleIdRoute
   RRequestIdRoute: typeof RRequestIdRoute
   RequestsIdRoute: typeof RequestsIdRoute
   ApiDirectusSplatRoute: typeof ApiDirectusSplatRoute
@@ -258,6 +271,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RRequestIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/role-id': {
+      id: '/api/role-id'
+      path: '/api/role-id'
+      fullPath: '/api/role-id'
+      preLoaderRoute: typeof ApiRoleIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/diag': {
       id: '/api/diag'
       path: '/api/diag'
@@ -285,6 +305,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   SuccessRoute: SuccessRoute,
   ApiDiagRoute: ApiDiagRoute,
+  ApiRoleIdRoute: ApiRoleIdRoute,
   RRequestIdRoute: RRequestIdRoute,
   RequestsIdRoute: RequestsIdRoute,
   ApiDirectusSplatRoute: ApiDirectusSplatRoute,
