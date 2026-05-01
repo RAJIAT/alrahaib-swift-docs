@@ -297,12 +297,10 @@ function UploadPage() {
           <OptionalDocsSection
             vehicleMedia={vehicleMedia}
             setVehicleMedia={setVehicleMedia}
-            ownership={ownership}
-            setOwnership={setOwnership}
-            contract={contract}
-            setContract={setContract}
-            other={attachments}
-            setOther={setAttachments}
+            inspection={inspectionFiles}
+            setInspection={setInspectionFiles}
+            attachments={attachments}
+            setAttachments={setAttachments}
           />
         </section>
       </main>
