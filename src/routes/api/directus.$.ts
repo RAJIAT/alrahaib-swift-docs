@@ -225,6 +225,22 @@ async function ensureDirectusMaintenance() {
   return maintenanceState.promise;
 }
 
+// Public endpoints reachable without a logged-in session — the proxy injects
+// the admin token so customers using a shared agent link can submit a request
+// even though they have no Directus account.
+const PUBLIC_FALLBACK_PREFIXES = [
+  "files",                        // file uploads from the customer form
+  "items/requests",               // creating the request row
+  "items/request_attachments",    // optional attachments
+  "items/request_vehicle_media",  // vehicle photos / videos
+  "items/request_missing_attachments",
+];
+
+function shouldUseAdminFallback(splat: string, method: string): boolean {
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return false;
+  return PUBLIC_FALLBACK_PREFIXES.some((p) => splat === p || splat.startsWith(`${p}/`));
+}
+
 async function proxy(request: Request, splat: string) {
   await ensureDirectusMaintenance();
 
@@ -237,6 +253,16 @@ async function proxy(request: Request, splat: string) {
       headers.set(key, value);
     }
   });
+
+  // If the customer is unauthenticated (no Authorization header) and is hitting
+  // an upload / create endpoint, inject the admin token so the request goes
+  // through with full backend privileges. This is the only way a public client
+  // link can persist data without exposing service credentials in the browser.
+  const hasAuth = headers.has("authorization") || headers.has("Authorization");
+  const adminToken = process.env.DIRECTUS_ADMIN_TOKEN;
+  if (!hasAuth && adminToken && shouldUseAdminFallback(splat, request.method)) {
+    headers.set("Authorization", `Bearer ${adminToken}`);
+  }
 
   const init: RequestInit = {
     method: request.method,
