@@ -619,6 +619,7 @@ function dxUserToAgent(u: DxUser): Agent {
     branch: u.branch,
     active: u.status === "active",
     role,
+    supervisorId: u.supervisor_id ?? undefined,
   };
 }
 
@@ -633,12 +634,23 @@ export async function getAgents(): Promise<Agent[]> {
   return _agentsCache;
 }
 
+/** Translate an Agent.id (public agent_id OR Directus userId) into a Directus userId. */
+function resolveSupervisorUserId(supervisorRef: string | null | undefined): string | null {
+  if (!supervisorRef) return null;
+  const match = _agentsCache.find((a) => a.id === supervisorRef || a.userId === supervisorRef);
+  return match?.userId ?? supervisorRef; // assume it's already a userId if not in cache
+}
+
 export async function createAgent(input: {
   id: string; name: string; email?: string; branch?: string; role?: AgentRole; supervisorId?: string;
   password?: string;
 }): Promise<Agent> {
   if (!input.email) throw new Error("Email is required");
   if (!input.password || input.password.length < 6) throw new Error("Password (min 6 chars) is required");
+  // Make sure the agents cache is warm so we can resolve supervisorId → userId.
+  if (_agentsCache.length === 0) {
+    try { await getAgents(); } catch { /* non-fatal */ }
+  }
   const [first_name, ...rest] = input.name.split(" ");
   const created = await dxCreateAgent({
     email: input.email,
@@ -647,6 +659,8 @@ export async function createAgent(input: {
     last_name: rest.join(" "),
     agent_id: input.id,
     branch: input.branch,
+    role: input.role,
+    supervisor_id: input.role === "agent" ? resolveSupervisorUserId(input.supervisorId) : null,
   });
   const agent = dxUserToAgent(created);
   await getAgents();
@@ -665,6 +679,7 @@ export async function createAgent(input: {
 
 export async function updateAgent(id: string, patch: Partial<{
   name: string; email: string | null; branch: string | null; active: boolean; supervisorId: string | null;
+  role: AgentRole;
   password: string;
 }>): Promise<Agent> {
   const before = _agentsCache.find((a) => a.id === id || a.userId === id);
@@ -675,14 +690,23 @@ export async function updateAgent(id: string, patch: Partial<{
     dxPatch.first_name = fn || patch.name;
     dxPatch.last_name = rest.join(" ");
   }
+  if (patch.email !== undefined && patch.email !== null) dxPatch.email = patch.email;
   if (patch.branch !== undefined) dxPatch.branch = patch.branch;
   if (patch.active !== undefined) dxPatch.status = patch.active ? "active" : "suspended";
   if (patch.password) dxPatch.password = patch.password;
+  if (patch.role !== undefined) dxPatch.role = patch.role;
+  // Supervisor link only applies to agents; clear it when promoting to supervisor.
+  const effectiveRole = patch.role ?? before.role ?? "agent";
+  if (patch.supervisorId !== undefined || patch.role !== undefined) {
+    dxPatch.supervisor_id = effectiveRole === "supervisor"
+      ? null
+      : resolveSupervisorUserId(patch.supervisorId);
+  }
   const updated = await dxUpdateAgent(before.userId, dxPatch);
   const after = dxUserToAgent(updated);
   await getAgents();
   const changed: Record<string, { before: unknown; after: unknown }> = {};
-  (["name", "email", "branch", "active"] as const).forEach((k) => {
+  (["name", "email", "branch", "active", "supervisorId", "role"] as const).forEach((k) => {
     if ((before as any)[k] !== (after as any)[k]) {
       changed[k] = { before: (before as any)[k], after: (after as any)[k] };
     }
