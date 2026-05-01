@@ -588,14 +588,7 @@ export async function appendAttachmentsToRequest(
   return fresh;
 }
 
-export function isDemoMode() { return false; }
 
-export function resetDemo() {
-  // Demo mode no longer exists — keeping the export so old callers don't break.
-  if (typeof window !== "undefined") localStorage.removeItem(AUTH_KEY);
-  notifyChange();
-  notifyAgentsChange();
-}
 
 // ---------------------------------------------------------------------------
 // Agents directory — backed by Directus Users (role = "Agent" or "Supervisor")
