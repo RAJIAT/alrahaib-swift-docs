@@ -79,6 +79,10 @@ export const translations = {
       remaining: (n: number) => `متبقي ${n} مستندات`,
       allDone: "كل المستندات جاهزة",
       tooLarge: "الملف كبير جدًا، حاول ملف أصغر",
+      multipleHint: "يمكنك رفع أكثر من صورة",
+      addMore: "إضافة صورة أخرى",
+      removeFile: "حذف",
+      filesCount: (n: number) => `${n} ملفات مرفوعة`,
     },
     success: {
       title: "تم إرسال المستندات بنجاح",
