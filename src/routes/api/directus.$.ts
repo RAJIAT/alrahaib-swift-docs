@@ -214,6 +214,22 @@ async function runDirectusMaintenance() {
   const agentRole = (roles.data ?? []).find((role: any) => role.name === "Agent");
   const agentPolicy = agentRole ? policyForRole(policies.data ?? [], agentRole.id) : null;
 
+  // Fields the dashboards need to read on directus_users so that filters like
+  // `$CURRENT_USER.agent_id` and `$CURRENT_USER.branch` resolve correctly.
+  // Without explicit read access on these custom fields, Directus treats them
+  // as null when evaluating row filters → the requests query returns 0 rows.
+  const USER_SELF_FIELDS = [
+    "id",
+    "email",
+    "first_name",
+    "last_name",
+    "role",
+    "agent_id",
+    "branch",
+    "supervisor_id",
+    "status",
+  ];
+
   if (agentPolicy) {
     if (collectionNames.has("audit_log")) await ensurePermission(agentPolicy.id, "audit_log", "create");
     if (collectionNames.has("request_missing_attachments")) {
@@ -230,6 +246,14 @@ async function runDirectusMaintenance() {
         { agent_id: { _eq: "$CURRENT_USER.agent_id" } },
       );
     }
+    // Agent reads their OWN user row (needed so $CURRENT_USER.agent_id resolves).
+    await upsertPermission(
+      agentPolicy.id,
+      "directus_users",
+      "read",
+      USER_SELF_FIELDS,
+      { id: { _eq: "$CURRENT_USER" } },
+    );
   }
 
   const supervisorRole = (roles.data ?? []).find((role: any) => role.name === "Supervisor");
@@ -258,6 +282,20 @@ async function runDirectusMaintenance() {
         },
       );
     }
+    // Supervisor reads themselves + agents in their branch / under their supervision.
+    await upsertPermission(
+      supervisorPolicy.id,
+      "directus_users",
+      "read",
+      USER_SELF_FIELDS,
+      {
+        _or: [
+          { id: { _eq: "$CURRENT_USER" } },
+          { branch: { _eq: "$CURRENT_USER.branch" } },
+          { supervisor_id: { _eq: "$CURRENT_USER" } },
+        ],
+      },
+    );
   }
 
   const publicPolicy = policyForRole(policies.data ?? [], null);
