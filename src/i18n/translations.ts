@@ -312,12 +312,6 @@ export const translations = {
     dir: "ltr" as Dir,
     brand: "Al Raha Insurance Broker",
     langSwitch: "العربية",
-    demo: {
-      banner: "Demo Mode",
-      reset: "Reset demo data",
-      confirmReset: "All requests will be cleared and demo data will be reset. Continue?",
-      resetDone: "Demo data has been reset",
-    },
     upload: {
       title: "Upload your documents in under a minute",
       subtitle: "Upload 3 images only, we'll handle the rest",
