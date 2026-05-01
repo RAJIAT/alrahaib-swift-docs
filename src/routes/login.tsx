@@ -77,8 +77,6 @@ function LoginPage() {
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             {t.auth.submit}
           </button>
-
-          {error && <p className="text-center text-xs text-destructive">{error}</p>}
         </form>
       </main>
     </div>
