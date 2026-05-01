@@ -237,7 +237,9 @@ const PUBLIC_FALLBACK_PREFIXES = [
 ];
 
 function shouldUseAdminFallback(splat: string, method: string): boolean {
-  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return false;
+  // Only allow anonymous POSTs (creating a new row / uploading a file).
+  // PATCH / PUT / DELETE on an existing row must require a real session.
+  if (method !== "POST") return false;
   return PUBLIC_FALLBACK_PREFIXES.some((p) => splat === p || splat.startsWith(`${p}/`));
 }
 
