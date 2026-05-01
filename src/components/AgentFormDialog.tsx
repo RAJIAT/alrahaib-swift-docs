@@ -144,11 +144,17 @@ export function AgentFormDialog({
                 value={values.agentId}
                 onChange={(e) => setValues((v) => ({ ...v, agentId: e.target.value.toUpperCase() }))}
                 placeholder="A123"
-                name="agent-id-field"
+                name={`agent-id-${Math.random().toString(36).slice(2, 8)}`}
+                type="text"
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
                 spellCheck={false}
+                readOnly
+                onFocus={(e) => e.currentTarget.removeAttribute("readonly")}
+                data-form-type="other"
+                data-lpignore="true"
+                data-1p-ignore="true"
                 className="h-11 w-full rounded-xl border border-input bg-surface px-3 text-sm text-foreground disabled:opacity-60"
               />
             </Field>
