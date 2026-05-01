@@ -21,6 +21,7 @@ import { Route as RequestsIdRouteImport } from './routes/requests.$id'
 import { Route as RRequestIdRouteImport } from './routes/r.$requestId'
 import { Route as ApiRoleIdRouteImport } from './routes/api/role-id'
 import { Route as ApiDiagRouteImport } from './routes/api/diag'
+import { Route as ApiPublicDiagRouteImport } from './routes/api/public/diag'
 import { Route as ApiDirectusSplatRouteImport } from './routes/api/directus.$'
 
 const SuccessRoute = SuccessRouteImport.update({
@@ -83,6 +84,11 @@ const ApiDiagRoute = ApiDiagRouteImport.update({
   path: '/api/diag',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicDiagRoute = ApiPublicDiagRouteImport.update({
+  id: '/api/public/diag',
+  path: '/api/public/diag',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDirectusSplatRoute = ApiDirectusSplatRouteImport.update({
   id: '/api/directus/$',
   path: '/api/directus/$',
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
   '/api/directus/$': typeof ApiDirectusSplatRoute
+  '/api/public/diag': typeof ApiPublicDiagRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
   '/api/directus/$': typeof ApiDirectusSplatRoute
+  '/api/public/diag': typeof ApiPublicDiagRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -134,6 +142,7 @@ export interface FileRoutesById {
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
   '/api/directus/$': typeof ApiDirectusSplatRoute
+  '/api/public/diag': typeof ApiPublicDiagRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/r/$requestId'
     | '/requests/$id'
     | '/api/directus/$'
+    | '/api/public/diag'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/r/$requestId'
     | '/requests/$id'
     | '/api/directus/$'
+    | '/api/public/diag'
   id:
     | '__root__'
     | '/'
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '/r/$requestId'
     | '/requests/$id'
     | '/api/directus/$'
+    | '/api/public/diag'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -197,6 +209,7 @@ export interface RootRouteChildren {
   RRequestIdRoute: typeof RRequestIdRoute
   RequestsIdRoute: typeof RequestsIdRoute
   ApiDirectusSplatRoute: typeof ApiDirectusSplatRoute
+  ApiPublicDiagRoute: typeof ApiPublicDiagRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -285,6 +298,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDiagRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/diag': {
+      id: '/api/public/diag'
+      path: '/api/public/diag'
+      fullPath: '/api/public/diag'
+      preLoaderRoute: typeof ApiPublicDiagRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/directus/$': {
       id: '/api/directus/$'
       path: '/api/directus/$'
@@ -309,6 +329,7 @@ const rootRouteChildren: RootRouteChildren = {
   RRequestIdRoute: RRequestIdRoute,
   RequestsIdRoute: RequestsIdRoute,
   ApiDirectusSplatRoute: ApiDirectusSplatRoute,
+  ApiPublicDiagRoute: ApiPublicDiagRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
