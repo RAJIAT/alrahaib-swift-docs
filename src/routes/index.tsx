@@ -1,12 +1,12 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
-import { Loader2, Check, ShieldCheck, User, Zap, LogIn } from "lucide-react";
+import { Loader2, Check, ShieldCheck, User, Zap, LogIn, Send, Clock, FileImage, IdCard, BadgeCheck, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
-import { UploadCard } from "@/components/UploadCard";
-import { MultiUploadCard } from "@/components/MultiUploadCard";
+import { DocumentRow } from "@/components/DocumentRow";
+import { OptionalDocsSection } from "@/components/OptionalDocsSection";
 import { useLang } from "@/i18n/LanguageProvider";
 import { submitUpload } from "@/services/api";
 
@@ -24,13 +24,16 @@ function UploadPage() {
   const navigate = useNavigate();
   const { agent } = useSearch({ from: "/" });
 
-  // Two-image cards (front + back) — front required, back optional.
+  // Required documents
   const [registration, setRegistration] = useState<File[]>([]);
   const [emirates, setEmirates] = useState<File[]>([]);
   const [license, setLicense] = useState<File[]>([]);
+  // Optional documents
   const [vehicleMedia, setVehicleMedia] = useState<File[]>([]);
+  const [ownership, setOwnership] = useState<File[]>([]);
+  const [contract, setContract] = useState<File[]>([]);
   const [attachments, setAttachments] = useState<File[]>([]);
-  const [inspection, setInspection] = useState<File | null>(null);
+  const [inspection] = useState<File | null>(null);
 
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -257,31 +260,32 @@ function UploadPage() {
           </div>
         </section>
 
-        {/* Required documents — 3 cards */}
-        <section className="mt-6 grid gap-4 md:grid-cols-2" dir={dir}>
-          <MultiUploadCard
+        {/* Essential documents — compact rows */}
+        <section className="mt-6 space-y-3" dir={dir}>
+          <h2 className="flex items-center gap-2 px-1 text-sm font-bold text-foreground">
+            <span className="h-2 w-2 rounded-full bg-primary" />
+            {t.upload.essentialDocs}
+          </h2>
+          <DocumentRow
+            icon={FileImage}
             label={t.upload.cards.registration}
-            hint={t.upload.registrationHint}
+            required
             files={registration}
             onChange={setRegistration}
-            min={1}
-            max={2}
           />
-          <MultiUploadCard
-            label={t.upload.cards.emirates}
-            hint={t.upload.emiratesHint}
-            files={emirates}
-            onChange={setEmirates}
-            min={1}
-            max={2}
-          />
-          <MultiUploadCard
+          <DocumentRow
+            icon={IdCard}
             label={t.upload.cards.license}
-            hint={t.upload.licenseHint}
+            required
             files={license}
             onChange={setLicense}
-            min={1}
-            max={2}
+          />
+          <DocumentRow
+            icon={BadgeCheck}
+            label={t.upload.cards.emirates}
+            required
+            files={emirates}
+            onChange={setEmirates}
           />
         </section>
 
@@ -289,42 +293,22 @@ function UploadPage() {
           {docsReady ? t.upload.allDone : t.upload.remaining(remaining)}
         </p>
 
-        {/* Optional uploads */}
-        <section className="mt-6 grid gap-4 sm:grid-cols-2" dir={dir}>
-          <MultiUploadCard
-            label={t.upload.cards.vehiclePhotos}
-            hint={t.upload.vehiclePhotosHint}
-            files={vehicleMedia}
-            onChange={setVehicleMedia}
-            min={0}
-            max={8}
-            allowVideo
-            optional
-          />
-          <UploadCard
-            label={t.upload.cards.inspection}
-            file={inspection}
-            onChange={setInspection}
-            optional
-          />
-        </section>
-
-        {/* Other attachments — fully optional, any file type except video */}
-        <section className="mt-4" dir={dir}>
-          <MultiUploadCard
-            label={t.upload.cards.attachments}
-            hint={t.upload.attachmentsHint}
-            files={attachments}
-            onChange={setAttachments}
-            min={0}
-            max={20}
-            acceptAny
-            optional
+        {/* Optional documents — collapsible section */}
+        <section className="mt-6" dir={dir}>
+          <OptionalDocsSection
+            vehicleMedia={vehicleMedia}
+            setVehicleMedia={setVehicleMedia}
+            ownership={ownership}
+            setOwnership={setOwnership}
+            contract={contract}
+            setContract={setContract}
+            other={attachments}
+            setOther={setAttachments}
           />
         </section>
       </main>
 
-      <div className="mx-auto mt-8 max-w-2xl px-4 pb-8">
+      <div className="mx-auto mt-8 max-w-2xl px-4 pb-4">
         <button
           disabled={submitting}
           onClick={onSubmit}
@@ -341,10 +325,41 @@ function UploadPage() {
               {t.upload.uploadingDocs}
             </>
           ) : (
-            t.upload.submit
+            <>
+              <Send className="h-5 w-5" />
+              {t.upload.submit}
+            </>
           )}
         </button>
+        <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[11px] text-muted-foreground" dir={dir}>
+          <ShieldCheck className="h-3 w-3" />
+          {t.upload.trustNote}
+        </p>
+      </div>
+
+      {/* Trust badges row */}
+      <div className="mx-auto max-w-2xl px-4 pb-10" dir={dir}>
+        <div className="flex items-stretch justify-between gap-2 rounded-2xl border border-border bg-card p-4 shadow-card">
+          <TrustBadge icon={Clock} title={t.upload.trust.fast} sub={t.upload.trustSub.fast} />
+          <ChevronRight className="my-auto h-4 w-4 shrink-0 text-muted-foreground rtl:rotate-180" />
+          <TrustBadge icon={ShieldCheck} title={t.upload.trust.safe} sub={t.upload.trustSub.safe} />
+          <ChevronRight className="my-auto h-4 w-4 shrink-0 text-muted-foreground rtl:rotate-180" />
+          <TrustBadge icon={Check} title={t.upload.trust.trusted} sub={t.upload.trustSub.trusted} />
+        </div>
       </div>
     </div>
   );
 }
+
+function TrustBadge({ icon: Icon, title, sub }: { icon: typeof Clock; title: string; sub: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center gap-1 text-center">
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-success/10 text-success">
+        <Icon className="h-4 w-4" />
+      </div>
+      <p className="text-[11px] font-bold text-foreground">{title}</p>
+      <p className="text-[9px] leading-tight text-muted-foreground">{sub}</p>
+    </div>
+  );
+}
+
