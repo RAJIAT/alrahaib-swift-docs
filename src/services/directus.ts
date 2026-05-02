@@ -564,8 +564,10 @@ export async function dxCreateAgent(input: {
       status: "active",
     }),
   });
-  if (!res.ok) throw new Error(safeApiErrorMessage(res.status));
-  const json = await res.json();
+  const json = await res.json().catch(() => ({} as { ok?: boolean; error?: string; data?: DxUser }));
+  if (!res.ok || json?.ok === false) {
+    throw new Error(json?.error || safeApiErrorMessage(res.status));
+  }
   return json.data as DxUser;
 }
 
