@@ -2,6 +2,7 @@ import { Camera, Check, Plus, Trash2, X, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLang } from "@/i18n/LanguageProvider";
+import { prepareForUpload, validateUploadFile, isImageFile } from "@/lib/imagePrep";
 
 type Props = {
   icon: LucideIcon;
@@ -15,10 +16,6 @@ type Props = {
   allowVideo?: boolean;
   acceptAny?: boolean;
 };
-
-const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
-const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
-const IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
 
 export function DocumentRow({
   icon: Icon,
@@ -46,29 +43,52 @@ export function DocumentRow({
   }, [files]);
 
   const accept = acceptAny
-    ? "image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
+    ? "image/*,application/pdf,.heic,.heif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv"
     : allowVideo
-      ? "image/jpeg,image/jpg,image/png,application/pdf,video/*"
-      : "image/jpeg,image/jpg,image/png,application/pdf";
+      ? "image/*,application/pdf,.heic,.heif,video/*"
+      : "image/*,application/pdf,.heic,.heif";
 
-  const isAllowed = (f: File) => {
-    if (acceptAny) return !f.type.startsWith("video/") && f.size <= IMAGE_MAX_BYTES;
-    if (IMAGE_TYPES.includes(f.type)) return f.size <= IMAGE_MAX_BYTES;
-    if (allowVideo && f.type.startsWith("video/")) return f.size <= VIDEO_MAX_BYTES;
-    return false;
-  };
-
-  const handle = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (!list.length) return;
+
     const valid: File[] = [];
+    let firstError: ReturnType<typeof validateUploadFile> | null = null;
     let rejected = 0;
-    for (const f of list) {
-      if (isAllowed(f)) valid.push(f);
-      else rejected += 1;
+    for (const raw of list) {
+      const err = validateUploadFile(raw, { allowVideo, acceptAny });
+      if (err) {
+        if (!firstError) firstError = err;
+        rejected += 1;
+        continue;
+      }
+      let f = raw;
+      if (isImageFile(raw) && !raw.type.startsWith("video/")) {
+        try { f = await prepareForUpload(raw); } catch { f = raw; }
+      }
+      valid.push(f);
     }
-    if (rejected > 0) toast.error(t.upload.errors.someRejected(rejected));
+
+    if (rejected > 0 && firstError) {
+      const mb = (n: number) => (n / 1024 / 1024).toFixed(1);
+      const maxMb = (n: number) => (n / 1024 / 1024).toFixed(0);
+      switch (firstError.kind) {
+        case "imageTooLarge":
+          toast.error(t.upload.errors.imageTooLarge(mb(firstError.size), maxMb(firstError.max)));
+          break;
+        case "docTooLarge":
+          toast.error(t.upload.errors.docTooLarge(mb(firstError.size), maxMb(firstError.max)));
+          break;
+        case "videoTooLarge":
+          toast.error(t.upload.errors.videoTooLarge(mb(firstError.size), maxMb(firstError.max)));
+          break;
+        case "badType":
+        default:
+          toast.error(t.upload.errors.badType);
+      }
+      if (rejected > 1) toast.error(t.upload.errors.someRejected(rejected));
+    }
     if (!valid.length) return;
     onChange(multiple ? [...files, ...valid] : [valid[0]]);
   };
