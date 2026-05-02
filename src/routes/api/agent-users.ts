@@ -8,6 +8,17 @@ type Actor = {
   branch: string | null;
 };
 
+class DirectusAdminError extends Error {
+  status: number;
+  body: string;
+
+  constructor(status: number, body: string) {
+    super(`${status}: ${body.slice(0, 200)}`);
+    this.status = status;
+    this.body = body;
+  }
+}
+
 async function adminDx<T = any>(path: string, init: RequestInit = {}): Promise<{ data?: T }> {
   const token = process.env.DIRECTUS_ADMIN_TOKEN;
   if (!token) throw new Error("Admin token is not configured");
@@ -20,8 +31,75 @@ async function adminDx<T = any>(path: string, init: RequestInit = {}): Promise<{
 
   const response = await fetch(`${DIRECTUS_TARGET}${path}`, { ...init, headers });
   const text = await response.text();
-  if (!response.ok) throw new Error(`${response.status}: ${text.slice(0, 200)}`);
+  if (!response.ok) throw new DirectusAdminError(response.status, text);
   return text ? JSON.parse(text) : {};
+}
+
+async function ensureUsersField(field: string, definition: Record<string, any>): Promise<boolean> {
+  try {
+    await adminDx(`/fields/directus_users/${field}`);
+    return true;
+  } catch (error) {
+    if (!(error instanceof DirectusAdminError) || error.status !== 404) {
+      console.error(`[agent-users] failed checking field ${field}`, error);
+      return false;
+    }
+  }
+
+  try {
+    await adminDx("/fields/directus_users", {
+      method: "POST",
+      body: JSON.stringify(definition),
+    });
+    return true;
+  } catch (error) {
+    console.error(`[agent-users] failed creating field ${field}`, error);
+    return false;
+  }
+}
+
+async function ensureAgentUserFields(): Promise<Set<string>> {
+  const entries: Array<[string, Record<string, any>]> = [
+    [
+      "agent_id",
+      {
+        field: "agent_id",
+        type: "string",
+        meta: { interface: "input", note: "Public agent identifier", width: "half" },
+        schema: { is_nullable: true, is_unique: false },
+      },
+    ],
+    [
+      "branch",
+      {
+        field: "branch",
+        type: "string",
+        meta: { interface: "input", note: "Branch", width: "half" },
+        schema: { is_nullable: true },
+      },
+    ],
+    [
+      "supervisor_id",
+      {
+        field: "supervisor_id",
+        type: "uuid",
+        meta: {
+          interface: "select-dropdown-m2o",
+          note: "Supervising user (for agents)",
+          width: "half",
+          special: ["m2o"],
+          options: { template: "{{first_name}} {{last_name}}" },
+        },
+        schema: { is_nullable: true, foreign_key_table: "directus_users", foreign_key_column: "id" },
+      },
+    ],
+  ];
+
+  const ready = new Set<string>();
+  for (const [field, definition] of entries) {
+    if (await ensureUsersField(field, definition)) ready.add(field);
+  }
+  return ready;
 }
 
 async function roleNameFromId(roleId: string): Promise<string | null> {
