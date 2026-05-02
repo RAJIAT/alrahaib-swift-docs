@@ -459,16 +459,36 @@ const USER_FIELDS =
 
 /** Find a role's UUID by its display name (e.g. "Agent", "Supervisor").
  *  Goes through the server-side helper so non-admin users (Supervisor) can
- *  resolve role ids without needing read permission on /roles. */
+ *  resolve role ids without needing read permission on /roles.
+ *
+ *  Role IDs are stable per Directus instance, so we cache resolved values
+ *  (and in-flight promises) to avoid hammering /api/role-id every time
+ *  dxListAgents() is called. */
+const _roleIdCache = new Map<string, string | null>();
+const _roleIdInflight = new Map<string, Promise<string | null>>();
+
 export async function dxFindRoleId(name: string): Promise<string | null> {
-  try {
-    const r = await fetch(`/api/role-id?name=${encodeURIComponent(name)}`);
-    if (!r.ok) return null;
-    const j = (await r.json()) as { id?: string | null };
-    return j.id ?? null;
-  } catch {
-    return null;
-  }
+  if (_roleIdCache.has(name)) return _roleIdCache.get(name) ?? null;
+  const existing = _roleIdInflight.get(name);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    try {
+      const r = await fetch(`/api/role-id?name=${encodeURIComponent(name)}`);
+      if (!r.ok) return null;
+      const j = (await r.json()) as { id?: string | null };
+      const id = j.id ?? null;
+      // Only cache successful resolutions so transient failures can retry.
+      if (id) _roleIdCache.set(name, id);
+      return id;
+    } catch {
+      return null;
+    } finally {
+      _roleIdInflight.delete(name);
+    }
+  })();
+  _roleIdInflight.set(name, promise);
+  return promise;
 }
 
 /** List all users with role "Agent" OR "Supervisor". */
