@@ -387,10 +387,15 @@ export const translations = {
         phoneRequired: "Phone number is required",
         phoneInvalid: "Invalid phone number format",
         tooLarge: "File too large (max 5MB)",
-        badType: "Unsupported file type. JPG, PNG, PDF only",
+        imageTooLarge: (sizeMB: string, maxMB: string) =>
+          `Image too large: ${sizeMB}MB. Max ${maxMB}MB`,
+        docTooLarge: (sizeMB: string, maxMB: string) =>
+          `File too large: ${sizeMB}MB. Max ${maxMB}MB`,
+        badType: "Unsupported file type. JPG, PNG, HEIC, PDF",
         someRejected: (n: number) => `${n} file${n === 1 ? "" : "s"} skipped (size or type)`,
         videoBadType: "Please select a valid video file",
-        videoTooLarge: "Video too large (max 50MB)",
+        videoTooLarge: (sizeMB: string, maxMB: string) =>
+          `Video too large: ${sizeMB}MB. Max ${maxMB}MB`,
         minVehiclePhotos: "Upload at least 2 vehicle photos (front and back)",
         missingDocs: (names: string) => `Please upload: ${names}`,
       },
