@@ -644,5 +644,26 @@ export async function dxUpdateAgent(
 }
 
 export async function dxDeleteAgent(id: string): Promise<void> {
-  await dxFetch(`/users/${encodeURIComponent(id)}`, { method: "DELETE" });
+  // Use our server route which (1) detaches request rows that reference this
+  // user via user_created/user_updated, then (2) deletes the user. This avoids
+  // the SQLite FOREIGN KEY constraint that blocks a direct DELETE /users/:id.
+  const token = await refreshIfNeeded();
+  const res = await fetch(`/api/agent-users?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    if (typeof console !== "undefined") {
+      console.error(`[agent-users] delete ${res.status}`, text);
+    }
+    let msg = safeErrorMessage(res.status);
+    try {
+      const j = JSON.parse(text);
+      if (j?.error && typeof j.error === "string") msg = j.error;
+    } catch {}
+    throw new Error(msg);
+  }
 }
+
