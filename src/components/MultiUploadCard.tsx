@@ -105,15 +105,15 @@ export function MultiUploadCard({
 
   const canAddMore = files.length < max;
   const acceptAttr = acceptAny
-    ? "image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.zip"
+    ? "image/*,application/pdf,.heic,.heif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.zip"
     : allowVideo
-      ? "image/jpeg,image/jpg,image/png,application/pdf,video/*"
-      : "image/jpeg,image/jpg,image/png,application/pdf";
+      ? "image/*,application/pdf,.heic,.heif,video/*"
+      : "image/*,application/pdf,.heic,.heif";
   const formatHint = acceptAny
-    ? "Images · PDF · Docs · ≤ 5MB"
+    ? "Images · PDF · Docs"
     : allowVideo
-      ? "JPG · PNG · PDF · MP4 / MOV (≤ 50MB)"
-      : "JPG · PNG · PDF · ≤ 5MB";
+      ? "JPG · PNG · HEIC · PDF · MP4 / MOV (≤ 50MB)"
+      : "JPG · PNG · HEIC · PDF";
   const counterTotal = Math.max(max, min);
   const counterCurrent = files.length;
   const showCounter = files.length > 0 || min > 0;
