@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { listRequests, subscribeRequests, type InsuranceRequest } from "@/services/api";
 
-const POLL_INTERVAL_MS = 8_000;
+// Poll frequently so newly submitted customer requests show up almost
+// immediately on agent / supervisor / admin dashboards without manual refresh.
+const POLL_INTERVAL_MS = 4_000;
 
 export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
   const [items, setItems] = useState<InsuranceRequest[]>([]);

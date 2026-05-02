@@ -231,10 +231,25 @@ async function runDirectusMaintenance() {
   ];
 
   if (agentPolicy) {
-    if (collectionNames.has("audit_log")) await ensurePermission(agentPolicy.id, "audit_log", "create");
+    if (collectionNames.has("audit_log")) {
+      await ensurePermission(agentPolicy.id, "audit_log", "create");
+      await ensurePermission(agentPolicy.id, "audit_log", "read");
+    }
     if (collectionNames.has("request_missing_attachments")) {
       await ensurePermission(agentPolicy.id, "request_missing_attachments", "read");
       await ensurePermission(agentPolicy.id, "request_missing_attachments", "create");
+      await ensurePermission(agentPolicy.id, "request_missing_attachments", "update");
+    }
+    if (collectionNames.has("request_notes")) {
+      await ensurePermission(agentPolicy.id, "request_notes", "read");
+      await ensurePermission(agentPolicy.id, "request_notes", "create");
+      await ensurePermission(agentPolicy.id, "request_notes", "update");
+    }
+    if (collectionNames.has("request_attachments")) {
+      await ensurePermission(agentPolicy.id, "request_attachments", "read");
+    }
+    if (collectionNames.has("request_vehicle_media")) {
+      await ensurePermission(agentPolicy.id, "request_vehicle_media", "read");
     }
     if (collectionNames.has("requests")) {
       // Agent can read only their own requests, but with full business fields.
@@ -259,10 +274,25 @@ async function runDirectusMaintenance() {
   const supervisorRole = (roles.data ?? []).find((role: any) => role.name === "Supervisor");
   const supervisorPolicy = supervisorRole ? policyForRole(policies.data ?? [], supervisorRole.id) : null;
   if (supervisorPolicy) {
-    if (collectionNames.has("audit_log")) await ensurePermission(supervisorPolicy.id, "audit_log", "create");
+    if (collectionNames.has("audit_log")) {
+      await ensurePermission(supervisorPolicy.id, "audit_log", "create");
+      await ensurePermission(supervisorPolicy.id, "audit_log", "read");
+    }
     if (collectionNames.has("request_missing_attachments")) {
       await ensurePermission(supervisorPolicy.id, "request_missing_attachments", "read");
       await ensurePermission(supervisorPolicy.id, "request_missing_attachments", "create");
+      await ensurePermission(supervisorPolicy.id, "request_missing_attachments", "update");
+    }
+    if (collectionNames.has("request_notes")) {
+      await ensurePermission(supervisorPolicy.id, "request_notes", "read");
+      await ensurePermission(supervisorPolicy.id, "request_notes", "create");
+      await ensurePermission(supervisorPolicy.id, "request_notes", "update");
+    }
+    if (collectionNames.has("request_attachments")) {
+      await ensurePermission(supervisorPolicy.id, "request_attachments", "read");
+    }
+    if (collectionNames.has("request_vehicle_media")) {
+      await ensurePermission(supervisorPolicy.id, "request_vehicle_media", "read");
     }
     if (collectionNames.has("requests")) {
       // Supervisor sees all requests in their branch (or everything if branch is empty).

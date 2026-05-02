@@ -105,10 +105,18 @@ function UploadPage() {
       toast.error(t.upload.errors.missingDocs(missing.join("، ")));
       return;
     }
+    if (!agent || !agent.trim()) {
+      toast.error(
+        dir === "rtl"
+          ? "رابط غير صالح: لا يوجد معرّف وكيل. يرجى استخدام الرابط الذي زوّدك به الوكيل."
+          : "Invalid link: no agent ID. Please use the link your agent shared with you.",
+      );
+      return;
+    }
     setSubmitting(true);
     try {
       const { id } = await submitUpload({
-        agentId: agent ?? "A123",
+        agentId: agent,
         customerName: parsed.data.customerName,
         customerEmail: parsed.data.customerEmail,
         customerPhone: parsed.data.customerPhone,
