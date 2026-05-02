@@ -12,6 +12,42 @@ import {
   addRequestNote, resolveRequestNote, subscribeRequests,
   type AuthUser, type InsuranceRequest, type RequestStatus, type RequestNoteKind,
 } from "@/services/api";
+import { isDirectusAssetUrl } from "@/services/directus";
+
+// Build a stable signature of the parts of the request that can change while
+// an agent has the page open: notes count, missing-attachment count, status,
+// and attachment count. Used to skip useless re-renders during polling.
+function reqSignature(r: InsuranceRequest | null): string {
+  if (!r) return "";
+  const notes = r.notes?.length ?? 0;
+  const missing = r.images.missingAttachments?.length ?? 0;
+  const atts = r.images.attachments?.length ?? 0;
+  const veh = r.images.vehicleMedia?.length ?? 0;
+  return `${r.status}|n${notes}|m${missing}|a${atts}|v${veh}`;
+}
+
+// Download a Directus asset using the bearer token, then trigger a save dialog.
+// Falls back to opening the URL directly if it isn't a Directus asset.
+async function downloadAsset(url: string, filename: string): Promise<void> {
+  try {
+    const { url: blobUrl, mime } = await resolveAssetUrl(url);
+    if (!blobUrl) { window.open(url, "_blank"); return; }
+    if (blobUrl.startsWith("blob:") || blobUrl.startsWith("data:")) {
+      const blob = await (await fetch(blobUrl)).blob();
+      const ext = extFromMime(mime || blob.type);
+      const hasExt = /\.[A-Za-z0-9]{2,5}$/.test(filename);
+      triggerDownload(blob, hasExt ? filename : `${filename}.${ext}`);
+      if (blobUrl.startsWith("blob:")) {
+        // tiny delay so the browser starts the download before we revoke
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+      }
+    } else {
+      window.open(blobUrl, "_blank");
+    }
+  } catch {
+    toast.error("تعذّر تنزيل الملف");
+  }
+}
 
 export const Route = createFileRoute("/requests/$id")({
   component: RequestDetails,
