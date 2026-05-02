@@ -745,7 +745,7 @@ function MissingAttachmentCard({
   );
 }
 
-
+function NotesSection({
   req,
   onUpdated,
 }: {
