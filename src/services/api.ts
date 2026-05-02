@@ -572,6 +572,8 @@ export async function addRequestNote(
   const row = await dxGetRequest(requestId);
   if (!row) throw new Error("Request not found");
 
+  const before = (await dxListNotes(String(row.id)).catch(() => [])).length;
+
   // Prefer the server-side endpoint (uses admin token, no permission gaps).
   // Fall back to a direct Directus write if the endpoint is unreachable.
   try {
@@ -596,7 +598,13 @@ export async function addRequestNote(
     }
   }
 
-  const fresh = await getRequest(String(row.id));
+  // Re-fetch the request, retrying briefly if Directus hasn't indexed the
+  // new note yet (small write-read race we hit on the on-prem instance).
+  let fresh = await getRequest(String(row.id));
+  for (let i = 0; i < 3 && fresh && (fresh.notes?.length ?? 0) <= before; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    fresh = await getRequest(String(row.id));
+  }
   if (!fresh) throw new Error("Request not found");
   notifyChange();
   return fresh;
