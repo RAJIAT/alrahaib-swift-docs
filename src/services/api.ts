@@ -11,7 +11,7 @@
 import {
   dxLogin, dxLogout, dxFetchMe, dxHasSession, isDirectusEnabled,
   dxListRequests, dxGetRequest, dxCreateRequest, dxUpdateRequestStatus,
-  dxListNotes, dxCreateNote, dxResolveNote,
+  dxListNotes, dxCreateNote, dxResolveNote, dxAccessToken,
   dxListAttachments, dxCreateAttachment,
   dxListVehicleMedia, dxCreateVehicleMedia,
   dxListBranches, dxCreateBranch, dxUpdateBranch, dxDeleteBranch,
