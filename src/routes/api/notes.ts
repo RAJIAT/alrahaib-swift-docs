@@ -56,6 +56,40 @@ async function findRequestId(idOrDisplay: string): Promise<string | null> {
 export const Route = createFileRoute("/api/notes")({
   server: {
     handlers: {
+      GET: async ({ request }) => {
+        try {
+          const authHeader =
+            request.headers.get("authorization") ||
+            request.headers.get("Authorization");
+          if (!authHeader) {
+            return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+          }
+          const me = await getMe(authHeader);
+          if (!me) {
+            return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+          }
+
+          const url = new URL(request.url);
+          const rid = (url.searchParams.get("requestId") ?? "").trim();
+          if (!rid || !/^[A-Za-z0-9_\-]+$/.test(rid)) {
+            return Response.json({ ok: false, error: "invalid requestId" }, { status: 400 });
+          }
+          const reqId = await findRequestId(rid);
+          if (!reqId) return Response.json({ ok: true, notes: [] });
+
+          const params = new URLSearchParams({
+            fields: "id,request,text,kind,author_id,author_name,author_role,date_created,resolved_at",
+            sort: "date_created",
+            limit: "200",
+          });
+          params.set("filter[request][_eq]", reqId);
+          const json = await admin(`/items/request_notes?${params.toString()}`);
+          return Response.json({ ok: true, notes: json.data ?? [] });
+        } catch (e) {
+          console.error("[api/notes GET]", e);
+          return Response.json({ ok: false, error: "internal" }, { status: 500 });
+        }
+      },
       POST: async ({ request }) => {
         try {
           const authHeader =
