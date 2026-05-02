@@ -250,10 +250,20 @@ function AdminAgents() {
               <IconBtn label={t.agents.edit} onClick={() => setDialog({ open: true, mode: "edit", target: a })}>
                 <Pencil className="h-4 w-4" />
               </IconBtn>
-              <IconBtn label={a.active ? t.agents.suspend : t.agents.activate} onClick={() => onToggle(a)}>
-                <Power className="h-4 w-4" />
-              </IconBtn>
-              {canDelete ? (
+              {isSelf(a) ? (
+                <IconBtn disabledLook label={t.agents.selfNoSuspend} onClick={() => toast.error(t.agents.selfNoSuspend)}>
+                  <Power className="h-4 w-4" />
+                </IconBtn>
+              ) : (
+                <IconBtn label={a.active ? t.agents.suspend : t.agents.activate} onClick={() => onToggle(a)}>
+                  <Power className="h-4 w-4" />
+                </IconBtn>
+              )}
+              {isSelf(a) ? (
+                <IconBtn danger disabledLook label={t.agents.selfNoDelete} onClick={() => toast.error(t.agents.selfNoDelete)}>
+                  <Trash2 className="h-4 w-4" />
+                </IconBtn>
+              ) : canDelete ? (
                 <IconBtn danger label={t.agents.delete} onClick={() => onDelete(a)}>
                   <Trash2 className="h-4 w-4" />
                 </IconBtn>
