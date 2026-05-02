@@ -625,9 +625,14 @@ function NotesSection({
       const updated = await addRequestNote(req.id, { text: trimmed, kind });
       onUpdated(updated);
       setText("");
+      toast.success(
+        kind === "missing"
+          ? (lang === "ar" ? "تم تسجيل النقص" : "Missing item recorded")
+          : (lang === "ar" ? "تمت إضافة الكومنت" : "Comment added"),
+      );
     } catch (e) {
       console.error(e);
-      toast.error("Failed");
+      toast.error(lang === "ar" ? "تعذر حفظ الملاحظة، حاول مرة أخرى" : "Could not save the note, please try again");
     } finally {
       setBusy(false);
     }
@@ -639,7 +644,7 @@ function NotesSection({
       const updated = await resolveRequestNote(req.id, noteId);
       onUpdated(updated);
     } catch {
-      toast.error("Failed");
+      toast.error(lang === "ar" ? "تعذر تحديث الملاحظة" : "Could not update the note");
     } finally {
       setResolvingId(null);
     }
