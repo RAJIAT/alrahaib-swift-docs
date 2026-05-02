@@ -158,6 +158,15 @@ export async function dxAccessToken(): Promise<string | null> {
   return refreshIfNeeded();
 }
 
+function safeApiErrorMessage(status: number): string {
+  if (status === 400) return "Invalid request. Please check the form and try again.";
+  if (status === 401) return "Your session has expired. Please sign in again.";
+  if (status === 403) return "You are not authorized to perform this action.";
+  if (status === 409) return "This record already exists or conflicts with existing data.";
+  if (status >= 500) return "The server is temporarily unavailable. Please try again.";
+  return "Request failed. Please try again.";
+}
+
 // ---------- Files ----------
 export async function dxUploadFile(file: File): Promise<string> {
   const fd = new FormData();
@@ -497,14 +506,15 @@ export async function dxCreateAgent(input: {
   role?: "agent" | "supervisor";
   supervisor_id?: string | null;
 }): Promise<DxUser> {
-  const roleName = input.role === "supervisor" ? "Supervisor" : "Agent";
-  const roleId = await dxFindRoleId(roleName);
-  if (!roleId)
-    throw new Error(
-      `Role "${roleName}" not found in Directus. The role is created automatically by the maintenance step on first proxy call — try again in a moment.`,
-    );
-  const json = await dxFetch("/users", {
+  const token = await dxAccessToken();
+  if (!token) throw new Error("Your session has expired. Please sign in again.");
+
+  const res = await fetch("/api/agent-users", {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify({
       email: input.email,
       password: input.password,
@@ -513,10 +523,12 @@ export async function dxCreateAgent(input: {
       agent_id: input.agent_id,
       branch: input.branch ?? null,
       supervisor_id: input.supervisor_id ?? null,
-      role: roleId,
+      role: input.role ?? "agent",
       status: "active",
     }),
   });
+  if (!res.ok) throw new Error(safeApiErrorMessage(res.status));
+  const json = await res.json();
   return json.data as DxUser;
 }
 

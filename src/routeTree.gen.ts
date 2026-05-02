@@ -22,6 +22,7 @@ import { Route as RRequestIdRouteImport } from './routes/r.$requestId'
 import { Route as ApiRoleIdRouteImport } from './routes/api/role-id'
 import { Route as ApiNotesRouteImport } from './routes/api/notes'
 import { Route as ApiDiagRouteImport } from './routes/api/diag'
+import { Route as ApiAgentUsersRouteImport } from './routes/api/agent-users'
 import { Route as ApiPublicReuploadSubmitRouteImport } from './routes/api/public/reupload-submit'
 import { Route as ApiPublicReuploadRequestRouteImport } from './routes/api/public/reupload-request'
 import { Route as ApiPublicResolveAgentRouteImport } from './routes/api/public/resolve-agent'
@@ -94,6 +95,11 @@ const ApiDiagRoute = ApiDiagRouteImport.update({
   path: '/api/diag',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAgentUsersRoute = ApiAgentUsersRouteImport.update({
+  id: '/api/agent-users',
+  path: '/api/agent-users',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicReuploadSubmitRoute = ApiPublicReuploadSubmitRouteImport.update({
   id: '/api/public/reupload-submit',
   path: '/api/public/reupload-submit',
@@ -135,6 +141,7 @@ export interface FileRoutesByFullPath {
   '/branches': typeof BranchesRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
+  '/api/agent-users': typeof ApiAgentUsersRoute
   '/api/diag': typeof ApiDiagRoute
   '/api/notes': typeof ApiNotesRoute
   '/api/role-id': typeof ApiRoleIdRoute
@@ -156,6 +163,7 @@ export interface FileRoutesByTo {
   '/branches': typeof BranchesRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
+  '/api/agent-users': typeof ApiAgentUsersRoute
   '/api/diag': typeof ApiDiagRoute
   '/api/notes': typeof ApiNotesRoute
   '/api/role-id': typeof ApiRoleIdRoute
@@ -178,6 +186,7 @@ export interface FileRoutesById {
   '/branches': typeof BranchesRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
+  '/api/agent-users': typeof ApiAgentUsersRoute
   '/api/diag': typeof ApiDiagRoute
   '/api/notes': typeof ApiNotesRoute
   '/api/role-id': typeof ApiRoleIdRoute
@@ -201,6 +210,7 @@ export interface FileRouteTypes {
     | '/branches'
     | '/login'
     | '/success'
+    | '/api/agent-users'
     | '/api/diag'
     | '/api/notes'
     | '/api/role-id'
@@ -222,6 +232,7 @@ export interface FileRouteTypes {
     | '/branches'
     | '/login'
     | '/success'
+    | '/api/agent-users'
     | '/api/diag'
     | '/api/notes'
     | '/api/role-id'
@@ -243,6 +254,7 @@ export interface FileRouteTypes {
     | '/branches'
     | '/login'
     | '/success'
+    | '/api/agent-users'
     | '/api/diag'
     | '/api/notes'
     | '/api/role-id'
@@ -265,6 +277,7 @@ export interface RootRouteChildren {
   BranchesRoute: typeof BranchesRoute
   LoginRoute: typeof LoginRoute
   SuccessRoute: typeof SuccessRoute
+  ApiAgentUsersRoute: typeof ApiAgentUsersRoute
   ApiDiagRoute: typeof ApiDiagRoute
   ApiNotesRoute: typeof ApiNotesRoute
   ApiRoleIdRoute: typeof ApiRoleIdRoute
@@ -371,6 +384,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDiagRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/agent-users': {
+      id: '/api/agent-users'
+      path: '/api/agent-users'
+      fullPath: '/api/agent-users'
+      preLoaderRoute: typeof ApiAgentUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/reupload-submit': {
       id: '/api/public/reupload-submit'
       path: '/api/public/reupload-submit'
@@ -425,6 +445,7 @@ const rootRouteChildren: RootRouteChildren = {
   BranchesRoute: BranchesRoute,
   LoginRoute: LoginRoute,
   SuccessRoute: SuccessRoute,
+  ApiAgentUsersRoute: ApiAgentUsersRoute,
   ApiDiagRoute: ApiDiagRoute,
   ApiNotesRoute: ApiNotesRoute,
   ApiRoleIdRoute: ApiRoleIdRoute,
