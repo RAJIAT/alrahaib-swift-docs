@@ -18,9 +18,10 @@
  */
 const DEFAULT_DIRECTUS_URL = "/api/directus";
 
+const viteEnv = import.meta.env as { VITE_DIRECTUS_URL?: string };
+
 export const DIRECTUS_URL: string | undefined =
-  ((import.meta as any).env?.VITE_DIRECTUS_URL || DEFAULT_DIRECTUS_URL)?.replace(/\/$/, "") ||
-  undefined;
+  (viteEnv.VITE_DIRECTUS_URL || DEFAULT_DIRECTUS_URL)?.replace(/\/$/, "") || undefined;
 
 export const isDirectusEnabled = () => !!DIRECTUS_URL;
 
