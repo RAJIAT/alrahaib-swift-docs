@@ -8,7 +8,18 @@ type Actor = {
   branch: string | null;
 };
 
-async function adminDx<T = any>(path: string, init: RequestInit = {}): Promise<{ data?: T }> {
+class DirectusAdminError extends Error {
+  status: number;
+  body: string;
+
+  constructor(status: number, body: string) {
+    super(`${status}: ${body.slice(0, 200)}`);
+    this.status = status;
+    this.body = body;
+  }
+}
+
+async function adminDx<T = unknown>(path: string, init: RequestInit = {}): Promise<{ data?: T }> {
   const token = process.env.DIRECTUS_ADMIN_TOKEN;
   if (!token) throw new Error("Admin token is not configured");
 
@@ -20,13 +31,89 @@ async function adminDx<T = any>(path: string, init: RequestInit = {}): Promise<{
 
   const response = await fetch(`${DIRECTUS_TARGET}${path}`, { ...init, headers });
   const text = await response.text();
-  if (!response.ok) throw new Error(`${response.status}: ${text.slice(0, 200)}`);
+  if (!response.ok) throw new DirectusAdminError(response.status, text);
   return text ? JSON.parse(text) : {};
+}
+
+async function ensureUsersField(
+  field: string,
+  definition: Record<string, unknown>,
+): Promise<boolean> {
+  try {
+    await adminDx(`/fields/directus_users/${field}`);
+    return true;
+  } catch (error) {
+    if (!(error instanceof DirectusAdminError) || error.status !== 404) {
+      console.error(`[agent-users] failed checking field ${field}`, error);
+      return false;
+    }
+  }
+
+  try {
+    await adminDx("/fields/directus_users", {
+      method: "POST",
+      body: JSON.stringify(definition),
+    });
+    return true;
+  } catch (error) {
+    console.error(`[agent-users] failed creating field ${field}`, error);
+    return false;
+  }
+}
+
+async function ensureAgentUserFields(): Promise<Set<string>> {
+  const entries: Array<[string, Record<string, unknown>]> = [
+    [
+      "agent_id",
+      {
+        field: "agent_id",
+        type: "string",
+        meta: { interface: "input", note: "Public agent identifier", width: "half" },
+        schema: { is_nullable: true, is_unique: false },
+      },
+    ],
+    [
+      "branch",
+      {
+        field: "branch",
+        type: "string",
+        meta: { interface: "input", note: "Branch", width: "half" },
+        schema: { is_nullable: true },
+      },
+    ],
+    [
+      "supervisor_id",
+      {
+        field: "supervisor_id",
+        type: "uuid",
+        meta: {
+          interface: "select-dropdown-m2o",
+          note: "Supervising user (for agents)",
+          width: "half",
+          special: ["m2o"],
+          options: { template: "{{first_name}} {{last_name}}" },
+        },
+        schema: {
+          is_nullable: true,
+          foreign_key_table: "directus_users",
+          foreign_key_column: "id",
+        },
+      },
+    ],
+  ];
+
+  const ready = new Set<string>();
+  for (const [field, definition] of entries) {
+    if (await ensureUsersField(field, definition)) ready.add(field);
+  }
+  return ready;
 }
 
 async function roleNameFromId(roleId: string): Promise<string | null> {
   try {
-    const role = await adminDx<{ name?: string }>(`/roles/${encodeURIComponent(roleId)}?fields=name`);
+    const role = await adminDx<{ name?: string }>(
+      `/roles/${encodeURIComponent(roleId)}?fields=name`,
+    );
     return role.data?.name ?? null;
   } catch {
     return null;
@@ -52,13 +139,20 @@ async function resolveActor(request: Request): Promise<Actor | null> {
   // After the bearer token proves the caller's identity, use the admin token
   // to read role + branch. Supervisor policies can hide `role`/`branch` from
   // /users/me, which previously made valid supervisors look like agents here.
-  const userResponse = await adminDx<{ id?: string; branch?: string | null; role?: string | { name?: string } }>(
-    `/users/${encodeURIComponent(verified.id)}?fields=id,branch,role.name`,
-  );
+  const userResponse = await adminDx<{
+    id?: string;
+    branch?: string | null;
+    role?: string | { name?: string };
+  }>(`/users/${encodeURIComponent(verified.id)}?fields=id,branch,role.name`);
   const user = userResponse.data;
   if (!user?.id) return null;
 
-  const rawRoleName = typeof user.role === "object" ? user.role?.name : typeof user.role === "string" ? await roleNameFromId(user.role) : null;
+  const rawRoleName =
+    typeof user.role === "object"
+      ? user.role?.name
+      : typeof user.role === "string"
+        ? await roleNameFromId(user.role)
+        : null;
   const normalized = (rawRoleName ?? "").toLowerCase();
   const role: Actor["role"] = normalized.includes("admin")
     ? "admin"
@@ -66,7 +160,12 @@ async function resolveActor(request: Request): Promise<Actor | null> {
       ? "supervisor"
       : "agent";
 
-  console.log("[agent-users] resolved actor", { id: user.id, role, branch: user.branch ?? null, rawRoleName });
+  console.log("[agent-users] resolved actor", {
+    id: user.id,
+    role,
+    branch: user.branch ?? null,
+    rawRoleName,
+  });
   return { id: user.id, role, branch: user.branch ?? null };
 }
 
@@ -122,7 +221,9 @@ export const Route = createFileRoute("/api/agent-users")({
           if (!body.email || !body.password || !body.first_name || !body.agent_id) {
             return jsonError(400, "Missing required agent fields");
           }
-          if (body.password.length < 6) return jsonError(400, "Password must be at least 6 characters");
+          if (body.password.length < 6) {
+            return jsonError(400, "Password must be at least 6 characters");
+          }
 
           const requestedRole = body.role === "supervisor" ? "supervisor" : "agent";
           if (actor.role === "supervisor" && requestedRole !== "agent") {
@@ -136,7 +237,10 @@ export const Route = createFileRoute("/api/agent-users")({
           if (actor.role === "supervisor") {
             if (!actor.branch) {
               console.warn("[agent-users] supervisor", actor.id, "has no branch set");
-              return jsonError(400, "Your account has no branch assigned. Ask an admin to set your branch first.");
+              return jsonError(
+                400,
+                "Your account has no branch assigned. Ask an admin to set your branch first.",
+              );
             }
             branch = actor.branch;
           } else {
@@ -149,25 +253,39 @@ export const Route = createFileRoute("/api/agent-users")({
           const roleName = requestedRole === "supervisor" ? "Supervisor" : "Agent";
           const roleId = await ensureRole(roleName);
 
+          const availableUserFields = await ensureAgentUserFields();
+          const userPayload: Record<string, unknown> = {
+            email: body.email,
+            password: body.password,
+            first_name: body.first_name,
+            last_name: body.last_name ?? "",
+            role: roleId,
+            status: "active",
+          };
+          if (availableUserFields.has("agent_id")) userPayload.agent_id = body.agent_id;
+          if (availableUserFields.has("branch")) userPayload.branch = branch;
+          if (availableUserFields.has("supervisor_id")) {
+            userPayload.supervisor_id =
+              requestedRole === "agent"
+                ? (body.supervisor_id ?? (actor.role === "supervisor" ? actor.id : null))
+                : null;
+          }
+
           const created = await adminDx("/users", {
             method: "POST",
-            body: JSON.stringify({
-              email: body.email,
-              password: body.password,
-              first_name: body.first_name,
-              last_name: body.last_name ?? "",
-              agent_id: body.agent_id,
-              branch,
-              supervisor_id: requestedRole === "agent" ? (body.supervisor_id ?? (actor.role === "supervisor" ? actor.id : null)) : null,
-              role: roleId,
-              status: "active",
-            }),
+            body: JSON.stringify(userPayload),
           });
 
-          return Response.json({ ok: true, data: created.data }, { headers: { "cache-control": "no-store" } });
+          return Response.json(
+            { ok: true, data: created.data },
+            { headers: { "cache-control": "no-store" } },
+          );
         } catch (error) {
           console.error("[agent-users] create failed", error);
-          return jsonError(502, error instanceof Error ? error.message : "Agent creation failed on the server");
+          return jsonError(
+            502,
+            error instanceof Error ? error.message : "Agent creation failed on the server",
+          );
         }
       },
     },
