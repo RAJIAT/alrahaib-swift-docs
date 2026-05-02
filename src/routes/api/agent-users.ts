@@ -108,7 +108,9 @@ async function ensureAgentUserFields(): Promise<Set<string>> {
 
 async function roleNameFromId(roleId: string): Promise<string | null> {
   try {
-    const role = await adminDx<{ name?: string }>(`/roles/${encodeURIComponent(roleId)}?fields=name`);
+    const role = await adminDx<{ name?: string }>(
+      `/roles/${encodeURIComponent(roleId)}?fields=name`,
+    );
     return role.data?.name ?? null;
   } catch {
     return null;
@@ -134,13 +136,20 @@ async function resolveActor(request: Request): Promise<Actor | null> {
   // After the bearer token proves the caller's identity, use the admin token
   // to read role + branch. Supervisor policies can hide `role`/`branch` from
   // /users/me, which previously made valid supervisors look like agents here.
-  const userResponse = await adminDx<{ id?: string; branch?: string | null; role?: string | { name?: string } }>(
-    `/users/${encodeURIComponent(verified.id)}?fields=id,branch,role.name`,
-  );
+  const userResponse = await adminDx<{
+    id?: string;
+    branch?: string | null;
+    role?: string | { name?: string };
+  }>(`/users/${encodeURIComponent(verified.id)}?fields=id,branch,role.name`);
   const user = userResponse.data;
   if (!user?.id) return null;
 
-  const rawRoleName = typeof user.role === "object" ? user.role?.name : typeof user.role === "string" ? await roleNameFromId(user.role) : null;
+  const rawRoleName =
+    typeof user.role === "object"
+      ? user.role?.name
+      : typeof user.role === "string"
+        ? await roleNameFromId(user.role)
+        : null;
   const normalized = (rawRoleName ?? "").toLowerCase();
   const role: Actor["role"] = normalized.includes("admin")
     ? "admin"
@@ -148,7 +157,12 @@ async function resolveActor(request: Request): Promise<Actor | null> {
       ? "supervisor"
       : "agent";
 
-  console.log("[agent-users] resolved actor", { id: user.id, role, branch: user.branch ?? null, rawRoleName });
+  console.log("[agent-users] resolved actor", {
+    id: user.id,
+    role,
+    branch: user.branch ?? null,
+    rawRoleName,
+  });
   return { id: user.id, role, branch: user.branch ?? null };
 }
 
