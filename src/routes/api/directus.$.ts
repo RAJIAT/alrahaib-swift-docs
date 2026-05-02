@@ -509,6 +509,169 @@ async function resolveActorFromAuth(authHeader: string | null): Promise<{
   }
 }
 
+// =====================================================================
+// Anonymous-flow validation
+// =====================================================================
+// The customer upload form posts to /items/requests, /items/* and /files
+// without a Directus session. The proxy then injects DIRECTUS_ADMIN_TOKEN
+// (see PUBLIC_FALLBACK_PREFIXES). Without server-side validation here, ANY
+// caller can spam the DB with empty rows, forge agent_id, or upload arbitrary
+// files. The helpers below close that gap.
+
+const REQUEST_BODY_WHITELIST = new Set([
+  "customer_name",
+  "customer_email",
+  "customer_phone",
+  "agent_id",
+  "registration",
+  "license",
+  "emirates",
+  "passport",
+  "inspection",
+  "request_display_id",
+  "missing_attachments",
+  "vehicle_media",
+  "attachments",
+  // Note: status / agent_name / branch are forced server-side, never trusted from client
+]);
+
+const FILE_MIME_WHITELIST = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+  "application/pdf",
+  "video/mp4",
+  "video/quicktime",
+]);
+const FILE_MAX_BYTES = 25 * 1024 * 1024; // 25MB
+
+function jsonError(status: number, error: string) {
+  return new Response(JSON.stringify({ errors: [{ message: error }] }), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+async function lookupAgent(agentId: string): Promise<{ name: string; branch: string } | null> {
+  const token = process.env.DIRECTUS_ADMIN_TOKEN;
+  if (!token) return null;
+  try {
+    const r = await fetch(
+      `${DIRECTUS_TARGET}/users?filter[agent_id][_eq]=${encodeURIComponent(agentId)}&fields=first_name,last_name,email,branch&limit=1`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!r.ok) return null;
+    const j = (await r.json()) as { data?: any[] };
+    const u = j.data?.[0];
+    if (!u) return null;
+    const name =
+      [u.first_name, u.last_name].filter(Boolean).join(" ").trim() || u.email || agentId;
+    return { name, branch: u.branch ?? "" };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Validate + sanitize an anonymous POST /items/requests body.
+ * Returns either a sanitized body (object to be re-serialized) or an error message.
+ */
+async function validateAnonymousRequestBody(
+  raw: unknown,
+): Promise<{ ok: true; body: Record<string, any> } | { ok: false; error: string }> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { ok: false, error: "Invalid request body" };
+  }
+  const input = raw as Record<string, any>;
+
+  const customerName = typeof input.customer_name === "string" ? input.customer_name.trim() : "";
+  if (customerName.length < 2 || customerName.length > 100) {
+    return { ok: false, error: "customer_name must be 2-100 characters" };
+  }
+
+  const phone = typeof input.customer_phone === "string" ? input.customer_phone.trim() : "";
+  const email = typeof input.customer_email === "string" ? input.customer_email.trim() : "";
+  if (!phone && !email) {
+    return { ok: false, error: "Either customer_phone or customer_email is required" };
+  }
+  if (email && (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 255)) {
+    return { ok: false, error: "Invalid customer_email" };
+  }
+  if (phone && (phone.length < 5 || phone.length > 32 || !/^[0-9+\-\s()]+$/.test(phone))) {
+    return { ok: false, error: "Invalid customer_phone" };
+  }
+
+  const agentId = typeof input.agent_id === "string" ? input.agent_id.trim() : "";
+  if (!agentId || agentId.length > 64 || !/^[a-zA-Z0-9_-]+$/.test(agentId)) {
+    return { ok: false, error: "Invalid agent_id" };
+  }
+  const agent = await lookupAgent(agentId);
+  if (!agent) {
+    return { ok: false, error: "Unknown agent_id" };
+  }
+
+  // Build sanitized body from whitelist only
+  const sanitized: Record<string, any> = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (REQUEST_BODY_WHITELIST.has(k)) sanitized[k] = v;
+  }
+  // Force server-controlled fields
+  sanitized.customer_name = customerName;
+  sanitized.customer_email = email || null;
+  sanitized.customer_phone = phone || null;
+  sanitized.agent_id = agentId;
+  sanitized.agent_name = agent.name;
+  sanitized.branch = agent.branch || null;
+  sanitized.status = "new";
+
+  return { ok: true, body: sanitized };
+}
+
+async function validateAnonymousFileUpload(
+  request: Request,
+  bodyBuffer: ArrayBuffer | null,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const contentType = request.headers.get("content-type") || "";
+  if (!contentType.toLowerCase().startsWith("multipart/form-data")) {
+    return { ok: false, status: 400, error: "File upload must be multipart/form-data" };
+  }
+  const size = bodyBuffer?.byteLength ?? 0;
+  if (size === 0) return { ok: false, status: 400, error: "Empty upload" };
+  if (size > FILE_MAX_BYTES) {
+    return { ok: false, status: 413, error: `File too large (max ${FILE_MAX_BYTES} bytes)` };
+  }
+  // Parse multipart to inspect file MIME type
+  try {
+    const req2 = new Request("http://x/", {
+      method: "POST",
+      headers: { "content-type": contentType },
+      body: bodyBuffer,
+    });
+    const fd = await req2.formData();
+    let foundFile = false;
+    for (const value of fd.values()) {
+      if (value instanceof File || (typeof value === "object" && value && "type" in (value as any))) {
+        foundFile = true;
+        const f = value as File;
+        const mime = (f.type || "").toLowerCase();
+        if (!FILE_MIME_WHITELIST.has(mime)) {
+          return { ok: false, status: 415, error: `Unsupported file type: ${mime || "unknown"}` };
+        }
+        if (f.size > FILE_MAX_BYTES) {
+          return { ok: false, status: 413, error: "File too large" };
+        }
+      }
+    }
+    if (!foundFile) return { ok: false, status: 400, error: "No file in upload" };
+  } catch {
+    return { ok: false, status: 400, error: "Malformed multipart body" };
+  }
+  return { ok: true };
+}
+
 async function proxy(request: Request, splat: string) {
   await ensureDirectusMaintenance();
 
@@ -552,6 +715,40 @@ async function proxy(request: Request, splat: string) {
   let bodyBuffer: ArrayBuffer | null = null;
   if (request.method !== "GET" && request.method !== "HEAD") {
     bodyBuffer = await request.arrayBuffer();
+    init.body = bodyBuffer;
+  }
+
+  // -------------------------------------------------------------------
+  // Anonymous-flow validation (BEFORE forwarding to Directus with admin token)
+  // -------------------------------------------------------------------
+  // The admin token bypasses every Directus permission. We MUST validate any
+  // anonymous payload here, otherwise random callers can spam the DB or upload
+  // arbitrary files.
+  const isAnonAdminFallback =
+    !hasAuth && !!adminToken && shouldUseAdminFallback(splat, request.method);
+
+  if (isAnonAdminFallback && splat === "items/requests" && bodyBuffer) {
+    if (!(headers.get("content-type") || "").includes("application/json")) {
+      return jsonError(400, "Request body must be JSON");
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(new TextDecoder().decode(bodyBuffer));
+    } catch {
+      return jsonError(400, "Malformed JSON body");
+    }
+    const result = await validateAnonymousRequestBody(parsed);
+    if (!result.ok) return jsonError(400, result.error);
+    const newBody = JSON.stringify(result.body);
+    init.body = newBody;
+    headers.set("content-length", String(new TextEncoder().encode(newBody).byteLength));
+  }
+
+  if (isAnonAdminFallback && (splat === "files" || splat.startsWith("files/"))) {
+    const fileCheck = await validateAnonymousFileUpload(request, bodyBuffer);
+    if (!fileCheck.ok) return jsonError(fileCheck.status, fileCheck.error);
+    // Re-attach body buffer (formData() consumed in validator used a clone, but
+    // we kept bodyBuffer so init.body is still the raw bytes).
     init.body = bodyBuffer;
   }
 
