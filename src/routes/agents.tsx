@@ -34,6 +34,10 @@ function AdminAgents() {
   const isAdmin = user?.role === "admin";
   const lockedBranch = isSupervisor ? user?.branch : undefined;
   const canDelete = canDeleteAgents(user);
+  const isSelf = (a: Agent) =>
+    !!user &&
+    ((a.userId && a.userId === user.id) ||
+      (!!a.email && !!user.email && a.email.toLowerCase() === user.email.toLowerCase()));
 
   // Supervisors can only see/manage agents in their own branch — never the
   // supervisors tab.
@@ -193,10 +197,20 @@ function AdminAgents() {
                     <IconBtn label={t.agents.edit} onClick={() => setDialog({ open: true, mode: "edit", target: a })}>
                       <Pencil className="h-4 w-4" />
                     </IconBtn>
-                    <IconBtn label={a.active ? t.agents.suspend : t.agents.activate} onClick={() => onToggle(a)}>
-                      <Power className="h-4 w-4" />
-                    </IconBtn>
-                    {canDelete ? (
+                    {isSelf(a) ? (
+                      <IconBtn disabledLook label={t.agents.selfNoSuspend} onClick={() => toast.error(t.agents.selfNoSuspend)}>
+                        <Power className="h-4 w-4" />
+                      </IconBtn>
+                    ) : (
+                      <IconBtn label={a.active ? t.agents.suspend : t.agents.activate} onClick={() => onToggle(a)}>
+                        <Power className="h-4 w-4" />
+                      </IconBtn>
+                    )}
+                    {isSelf(a) ? (
+                      <IconBtn danger disabledLook label={t.agents.selfNoDelete} onClick={() => toast.error(t.agents.selfNoDelete)}>
+                        <Trash2 className="h-4 w-4" />
+                      </IconBtn>
+                    ) : canDelete ? (
                       <IconBtn danger label={t.agents.delete} onClick={() => onDelete(a)}>
                         <Trash2 className="h-4 w-4" />
                       </IconBtn>
@@ -236,10 +250,20 @@ function AdminAgents() {
               <IconBtn label={t.agents.edit} onClick={() => setDialog({ open: true, mode: "edit", target: a })}>
                 <Pencil className="h-4 w-4" />
               </IconBtn>
-              <IconBtn label={a.active ? t.agents.suspend : t.agents.activate} onClick={() => onToggle(a)}>
-                <Power className="h-4 w-4" />
-              </IconBtn>
-              {canDelete ? (
+              {isSelf(a) ? (
+                <IconBtn disabledLook label={t.agents.selfNoSuspend} onClick={() => toast.error(t.agents.selfNoSuspend)}>
+                  <Power className="h-4 w-4" />
+                </IconBtn>
+              ) : (
+                <IconBtn label={a.active ? t.agents.suspend : t.agents.activate} onClick={() => onToggle(a)}>
+                  <Power className="h-4 w-4" />
+                </IconBtn>
+              )}
+              {isSelf(a) ? (
+                <IconBtn danger disabledLook label={t.agents.selfNoDelete} onClick={() => toast.error(t.agents.selfNoDelete)}>
+                  <Trash2 className="h-4 w-4" />
+                </IconBtn>
+              ) : canDelete ? (
                 <IconBtn danger label={t.agents.delete} onClick={() => onDelete(a)}>
                   <Trash2 className="h-4 w-4" />
                 </IconBtn>
