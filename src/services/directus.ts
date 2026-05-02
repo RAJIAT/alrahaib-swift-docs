@@ -19,8 +19,8 @@
 const DEFAULT_DIRECTUS_URL = "/api/directus";
 
 export const DIRECTUS_URL: string | undefined =
-  ((import.meta as any).env?.VITE_DIRECTUS_URL || DEFAULT_DIRECTUS_URL)
-    ?.replace(/\/$/, "") || undefined;
+  ((import.meta as any).env?.VITE_DIRECTUS_URL || DEFAULT_DIRECTUS_URL)?.replace(/\/$/, "") ||
+  undefined;
 
 export const isDirectusEnabled = () => !!DIRECTUS_URL;
 
@@ -33,7 +33,11 @@ function readToken(): TokenBundle | null {
   if (typeof window === "undefined") return null;
   const raw = localStorage.getItem(TOKEN_KEY);
   if (!raw) return null;
-  try { return JSON.parse(raw); } catch { return null; }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 function writeToken(t: TokenBundle | null) {
@@ -57,7 +61,10 @@ async function refreshIfNeeded(): Promise<string | null> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: t.refresh_token, mode: "json" }),
     });
-    if (!res.ok) { writeToken(null); return null; }
+    if (!res.ok) {
+      writeToken(null);
+      return null;
+    }
     const { data } = await res.json();
     const next: TokenBundle = {
       access_token: data.access_token,
@@ -134,23 +141,37 @@ export async function dxLogin(email: string, password: string) {
 
 /** Fetch the currently authenticated Directus user. */
 export async function dxFetchMe(): Promise<{
-  id: string; email: string;
-  first_name?: string; last_name?: string;
+  id: string;
+  email: string;
+  first_name?: string;
+  last_name?: string;
   role?: { name?: string };
-  agent_id?: string; branch?: string; status?: string;
+  agent_id?: string;
+  branch?: string;
+  status?: string;
 }> {
-  const me = await dxFetch("/users/me?fields=id,email,first_name,last_name,role.name,agent_id,branch,status");
+  const me = await dxFetch(
+    "/users/me?fields=id,email,first_name,last_name,role.name,agent_id,branch,status",
+  );
   return me.data as {
-    id: string; email: string;
-    first_name?: string; last_name?: string;
+    id: string;
+    email: string;
+    first_name?: string;
+    last_name?: string;
     role?: { name?: string };
-    agent_id?: string; branch?: string; status?: string;
+    agent_id?: string;
+    branch?: string;
+    status?: string;
   };
 }
 
-export function dxLogout() { writeToken(null); }
+export function dxLogout() {
+  writeToken(null);
+}
 
-export function dxHasSession() { return !!readToken(); }
+export function dxHasSession() {
+  return !!readToken();
+}
 
 /** Returns a valid (refreshed) access token for server-to-server endpoints
  *  that need to verify the current Directus user. */
@@ -231,11 +252,14 @@ export type DxRequest = {
 const REQUEST_FIELDS =
   "id,status,agent_id,agent_name,branch,date_created,request_display_id,registration,license,emirates,passport,inspection,customer_name,customer_email,customer_phone";
 
-export async function dxListRequests(opts?: { agentId?: string; branch?: string }): Promise<DxRequest[]> {
+export async function dxListRequests(opts?: {
+  agentId?: string;
+  branch?: string;
+}): Promise<DxRequest[]> {
   const params = new URLSearchParams({
-    "fields": REQUEST_FIELDS,
-    "sort": "-date_created",
-    "limit": "200",
+    fields: REQUEST_FIELDS,
+    sort: "-date_created",
+    limit: "200",
   });
   if (opts?.agentId) params.set("filter[agent_id][_eq]", opts.agentId);
   if (opts?.branch) params.set("filter[branch][_eq]", opts.branch);
@@ -315,7 +339,10 @@ export async function dxCreateBranch(input: Omit<DxBranch, "id">): Promise<DxBra
   return json.data as DxBranch;
 }
 
-export async function dxUpdateBranch(id: number, patch: Partial<Omit<DxBranch, "id">>): Promise<DxBranch> {
+export async function dxUpdateBranch(
+  id: number,
+  patch: Partial<Omit<DxBranch, "id">>,
+): Promise<DxBranch> {
   const json = await dxFetch(`/items/branches/${id}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
@@ -346,10 +373,10 @@ export async function dxListNotes(requestId: string): Promise<DxNote[]> {
   try {
     const token = await refreshIfNeeded();
     if (token) {
-      const res = await fetch(
-        `/api/notes?requestId=${encodeURIComponent(requestId)}`,
-        { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
-      );
+      const res = await fetch(`/api/notes?requestId=${encodeURIComponent(requestId)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
       if (res.ok) {
         const j = await res.json().catch(() => null);
         if (j?.ok && Array.isArray(j.notes)) return j.notes as DxNote[];
@@ -400,7 +427,10 @@ export type DxAttachment = {
   date_created: string;
 };
 
-export async function dxListAttachments(requestId: string, missing = false): Promise<DxAttachment[]> {
+export async function dxListAttachments(
+  requestId: string,
+  missing = false,
+): Promise<DxAttachment[]> {
   const collection = missing ? "request_missing_attachments" : "request_attachments";
   const params = new URLSearchParams({
     fields: "id,request,file,original_name,date_created",
@@ -412,11 +442,14 @@ export async function dxListAttachments(requestId: string, missing = false): Pro
   return json.data as DxAttachment[];
 }
 
-export async function dxCreateAttachment(input: {
-  request: string;
-  file: string;
-  original_name?: string;
-}, missing = false): Promise<DxAttachment> {
+export async function dxCreateAttachment(
+  input: {
+    request: string;
+    file: string;
+    original_name?: string;
+  },
+  missing = false,
+): Promise<DxAttachment> {
   const collection = missing ? "request_missing_attachments" : "request_attachments";
   const json = await dxFetch(`/items/${collection}`, {
     method: "POST",
@@ -566,24 +599,27 @@ export async function dxCreateAgent(input: {
   });
   const json = await res
     .json()
-    .catch(() => ({} as { ok?: boolean; error?: string; data?: DxUser }));
+    .catch(() => ({}) as { ok?: boolean; error?: string; data?: DxUser });
   if (!res.ok || json?.ok === false) {
     throw new Error(json?.error || safeApiErrorMessage(res.status));
   }
   return json.data as DxUser;
 }
 
-export async function dxUpdateAgent(id: string, patch: Partial<{
-  email: string;
-  first_name: string;
-  last_name: string;
-  agent_id: string;
-  branch: string | null;
-  supervisor_id: string | null;
-  role: "agent" | "supervisor";
-  status: DxUser["status"];
-  password: string;
-}>): Promise<DxUser> {
+export async function dxUpdateAgent(
+  id: string,
+  patch: Partial<{
+    email: string;
+    first_name: string;
+    last_name: string;
+    agent_id: string;
+    branch: string | null;
+    supervisor_id: string | null;
+    role: "agent" | "supervisor";
+    status: DxUser["status"];
+    password: string;
+  }>,
+): Promise<DxUser> {
   const body: Record<string, unknown> = {};
   if (patch.email !== undefined) body.email = patch.email;
   if (patch.first_name !== undefined) body.first_name = patch.first_name;
@@ -609,4 +645,3 @@ export async function dxUpdateAgent(id: string, patch: Partial<{
 export async function dxDeleteAgent(id: string): Promise<void> {
   await dxFetch(`/users/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
-

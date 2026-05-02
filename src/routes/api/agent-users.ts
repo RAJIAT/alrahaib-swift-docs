@@ -35,7 +35,10 @@ async function adminDx<T = unknown>(path: string, init: RequestInit = {}): Promi
   return text ? JSON.parse(text) : {};
 }
 
-async function ensureUsersField(field: string, definition: Record<string, unknown>): Promise<boolean> {
+async function ensureUsersField(
+  field: string,
+  definition: Record<string, unknown>,
+): Promise<boolean> {
   try {
     await adminDx(`/fields/directus_users/${field}`);
     return true;
