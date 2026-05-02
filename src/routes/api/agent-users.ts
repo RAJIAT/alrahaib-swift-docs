@@ -227,19 +227,26 @@ export const Route = createFileRoute("/api/agent-users")({
           const roleName = requestedRole === "supervisor" ? "Supervisor" : "Agent";
           const roleId = await ensureRole(roleName);
 
+          const availableUserFields = await ensureAgentUserFields();
+          const userPayload: Record<string, unknown> = {
+            email: body.email,
+            password: body.password,
+            first_name: body.first_name,
+            last_name: body.last_name ?? "",
+            role: roleId,
+            status: "active",
+          };
+          if (availableUserFields.has("agent_id")) userPayload.agent_id = body.agent_id;
+          if (availableUserFields.has("branch")) userPayload.branch = branch;
+          if (availableUserFields.has("supervisor_id")) {
+            userPayload.supervisor_id = requestedRole === "agent"
+              ? (body.supervisor_id ?? (actor.role === "supervisor" ? actor.id : null))
+              : null;
+          }
+
           const created = await adminDx("/users", {
             method: "POST",
-            body: JSON.stringify({
-              email: body.email,
-              password: body.password,
-              first_name: body.first_name,
-              last_name: body.last_name ?? "",
-              agent_id: body.agent_id,
-              branch,
-              supervisor_id: requestedRole === "agent" ? (body.supervisor_id ?? (actor.role === "supervisor" ? actor.id : null)) : null,
-              role: roleId,
-              status: "active",
-            }),
+            body: JSON.stringify(userPayload),
           });
 
           return Response.json({ ok: true, data: created.data }, { headers: { "cache-control": "no-store" } });
