@@ -31,7 +31,7 @@ const HOP_BY_HOP = new Set([
 type DirectusJson<T = any> = { data?: T } & Record<string, any>;
 type MaintenanceState = { done: boolean; promise: Promise<void> | null; lastFailure: number };
 
-const maintenanceState: MaintenanceState = ((globalThis as any).__aibDirectusMaintenance_v5 ??= {
+const maintenanceState: MaintenanceState = ((globalThis as any).__aibDirectusMaintenance_v6 ??= {
   done: false,
   promise: null,
   lastFailure: 0,
@@ -361,6 +361,32 @@ async function runDirectusMaintenance() {
         ],
       },
     );
+
+    // Security hardening: Supervisor MUST NOT create / update / delete users.
+    // Editing agents (role, password, etc.) is an admin-only operation.
+    for (const action of ["create", "update", "delete", "share"]) {
+      try {
+        const stale = await adminDx<any[]>(
+          `/permissions?filter[policy][_eq]=${supervisorPolicy.id}&filter[collection][_eq]=directus_users&filter[action][_eq]=${action}&limit=10`,
+        );
+        for (const row of stale.data ?? []) {
+          await adminDx(`/permissions/${row.id}`, { method: "DELETE" });
+        }
+      } catch (err) {
+        console.error(`[directus-maintenance] failed to strip supervisor users.${action}`, err);
+      }
+    }
+    // Supervisor must never delete requests either.
+    try {
+      const stale = await adminDx<any[]>(
+        `/permissions?filter[policy][_eq]=${supervisorPolicy.id}&filter[collection][_eq]=requests&filter[action][_eq]=delete&limit=10`,
+      );
+      for (const row of stale.data ?? []) {
+        await adminDx(`/permissions/${row.id}`, { method: "DELETE" });
+      }
+    } catch (err) {
+      console.error("[directus-maintenance] failed to strip supervisor requests.delete", err);
+    }
   }
 
   const publicPolicy = policyForRole(policies.data ?? [], null);
@@ -377,6 +403,28 @@ async function runDirectusMaintenance() {
         }),
       });
     }
+  }
+
+  // Dedupe duplicate permission rows on every policy / collection / action.
+  // The legacy maintenance scripts created the same row twice, which made the
+  // QA audit show "directus_files.create, directus_files.create".
+  try {
+    const allPerms = await adminDx<any[]>(
+      "/permissions?fields=id,policy,collection,action&limit=-1",
+    );
+    const seen = new Map<string, string>();
+    for (const row of allPerms.data ?? []) {
+      const key = `${row.policy}|${row.collection}|${row.action}`;
+      const existingId = seen.get(key);
+      if (existingId) {
+        // Keep the first one, delete the duplicate.
+        await adminDx(`/permissions/${row.id}`, { method: "DELETE" });
+      } else {
+        seen.set(key, row.id);
+      }
+    }
+  } catch (err) {
+    console.error("[directus-maintenance] failed to dedupe permissions", err);
   }
 
   for (const legacyCollection of ["agents", "requests_files"]) {
@@ -424,10 +472,58 @@ function shouldUseAdminFallback(splat: string, method: string): boolean {
   return PUBLIC_FALLBACK_PREFIXES.some((p) => splat === p || splat.startsWith(`${p}/`));
 }
 
+/**
+ * Resolve the user info attached to the incoming request's bearer token.
+ * Returns null for anonymous / unauthenticated requests, or if the token is
+ * invalid. Used to enrich audit_log rows with the real actor info so we
+ * never store actor_id = null again.
+ */
+async function resolveActorFromAuth(authHeader: string | null): Promise<{
+  id: string;
+  name: string | null;
+  role: string | null;
+  branch: string | null;
+} | null> {
+  if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) return null;
+  const token = authHeader.slice(7).trim();
+  if (!token) return null;
+  try {
+    const r = await fetch(
+      `${DIRECTUS_TARGET}/users/me?fields=id,first_name,last_name,email,branch,role.name`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!r.ok) return null;
+    const j = (await r.json()) as { data?: any };
+    const u = j.data;
+    if (!u?.id) return null;
+    const name =
+      [u.first_name, u.last_name].filter(Boolean).join(" ").trim() || u.email || null;
+    return {
+      id: u.id,
+      name,
+      role: u.role?.name ?? null,
+      branch: u.branch ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function proxy(request: Request, splat: string) {
   await ensureDirectusMaintenance();
 
   const url = new URL(request.url);
+
+  // For POST /items/request_notes (and a few other "fire and write" endpoints
+  // where Directus returns 204 No Content by default), we transparently ask
+  // the server to return the full row so the client doesn't have to do a
+  // second round-trip. Fixes the audit/notes race conditions seen in QA.
+  if (request.method === "POST" && !url.searchParams.has("fields")) {
+    const enrichForFields = ["items/request_notes", "items/audit_log"];
+    if (enrichForFields.some((p) => splat === p)) {
+      url.searchParams.set("fields", "*");
+    }
+  }
   const targetUrl = `${DIRECTUS_TARGET}/${splat}${url.search}`;
 
   const headers = new Headers();
@@ -453,8 +549,43 @@ async function proxy(request: Request, splat: string) {
     redirect: "manual",
   };
 
+  let bodyBuffer: ArrayBuffer | null = null;
   if (request.method !== "GET" && request.method !== "HEAD") {
-    init.body = await request.arrayBuffer();
+    bodyBuffer = await request.arrayBuffer();
+    init.body = bodyBuffer;
+  }
+
+  // Enrich audit_log POSTs with actor info from the caller's session so we
+  // never persist rows with actor_id = null. Only applies to JSON bodies on
+  // POST /items/audit_log; uploads / multipart are left untouched.
+  if (
+    request.method === "POST" &&
+    splat === "items/audit_log" &&
+    bodyBuffer &&
+    bodyBuffer.byteLength > 0 &&
+    (headers.get("content-type") || "").includes("application/json")
+  ) {
+    const incomingAuth = request.headers.get("authorization");
+    const actor = await resolveActorFromAuth(incomingAuth);
+    if (actor) {
+      try {
+        const text = new TextDecoder().decode(bodyBuffer);
+        const parsed = JSON.parse(text);
+        const enrichOne = (row: any) => ({
+          ...row,
+          actor_id: row?.actor_id ?? actor.id,
+          actor_name: row?.actor_name ?? actor.name,
+          actor_role: row?.actor_role ?? actor.role,
+          actor_branch: row?.actor_branch ?? actor.branch,
+        });
+        const enriched = Array.isArray(parsed) ? parsed.map(enrichOne) : enrichOne(parsed);
+        const newBody = JSON.stringify(enriched);
+        init.body = newBody;
+        headers.set("content-length", String(new TextEncoder().encode(newBody).byteLength));
+      } catch {
+        // body wasn't valid JSON — leave it alone, Directus will reject it.
+      }
+    }
   }
 
   const upstream = await fetch(targetUrl, init);
