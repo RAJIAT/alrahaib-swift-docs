@@ -260,6 +260,25 @@ async function runDirectusMaintenance() {
         REQUEST_READ_FIELDS,
         { agent_id: { _eq: "$CURRENT_USER.agent_id" } },
       );
+      // Agent can update ONLY their own requests, and only the status field.
+      await upsertPermission(
+        agentPolicy.id,
+        "requests",
+        "update",
+        ["status"],
+        { agent_id: { _eq: "$CURRENT_USER.agent_id" } },
+      );
+      // Agents must never delete requests.
+      try {
+        const stale = await adminDx<any[]>(
+          `/permissions?filter[policy][_eq]=${agentPolicy.id}&filter[collection][_eq]=requests&filter[action][_eq]=delete&limit=10`,
+        );
+        for (const row of stale.data ?? []) {
+          await adminDx(`/permissions/${row.id}`, { method: "DELETE" });
+        }
+      } catch (err) {
+        console.error("[directus-maintenance] failed to strip agent requests.delete", err);
+      }
     }
     // Agent reads their OWN user row (needed so $CURRENT_USER.agent_id resolves).
     await upsertPermission(
