@@ -19,15 +19,6 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RequestsIdRouteImport } from './routes/requests.$id'
 import { Route as RRequestIdRouteImport } from './routes/r.$requestId'
-import { Route as ApiRoleIdRouteImport } from './routes/api/role-id'
-import { Route as ApiNotesRouteImport } from './routes/api/notes'
-import { Route as ApiAgentUsersRouteImport } from './routes/api/agent-users'
-import { Route as ApiPublicUploadFileRouteImport } from './routes/api/public/upload-file'
-import { Route as ApiPublicSubmitUploadRouteImport } from './routes/api/public/submit-upload'
-import { Route as ApiPublicReuploadSubmitRouteImport } from './routes/api/public/reupload-submit'
-import { Route as ApiPublicReuploadRequestRouteImport } from './routes/api/public/reupload-request'
-import { Route as ApiPublicResolveAgentRouteImport } from './routes/api/public/resolve-agent'
-import { Route as ApiDirectusSplatRouteImport } from './routes/api/directus.$'
 
 const SuccessRoute = SuccessRouteImport.update({
   id: '/success',
@@ -79,52 +70,6 @@ const RRequestIdRoute = RRequestIdRouteImport.update({
   path: '/r/$requestId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiRoleIdRoute = ApiRoleIdRouteImport.update({
-  id: '/api/role-id',
-  path: '/api/role-id',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiNotesRoute = ApiNotesRouteImport.update({
-  id: '/api/notes',
-  path: '/api/notes',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAgentUsersRoute = ApiAgentUsersRouteImport.update({
-  id: '/api/agent-users',
-  path: '/api/agent-users',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicUploadFileRoute = ApiPublicUploadFileRouteImport.update({
-  id: '/api/public/upload-file',
-  path: '/api/public/upload-file',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicSubmitUploadRoute = ApiPublicSubmitUploadRouteImport.update({
-  id: '/api/public/submit-upload',
-  path: '/api/public/submit-upload',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicReuploadSubmitRoute = ApiPublicReuploadSubmitRouteImport.update({
-  id: '/api/public/reupload-submit',
-  path: '/api/public/reupload-submit',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicReuploadRequestRoute =
-  ApiPublicReuploadRequestRouteImport.update({
-    id: '/api/public/reupload-request',
-    path: '/api/public/reupload-request',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicResolveAgentRoute = ApiPublicResolveAgentRouteImport.update({
-  id: '/api/public/resolve-agent',
-  path: '/api/public/resolve-agent',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiDirectusSplatRoute = ApiDirectusSplatRouteImport.update({
-  id: '/api/directus/$',
-  path: '/api/directus/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -135,17 +80,8 @@ export interface FileRoutesByFullPath {
   '/branches': typeof BranchesRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
-  '/api/agent-users': typeof ApiAgentUsersRoute
-  '/api/notes': typeof ApiNotesRoute
-  '/api/role-id': typeof ApiRoleIdRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
-  '/api/directus/$': typeof ApiDirectusSplatRoute
-  '/api/public/resolve-agent': typeof ApiPublicResolveAgentRoute
-  '/api/public/reupload-request': typeof ApiPublicReuploadRequestRoute
-  '/api/public/reupload-submit': typeof ApiPublicReuploadSubmitRoute
-  '/api/public/submit-upload': typeof ApiPublicSubmitUploadRoute
-  '/api/public/upload-file': typeof ApiPublicUploadFileRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -156,17 +92,8 @@ export interface FileRoutesByTo {
   '/branches': typeof BranchesRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
-  '/api/agent-users': typeof ApiAgentUsersRoute
-  '/api/notes': typeof ApiNotesRoute
-  '/api/role-id': typeof ApiRoleIdRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
-  '/api/directus/$': typeof ApiDirectusSplatRoute
-  '/api/public/resolve-agent': typeof ApiPublicResolveAgentRoute
-  '/api/public/reupload-request': typeof ApiPublicReuploadRequestRoute
-  '/api/public/reupload-submit': typeof ApiPublicReuploadSubmitRoute
-  '/api/public/submit-upload': typeof ApiPublicSubmitUploadRoute
-  '/api/public/upload-file': typeof ApiPublicUploadFileRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -178,17 +105,8 @@ export interface FileRoutesById {
   '/branches': typeof BranchesRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
-  '/api/agent-users': typeof ApiAgentUsersRoute
-  '/api/notes': typeof ApiNotesRoute
-  '/api/role-id': typeof ApiRoleIdRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
-  '/api/directus/$': typeof ApiDirectusSplatRoute
-  '/api/public/resolve-agent': typeof ApiPublicResolveAgentRoute
-  '/api/public/reupload-request': typeof ApiPublicReuploadRequestRoute
-  '/api/public/reupload-submit': typeof ApiPublicReuploadSubmitRoute
-  '/api/public/submit-upload': typeof ApiPublicSubmitUploadRoute
-  '/api/public/upload-file': typeof ApiPublicUploadFileRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -201,17 +119,8 @@ export interface FileRouteTypes {
     | '/branches'
     | '/login'
     | '/success'
-    | '/api/agent-users'
-    | '/api/notes'
-    | '/api/role-id'
     | '/r/$requestId'
     | '/requests/$id'
-    | '/api/directus/$'
-    | '/api/public/resolve-agent'
-    | '/api/public/reupload-request'
-    | '/api/public/reupload-submit'
-    | '/api/public/submit-upload'
-    | '/api/public/upload-file'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -222,17 +131,8 @@ export interface FileRouteTypes {
     | '/branches'
     | '/login'
     | '/success'
-    | '/api/agent-users'
-    | '/api/notes'
-    | '/api/role-id'
     | '/r/$requestId'
     | '/requests/$id'
-    | '/api/directus/$'
-    | '/api/public/resolve-agent'
-    | '/api/public/reupload-request'
-    | '/api/public/reupload-submit'
-    | '/api/public/submit-upload'
-    | '/api/public/upload-file'
   id:
     | '__root__'
     | '/'
@@ -243,17 +143,8 @@ export interface FileRouteTypes {
     | '/branches'
     | '/login'
     | '/success'
-    | '/api/agent-users'
-    | '/api/notes'
-    | '/api/role-id'
     | '/r/$requestId'
     | '/requests/$id'
-    | '/api/directus/$'
-    | '/api/public/resolve-agent'
-    | '/api/public/reupload-request'
-    | '/api/public/reupload-submit'
-    | '/api/public/submit-upload'
-    | '/api/public/upload-file'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -265,17 +156,8 @@ export interface RootRouteChildren {
   BranchesRoute: typeof BranchesRoute
   LoginRoute: typeof LoginRoute
   SuccessRoute: typeof SuccessRoute
-  ApiAgentUsersRoute: typeof ApiAgentUsersRoute
-  ApiNotesRoute: typeof ApiNotesRoute
-  ApiRoleIdRoute: typeof ApiRoleIdRoute
   RRequestIdRoute: typeof RRequestIdRoute
   RequestsIdRoute: typeof RequestsIdRoute
-  ApiDirectusSplatRoute: typeof ApiDirectusSplatRoute
-  ApiPublicResolveAgentRoute: typeof ApiPublicResolveAgentRoute
-  ApiPublicReuploadRequestRoute: typeof ApiPublicReuploadRequestRoute
-  ApiPublicReuploadSubmitRoute: typeof ApiPublicReuploadSubmitRoute
-  ApiPublicSubmitUploadRoute: typeof ApiPublicSubmitUploadRoute
-  ApiPublicUploadFileRoute: typeof ApiPublicUploadFileRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -350,69 +232,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RRequestIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/role-id': {
-      id: '/api/role-id'
-      path: '/api/role-id'
-      fullPath: '/api/role-id'
-      preLoaderRoute: typeof ApiRoleIdRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/notes': {
-      id: '/api/notes'
-      path: '/api/notes'
-      fullPath: '/api/notes'
-      preLoaderRoute: typeof ApiNotesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/agent-users': {
-      id: '/api/agent-users'
-      path: '/api/agent-users'
-      fullPath: '/api/agent-users'
-      preLoaderRoute: typeof ApiAgentUsersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/upload-file': {
-      id: '/api/public/upload-file'
-      path: '/api/public/upload-file'
-      fullPath: '/api/public/upload-file'
-      preLoaderRoute: typeof ApiPublicUploadFileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/submit-upload': {
-      id: '/api/public/submit-upload'
-      path: '/api/public/submit-upload'
-      fullPath: '/api/public/submit-upload'
-      preLoaderRoute: typeof ApiPublicSubmitUploadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/reupload-submit': {
-      id: '/api/public/reupload-submit'
-      path: '/api/public/reupload-submit'
-      fullPath: '/api/public/reupload-submit'
-      preLoaderRoute: typeof ApiPublicReuploadSubmitRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/reupload-request': {
-      id: '/api/public/reupload-request'
-      path: '/api/public/reupload-request'
-      fullPath: '/api/public/reupload-request'
-      preLoaderRoute: typeof ApiPublicReuploadRequestRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/resolve-agent': {
-      id: '/api/public/resolve-agent'
-      path: '/api/public/resolve-agent'
-      fullPath: '/api/public/resolve-agent'
-      preLoaderRoute: typeof ApiPublicResolveAgentRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/directus/$': {
-      id: '/api/directus/$'
-      path: '/api/directus/$'
-      fullPath: '/api/directus/$'
-      preLoaderRoute: typeof ApiDirectusSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -425,17 +244,8 @@ const rootRouteChildren: RootRouteChildren = {
   BranchesRoute: BranchesRoute,
   LoginRoute: LoginRoute,
   SuccessRoute: SuccessRoute,
-  ApiAgentUsersRoute: ApiAgentUsersRoute,
-  ApiNotesRoute: ApiNotesRoute,
-  ApiRoleIdRoute: ApiRoleIdRoute,
   RRequestIdRoute: RRequestIdRoute,
   RequestsIdRoute: RequestsIdRoute,
-  ApiDirectusSplatRoute: ApiDirectusSplatRoute,
-  ApiPublicResolveAgentRoute: ApiPublicResolveAgentRoute,
-  ApiPublicReuploadRequestRoute: ApiPublicReuploadRequestRoute,
-  ApiPublicReuploadSubmitRoute: ApiPublicReuploadSubmitRoute,
-  ApiPublicSubmitUploadRoute: ApiPublicSubmitUploadRoute,
-  ApiPublicUploadFileRoute: ApiPublicUploadFileRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
