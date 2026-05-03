@@ -197,7 +197,12 @@ function safeApiErrorMessage(status: number): string {
 export async function dxUploadFile(file: File): Promise<string> {
   const fd = new FormData();
   fd.append("file", file, file.name);
-  const json = await dxFetch("/files", { method: "POST", body: fd });
+  // Ask Directus to return only `id` — otherwise it tries to return all file
+  // fields (storage, title, filename_download, type, ...) and the Agent /
+  // Supervisor policies don't have read access to those, which makes the
+  // upload itself fail with a permission error even though the file was
+  // saved successfully.
+  const json = await dxFetch("/files?fields=id", { method: "POST", body: fd });
   return json.data.id as string;
 }
 
