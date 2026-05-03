@@ -23,6 +23,7 @@ import { Route as ApiRoleIdRouteImport } from './routes/api/role-id'
 import { Route as ApiNotesRouteImport } from './routes/api/notes'
 import { Route as ApiDiagRouteImport } from './routes/api/diag'
 import { Route as ApiAgentUsersRouteImport } from './routes/api/agent-users'
+import { Route as ApiPublicUploadFileRouteImport } from './routes/api/public/upload-file'
 import { Route as ApiPublicReuploadSubmitRouteImport } from './routes/api/public/reupload-submit'
 import { Route as ApiPublicReuploadRequestRouteImport } from './routes/api/public/reupload-request'
 import { Route as ApiPublicResolveAgentRouteImport } from './routes/api/public/resolve-agent'
@@ -100,6 +101,11 @@ const ApiAgentUsersRoute = ApiAgentUsersRouteImport.update({
   path: '/api/agent-users',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicUploadFileRoute = ApiPublicUploadFileRouteImport.update({
+  id: '/api/public/upload-file',
+  path: '/api/public/upload-file',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicReuploadSubmitRoute = ApiPublicReuploadSubmitRouteImport.update({
   id: '/api/public/reupload-submit',
   path: '/api/public/reupload-submit',
@@ -153,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/api/public/resolve-agent': typeof ApiPublicResolveAgentRoute
   '/api/public/reupload-request': typeof ApiPublicReuploadRequestRoute
   '/api/public/reupload-submit': typeof ApiPublicReuploadSubmitRoute
+  '/api/public/upload-file': typeof ApiPublicUploadFileRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -175,6 +182,7 @@ export interface FileRoutesByTo {
   '/api/public/resolve-agent': typeof ApiPublicResolveAgentRoute
   '/api/public/reupload-request': typeof ApiPublicReuploadRequestRoute
   '/api/public/reupload-submit': typeof ApiPublicReuploadSubmitRoute
+  '/api/public/upload-file': typeof ApiPublicUploadFileRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -198,6 +206,7 @@ export interface FileRoutesById {
   '/api/public/resolve-agent': typeof ApiPublicResolveAgentRoute
   '/api/public/reupload-request': typeof ApiPublicReuploadRequestRoute
   '/api/public/reupload-submit': typeof ApiPublicReuploadSubmitRoute
+  '/api/public/upload-file': typeof ApiPublicUploadFileRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -222,6 +231,7 @@ export interface FileRouteTypes {
     | '/api/public/resolve-agent'
     | '/api/public/reupload-request'
     | '/api/public/reupload-submit'
+    | '/api/public/upload-file'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -244,6 +254,7 @@ export interface FileRouteTypes {
     | '/api/public/resolve-agent'
     | '/api/public/reupload-request'
     | '/api/public/reupload-submit'
+    | '/api/public/upload-file'
   id:
     | '__root__'
     | '/'
@@ -266,6 +277,7 @@ export interface FileRouteTypes {
     | '/api/public/resolve-agent'
     | '/api/public/reupload-request'
     | '/api/public/reupload-submit'
+    | '/api/public/upload-file'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -289,6 +301,7 @@ export interface RootRouteChildren {
   ApiPublicResolveAgentRoute: typeof ApiPublicResolveAgentRoute
   ApiPublicReuploadRequestRoute: typeof ApiPublicReuploadRequestRoute
   ApiPublicReuploadSubmitRoute: typeof ApiPublicReuploadSubmitRoute
+  ApiPublicUploadFileRoute: typeof ApiPublicUploadFileRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -391,6 +404,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAgentUsersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/upload-file': {
+      id: '/api/public/upload-file'
+      path: '/api/public/upload-file'
+      fullPath: '/api/public/upload-file'
+      preLoaderRoute: typeof ApiPublicUploadFileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/reupload-submit': {
       id: '/api/public/reupload-submit'
       path: '/api/public/reupload-submit'
@@ -457,6 +477,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicResolveAgentRoute: ApiPublicResolveAgentRoute,
   ApiPublicReuploadRequestRoute: ApiPublicReuploadRequestRoute,
   ApiPublicReuploadSubmitRoute: ApiPublicReuploadSubmitRoute,
+  ApiPublicUploadFileRoute: ApiPublicUploadFileRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
