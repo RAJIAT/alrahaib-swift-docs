@@ -724,6 +724,16 @@ async function proxy(request: Request, splat: string) {
 
   const url = new URL(request.url);
 
+  // Defensive fix for cached mobile bundles / logged-in customer phones:
+  // Directus defaults POST /files to returning file metadata fields such as
+  // storage, title, filename_download and type. Some roles can create files but
+  // cannot read those metadata fields, so the upload succeeds but the response
+  // fails with a permission error. Force every file upload through the proxy to
+  // return only the id, even if an older client bundle forgot ?fields=id.
+  if (request.method === "POST" && (splat === "files" || splat.startsWith("files/"))) {
+    url.searchParams.set("fields", "id");
+  }
+
   // For POST /items/request_notes (and a few other "fire and write" endpoints
   // where Directus returns 204 No Content by default), we transparently ask
   // the server to return the full row so the client doesn't have to do a
