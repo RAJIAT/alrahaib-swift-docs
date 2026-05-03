@@ -326,7 +326,7 @@ export const translations = {
       filesHint: "صور / PDF / مستندات — حد أقصى 5MB لكل ملف",
     },
     footer: {
-      rights: (year: number) => `© ${year} الراحة لوساطة التأمين ذ.م.م. جميع الحقوق محفوظة.`,
+      rights: (year: number) => `© ${year} DocFlow Demo. جميع الحقوق محفوظة.`,
       tagline: "بوابة آمنة لرفع وإدارة مستندات التأمين.",
       dataNotice: "جميع البيانات المرسلة مشفّرة وتُعالَج بسرّية تامة وفقاً لسياسة الخصوصية المعتمدة.",
       privacy: "سياسة الخصوصية",
