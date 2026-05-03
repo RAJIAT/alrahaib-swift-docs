@@ -67,7 +67,7 @@ function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="h-12 w-full rounded-xl border border-input bg-surface px-4 text-foreground outline-none ring-primary focus:ring-2"
-              placeholder="agent@aib.com"
+              placeholder="agent@demo.com"
             />
           </label>
           <label className="block">
