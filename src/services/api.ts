@@ -427,24 +427,39 @@ async function uploadFirst(files: File[]): Promise<string | null> {
   return await dxUploadFile(prepared);
 }
 
-async function uploadFirstPublic(files: File[]): Promise<string | null> {
-  const f = files[0];
-  if (!f) return null;
-  const { prepareForUpload } = await import("@/lib/imagePrep");
-  const prepared = await prepareForUpload(f);
-  return dxUploadFile(prepared, { auth: false });
-}
-
 async function uploadPrepared(file: File): Promise<string> {
   const { prepareForUpload } = await import("@/lib/imagePrep");
   const prepared = await prepareForUpload(file);
   return dxUploadFile(prepared);
 }
 
+/**
+ * Upload a single file through the dedicated public endpoint
+ * (`/api/public/upload-file`). Used for customer-facing uploads where we must
+ * NOT depend on the visitor's Directus session — see route docstring for
+ * details. Returns the new file id.
+ */
 async function uploadPreparedPublic(file: File): Promise<string> {
   const { prepareForUpload } = await import("@/lib/imagePrep");
   const prepared = await prepareForUpload(file);
-  return dxUploadFile(prepared, { auth: false });
+  const fd = new FormData();
+  fd.append("file", prepared, prepared.name);
+  const res = await fetch("/api/public/upload-file", {
+    method: "POST",
+    body: fd,
+  });
+  const json = await res.json().catch(() => ({} as { ok?: boolean; id?: string; error?: string }));
+  if (!res.ok || !json?.ok || !json.id) {
+    const detail = json?.error || `upload failed (${res.status})`;
+    throw new Error(detail);
+  }
+  return json.id as string;
+}
+
+async function uploadFirstPublic(files: File[]): Promise<string | null> {
+  const f = files[0];
+  if (!f) return null;
+  return uploadPreparedPublic(f);
 }
 
 export async function submitUpload(input: {
