@@ -133,8 +133,15 @@ function UploadPage() {
       setTimeout(() => navigate({ to: "/success", search: { id } }), 600);
     } catch (err) {
       console.error("Upload failed:", err);
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error(`Upload failed: ${msg}`);
+      const raw = err instanceof Error ? err.message : String(err);
+      // Never expose internal Directus permission/field text to the customer.
+      const isInternal = /directus_files|permission to access|Queried in/i.test(raw);
+      const friendly = isInternal
+        ? dir === "rtl"
+          ? "تعذّر رفع الملفات. حاول مرة أخرى أو استخدم صور أصغر."
+          : "Could not upload your files. Please try again or use smaller images."
+        : `${dir === "rtl" ? "تعذّر الرفع" : "Upload failed"}: ${raw}`;
+      toast.error(friendly);
       setDone(false);
       setSubmitting(false);
     }

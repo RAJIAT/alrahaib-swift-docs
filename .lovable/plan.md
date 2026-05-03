@@ -1,70 +1,37 @@
-## المشكلتان المُكتشفتان
+المشكلة الحالية واضحة من رسالة الخطأ: رفع الملف من الجوال ما زال يمر بمسار يطلب من Directus إرجاع حقول ملف غير مسموحة للدور الحالي (`storage`, `title`, `filename_download`, `type`). بما أن الخطأ مستمر بعد إضافة `fields=id`، سأحوّل رفع نموذج العميل إلى endpoint وسيط منفصل في الخادم يستخدم صلاحية الخادم داخلياً ويرجع للمتصفح `{ id }` فقط، بدل الاعتماد على proxy عام قد يتأثر بجلسة مخزنة أو طريقة Directus في إرجاع metadata.
 
-### 1) النواقص تأخّرت بالظهور
-صفحة تفاصيل الطلب `/requests/$id` لا تعمل polling. الـ`subscribeRequests` الموجود فيها هو مجرد `window.addEventListener` على نفس التبويب — لا يلتقط أي تغيير يحدث في متصفّح آخر (متصفّح العميل عند رفع النواقص). فالموظّف يرى التحديث فقط عند:
-- إعادة تحميل الصفحة يدوياً، أو
-- الرجوع لقائمة الطلبات (التي تعمل polling كل 4 ثواني) ثم العودة.
+الخطة:
 
-### 2) الصور لا تظهر (placeholder فارغ + "File wasn't available on site")
-المشكلة في `ImgCard` ← `useAssetUrl` ← `resolveAssetUrl`:
-- ملفات الـ Directus تُحفظ كـ URL مباشر مثل `/api/directus/assets/<id>` (وليس بادئة `storage:`).
-- الشرط في `useAssetUrl` يقول: «إن لم يبدأ بـ `storage:` استخدم الـ URL كما هو دون جلب bearer».
-- النتيجة: الـ`<img src>` يضرب `/api/directus/assets/<id>` **بدون** Authorization header، فيرفضه Directus (403/redirect)، فيظهر placeholder فارغ. هذا يطابق ما تظهره أيقونة "🚫 File wasn't available on site" في لقطة الشاشة.
+1. إنشاء endpoint عام ومخصص لرفع ملفات العملاء
+   - إضافة route مثل `/api/public/upload-file`.
+   - يستقبل `multipart/form-data` وفيه ملف واحد.
+   - يطبّق نفس قيود الأمان الحالية: نوع الملف المسموح، حد الحجم، ورفض الطلبات الفارغة أو غير الصالحة.
+   - يرفع الملف إلى Directus من الخادم باستخدام admin token، ثم يرجع فقط:
+     ```json
+     { "ok": true, "id": "..." }
+     ```
+   - لن يتم تمرير رسالة Directus الأصلية للعميل إذا فيها تفاصيل صلاحيات داخلية.
 
-كذلك المرفقات تستخدم `<a href={a.url} download>` مباشرة على نفس URL غير المُصرّح، فعند الفتح تنزّل ملفاً فارغاً (0 KB كما في صورتك).
+2. تعديل رفع نموذج العميل فقط ليستخدم endpoint الجديد
+   - في `submitUpload`، كل ملفات العميل العامة ستُرفع عبر `/api/public/upload-file` بدلاً من `dxUploadFile`.
+   - بعد استلام `id`، سيكمل الكود الحالي إنشاء الطلب وربط الملفات بنفس الطريقة الموجودة.
+   - رفع المرفقات من لوحة الموظف/الداشبورد سيبقى كما هو حتى لا نكسر صلاحيات المستخدمين الداخليين.
 
----
+3. تقليل الاعتماد على جلسة المتصفح في رابط العميل
+   - التأكد أن نموذج العميل لا يرسل Authorization عند الرفع أو إنشاء الطلب.
+   - هذا مهم لأن الموبايل قد يكون عليه جلسة Agent/Supervisor قديمة في localStorage، وهذا يفسّر لماذا الكمبيوتر يعمل والجوال لا.
 
-## الخطة
+4. تحسين رسالة الخطأ للمستخدم
+   - إذا فشل الرفع، تظهر رسالة عربية/إنجليزية مفيدة مثل “تعذر رفع الملف، جرّب صورة أصغر أو أعد المحاولة” بدل تفاصيل `directus_files` التقنية.
+   - إبقاء التفاصيل التقنية في console فقط للتشخيص.
 
-### A. تسريع ظهور النواقص (real-time من جهة العميل)
+5. إبقاء الحماية السابقة في proxy
+   - سنترك إجبار `fields=id` في `/api/directus/files` كحماية إضافية، لكن المسار الأساسي للعميل سيصبح endpoint الجديد الأكثر موثوقية.
 
-في `src/routes/requests.$id.tsx`:
-1. إضافة polling خفيف على تفاصيل الطلب (كل 4 ثواني) مع إيقافه عند `document.hidden` ثم استئنافه عند العودة، وإعادة فتش فورية على `visibilitychange`.
-2. مقارنة بـ"signature" (عدد الملاحظات + عدد المرفقات الناقصة + status) قبل `setReq` لتجنّب re-renders بدون داعٍ.
-3. الإبقاء على `subscribeRequests` للتحديث الفوري داخل نفس التبويب.
+بعد التنفيذ ستحتاج تعمل deploy بنفس الأمر:
 
-في `src/routes/api/public/reupload-submit.ts`:
-- تثبيت ترتيب التنفيذ: رفع كل الملفات → إنشاء صفوف `request_missing_attachments` → resolve كل ملاحظات `missing` المفتوحة → flip status إلى `processing`. (هو حالياً صحيح؛ نتأكد فقط من `await` على كل خطوة لمنع سباق سريع.)
+```bash
+cd ~/alrahaib-docs-flow-main-new && git pull && npm run build && pm2 restart portal
+```
 
-### B. إصلاح عرض الصور والمرفقات
-
-في `src/services/directus.ts`:
-- `isDirectusAssetUrl`: حالياً يقارن بـ `${DIRECTUS_URL}/assets/` فقط. نوسّعها لتقبل أي مسار يحتوي `/api/directus/assets/` (كل URLs الملفات تمرّ عبر هذا البروكسي بغضّ النظر عن الـ host).
-- `dxFetchAsset`: يقبل إمّا fileId خام أو URL كامل ويستخرج الـ id منه.
-
-في `src/services/api.ts → resolveAssetUrl`:
-- استخراج fileId عبر regex على `/assets/([^/?#]+)` يعمل أصلاً، لكنه لا يُستدعى لأن `isDirectusAssetUrl` يفشل. بعد الإصلاح أعلاه سيمرّ التدفّق بشكل صحيح ويُرجع `blob:` URL مع mime.
-
-في `src/routes/requests.$id.tsx → ImgCard`:
-- يبقى كما هو — لكنه الآن سيستلم `blob:` URL صالح فيظهر الصورة.
-
-في قسم "Other attachments" و "Missing attachments":
-- استبدال `<a href={a.url} download>` بزر يستدعي helper `downloadAsset(a.url, a.name)` الذي:
-  1. يستخرج fileId من URL،
-  2. يستدعي `dxFetchAsset` (مع bearer)،
-  3. يستخدم `triggerDownload(blob, name)`.
-- إضافة معاينة inline للـ thumbnails في "Missing attachments" لما يكون `mime` صورة (كي يرى الموظّف ما رفعه العميل بدون تنزيل).
-
-### C. تحسين تجربة سريعة إضافية
-- إظهار toast «وصلت نواقص جديدة من العميل» إذا زاد عدد `missingAttachments` أثناء فتح الصفحة.
-
----
-
-## الملفات المتأثّرة
-
-1. `src/services/directus.ts` — توسيع `isDirectusAssetUrl` + قبول URL كامل في `dxFetchAsset`.
-2. `src/services/api.ts` — لا تغيير منطقي، فقط التأكد من تمرير `dxFetchAsset` للـ fileId المستخرَج.
-3. `src/routes/requests.$id.tsx`:
-   - polling + signature
-   - helper `downloadAsset` يستخدم bearer
-   - استبدال روابط `<a download>` بأزرار
-   - thumbnails للصور في "Missing attachments"
-   - toast عند وصول نواقص جديدة
-4. `src/routes/api/public/reupload-submit.ts` — مراجعة ترتيب الـ awaits (لا تغيير وظيفي كبير متوقّع).
-
-## معايير القبول
-- بعد رفع العميل لملف من اللينك، يظهر الملف عند الموظّف خلال **≤4 ثوانٍ** بدون refresh يدوي.
-- صور الهوية/الرخصة/الملكية تظهر فعلياً داخل البطاقات (ليست بيضاء).
-- الضغط على زر التنزيل ينزّل الملف الفعلي (وليس 0 KB).
-- المرفقات الناقصة المرفوعة من العميل تظهر كـ thumbnails صور (لا روابط فقط).
+ثم تجربة الرفع من الجوال مرة ثانية.
