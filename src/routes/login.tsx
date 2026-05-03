@@ -93,6 +93,39 @@ function LoginPage() {
             {t.auth.submit}
           </button>
         </form>
+
+        <div className="mt-6 rounded-2xl border border-dashed border-border bg-card p-4">
+          <p className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            One-click demo login
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {(
+              [
+                { label: "Admin", email: "admin@demo.com" },
+                { label: "Supervisor", email: "supervisor@demo.com" },
+                { label: "Agent", email: "agent@demo.com" },
+              ] as const
+            ).map((q) => (
+              <button
+                key={q.email}
+                type="button"
+                disabled={loading}
+                onClick={async () => {
+                  setError(""); setLoading(true);
+                  try {
+                    const u = await login(q.email, "demo123");
+                    navigate({ to: u.role === "agent" ? "/agent" : "/admin" });
+                  } catch {
+                    setError(t.auth.invalid);
+                  } finally { setLoading(false); }
+                }}
+                className="h-10 rounded-xl border border-border bg-surface text-xs font-semibold text-foreground transition hover:bg-muted disabled:opacity-50"
+              >
+                {q.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </main>
     </div>
   );
