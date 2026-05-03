@@ -12,7 +12,7 @@ export const Route = createFileRoute("/success")({
   }),
   head: () => ({
     meta: [
-      { title: "Submitted — AIB" },
+      { title: "Submitted — DocFlow Demo" },
       { name: "description", content: "Your insurance documents were submitted successfully." },
     ],
   }),

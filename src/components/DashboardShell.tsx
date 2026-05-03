@@ -136,7 +136,7 @@ function SidebarInner({
         <div className="flex items-center gap-3">
           <Logo size={40} />
           <div>
-            <div className="text-sm font-bold text-sidebar-foreground">AIB</div>
+            <div className="text-sm font-bold text-sidebar-foreground">DocFlow</div>
             <div className="text-xs text-muted-foreground capitalize">{user.role}</div>
           </div>
         </div>
