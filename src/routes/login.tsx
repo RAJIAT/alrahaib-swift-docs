@@ -111,7 +111,11 @@ function LoginPage() {
                 type="button"
                 disabled={loading}
                 onClick={async () => {
-                  setError(""); setLoading(true);
+                  setError("");
+                  // Fill the visible fields so the user sees the credentials
+                  setEmail(q.email);
+                  setPassword("demo123");
+                  setLoading(true);
                   try {
                     const u = await login(q.email, "demo123");
                     navigate({ to: u.role === "agent" ? "/agent" : "/admin" });
