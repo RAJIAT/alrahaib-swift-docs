@@ -1,0 +1,328 @@
+/**
+ * Demo Store — fully local, no backend.
+ *
+ * All app data lives in localStorage. Files are converted to data URLs.
+ * The store seeds itself on first access with a small set of users,
+ * branches, agents and sample requests so a visitor can immediately try
+ * every dashboard.
+ */
+
+export type DemoRole = "admin" | "supervisor" | "agent";
+export type DemoStatus = "new" | "linkSent" | "processing" | "sold" | "rejected" | "reupload";
+
+export type DemoUser = {
+  id: string;
+  email: string;
+  password: string;
+  name: string;
+  role: DemoRole;
+  agentId?: string;
+  branch?: string;
+};
+
+export type DemoBranch = {
+  id: number;
+  name: string;
+  code: string;
+  address?: string;
+  phone?: string;
+  is_active: boolean;
+};
+
+export type DemoAgent = {
+  userId: string;
+  id: string;
+  name: string;
+  email?: string;
+  branch?: string;
+  active: boolean;
+  role: "agent" | "supervisor";
+  supervisorId?: string;
+};
+
+export type DemoNote = {
+  id: string;
+  authorId: string;
+  authorName: string;
+  authorRole: DemoRole;
+  text: string;
+  kind: "comment" | "missing";
+  createdAt: string;
+  resolvedAt?: string;
+};
+
+export type DemoAttachment = { name: string; type: string; size: number; url: string };
+
+export type DemoRequest = {
+  id: string;
+  uuid: string;
+  agentId: string;
+  agentName: string;
+  branch: string;
+  status: DemoStatus;
+  createdAt: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  notes: DemoNote[];
+  images: {
+    registration: string[];
+    license: string[];
+    emirates: string[];
+    vehicleMedia: Array<
+      | { kind: "image"; url: string }
+      | { kind: "video"; name: string; size: number; type: string }
+    >;
+    inspection?: string;
+    attachments: DemoAttachment[];
+    missingAttachments?: DemoAttachment[];
+  };
+};
+
+export type DemoAuditEntry = {
+  id: string;
+  ts: string;
+  actorId: string | null;
+  actorName: string | null;
+  actorRole: DemoRole | "anonymous";
+  actorBranch?: string | null;
+  action: string;
+  entityType: "request" | "agent" | "auth";
+  entityId: string | null;
+  entityLabel?: string | null;
+  branch?: string | null;
+  before?: unknown;
+  after?: unknown;
+  meta?: Record<string, unknown>;
+};
+
+const KEY = {
+  users: "demo:users",
+  branches: "demo:branches",
+  agents: "demo:agents",
+  requests: "demo:requests",
+  audit: "demo:audit",
+  seq: "demo:seq",
+  seeded: "demo:seeded:v1",
+};
+
+// ---------- Seed data ----------
+
+const PLACEHOLDER_DOC =
+  "data:image/svg+xml;base64," +
+  btoa(
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 380'><rect width='600' height='380' fill='#e0e7ff'/><rect x='30' y='30' width='540' height='320' rx='12' fill='#fff' stroke='#6366f1' stroke-width='2'/><text x='300' y='200' font-family='sans-serif' font-size='32' font-weight='bold' text-anchor='middle' fill='#4338ca'>SAMPLE DOCUMENT</text><text x='300' y='240' font-family='sans-serif' font-size='16' text-anchor='middle' fill='#6366f1'>Demo placeholder</text></svg>`,
+  );
+
+const PLACEHOLDER_CAR =
+  "data:image/svg+xml;base64," +
+  btoa(
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 380'><rect width='600' height='380' fill='#fef3c7'/><rect x='100' y='180' width='400' height='100' rx='30' fill='#f59e0b'/><circle cx='180' cy='290' r='35' fill='#1f2937'/><circle cx='420' cy='290' r='35' fill='#1f2937'/><text x='300' y='340' font-family='sans-serif' font-size='14' text-anchor='middle' fill='#92400e'>Vehicle photo (demo)</text></svg>`,
+  );
+
+function seedUsers(): DemoUser[] {
+  return [
+    { id: "u-admin", email: "admin@demo.com", password: "demo123", name: "Demo Admin", role: "admin" },
+    { id: "u-sup", email: "supervisor@demo.com", password: "demo123", name: "Demo Supervisor", role: "supervisor", branch: "Dubai" },
+    { id: "u-agent", email: "agent@demo.com", password: "demo123", name: "Demo Agent", role: "agent", agentId: "A001", branch: "Dubai" },
+  ];
+}
+
+function seedBranches(): DemoBranch[] {
+  return [
+    { id: 1, name: "Dubai", code: "Dubai", is_active: true },
+    { id: 2, name: "Abu Dhabi", code: "Abu Dhabi", is_active: true },
+    { id: 3, name: "Sharjah", code: "Sharjah", is_active: true },
+  ];
+}
+
+function seedAgents(): DemoAgent[] {
+  return [
+    { userId: "u-sup", id: "S001", name: "Demo Supervisor", email: "supervisor@demo.com", branch: "Dubai", active: true, role: "supervisor" },
+    { userId: "u-agent", id: "A001", name: "Demo Agent", email: "agent@demo.com", branch: "Dubai", active: true, role: "agent", supervisorId: "u-sup" },
+    { userId: "u-agent2", id: "A002", name: "Sara Mohamed", email: "sara@demo.com", branch: "Abu Dhabi", active: true, role: "agent" },
+    { userId: "u-agent3", id: "A003", name: "Ahmed Khaled", email: "ahmed@demo.com", branch: "Sharjah", active: false, role: "agent" },
+  ];
+}
+
+function seedRequests(): DemoRequest[] {
+  const now = Date.now();
+  const iso = (offsetMin: number) => new Date(now - offsetMin * 60_000).toISOString();
+  return [
+    {
+      id: "REQ-1001", uuid: "req-1001",
+      agentId: "A001", agentName: "Demo Agent", branch: "Dubai",
+      status: "new", createdAt: iso(15),
+      customerName: "Mohammad Ali", customerEmail: "mohammad@example.com", customerPhone: "+971501234567",
+      notes: [],
+      images: {
+        registration: [PLACEHOLDER_DOC], license: [PLACEHOLDER_DOC], emirates: [PLACEHOLDER_DOC],
+        vehicleMedia: [{ kind: "image", url: PLACEHOLDER_CAR }],
+        attachments: [],
+      },
+    },
+    {
+      id: "REQ-1002", uuid: "req-1002",
+      agentId: "A001", agentName: "Demo Agent", branch: "Dubai",
+      status: "processing", createdAt: iso(180),
+      customerName: "Fatima Al Hassan", customerEmail: "fatima@example.com", customerPhone: "+971502345678",
+      notes: [
+        { id: "n1", authorId: "u-agent", authorName: "Demo Agent", authorRole: "agent", text: "Quote requested from insurer.", kind: "comment", createdAt: iso(120) },
+      ],
+      images: {
+        registration: [PLACEHOLDER_DOC], license: [PLACEHOLDER_DOC], emirates: [PLACEHOLDER_DOC],
+        vehicleMedia: [{ kind: "image", url: PLACEHOLDER_CAR }, { kind: "image", url: PLACEHOLDER_CAR }],
+        attachments: [],
+      },
+    },
+    {
+      id: "REQ-1003", uuid: "req-1003",
+      agentId: "A002", agentName: "Sara Mohamed", branch: "Abu Dhabi",
+      status: "sold", createdAt: iso(60 * 24),
+      customerName: "Khalid Saeed", customerEmail: "khalid@example.com",
+      notes: [],
+      images: {
+        registration: [PLACEHOLDER_DOC], license: [PLACEHOLDER_DOC], emirates: [PLACEHOLDER_DOC],
+        vehicleMedia: [], attachments: [],
+      },
+    },
+    {
+      id: "REQ-1004", uuid: "req-1004",
+      agentId: "A001", agentName: "Demo Agent", branch: "Dubai",
+      status: "reupload", createdAt: iso(60 * 6),
+      customerName: "Layla Ibrahim", customerEmail: "layla@example.com",
+      notes: [
+        { id: "n2", authorId: "u-agent", authorName: "Demo Agent", authorRole: "agent", text: "Please send a clearer photo of the registration back.", kind: "missing", createdAt: iso(300) },
+      ],
+      images: {
+        registration: [PLACEHOLDER_DOC], license: [PLACEHOLDER_DOC], emirates: [PLACEHOLDER_DOC],
+        vehicleMedia: [], attachments: [],
+      },
+    },
+  ];
+}
+
+// ---------- Storage helpers ----------
+
+function read<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function write<T>(key: string, value: T) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.warn("[demo] write failed", key, e);
+  }
+}
+
+let _seeded = false;
+function ensureSeeded() {
+  if (_seeded) return;
+  if (typeof window === "undefined") return;
+  if (localStorage.getItem(KEY.seeded)) { _seeded = true; return; }
+  write(KEY.users, seedUsers());
+  write(KEY.branches, seedBranches());
+  write(KEY.agents, seedAgents());
+  write(KEY.requests, seedRequests());
+  write(KEY.audit, [] as DemoAuditEntry[]);
+  write(KEY.seq, 1005);
+  localStorage.setItem(KEY.seeded, "1");
+  _seeded = true;
+}
+
+export function resetDemo() {
+  if (typeof window === "undefined") return;
+  [KEY.users, KEY.branches, KEY.agents, KEY.requests, KEY.audit, KEY.seq, KEY.seeded].forEach((k) =>
+    localStorage.removeItem(k),
+  );
+  ensureSeeded();
+  notify("requests");
+  notify("agents");
+  notify("branches");
+  notify("audit");
+}
+
+const EVT: Record<string, string> = {
+  requests: "aib:requests-changed",
+  agents: "aib:agents-changed",
+  branches: "aib:branches-changed",
+  audit: "aib:audit-changed",
+};
+
+export function notify(kind: keyof typeof EVT) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(EVT[kind]));
+}
+
+function nextSeq(): number {
+  ensureSeeded();
+  const cur = read<number>(KEY.seq, 1005);
+  write(KEY.seq, cur + 1);
+  return cur;
+}
+
+// ---------- Public API ----------
+
+export function getUsers(): DemoUser[] { ensureSeeded(); return read(KEY.users, [] as DemoUser[]); }
+export function getBranches(): DemoBranch[] { ensureSeeded(); return read(KEY.branches, [] as DemoBranch[]); }
+export function setBranches(list: DemoBranch[]) { write(KEY.branches, list); notify("branches"); }
+export function getAgents(): DemoAgent[] { ensureSeeded(); return read(KEY.agents, [] as DemoAgent[]); }
+export function setAgents(list: DemoAgent[]) { write(KEY.agents, list); notify("agents"); }
+export function getRequests(): DemoRequest[] { ensureSeeded(); return read(KEY.requests, [] as DemoRequest[]); }
+export function setRequests(list: DemoRequest[]) { write(KEY.requests, list); notify("requests"); }
+export function getAudit(): DemoAuditEntry[] { ensureSeeded(); return read(KEY.audit, [] as DemoAuditEntry[]); }
+export function setAudit(list: DemoAuditEntry[]) { write(KEY.audit, list); notify("audit"); }
+
+export function newRequestId(): string { return `REQ-${nextSeq()}`; }
+
+// ---------- File → data URL ----------
+
+const MAX_EDGE = 1400;
+const JPEG_QUALITY = 0.8;
+
+export async function fileToDataUrl(file: File): Promise<string> {
+  if (file.type.startsWith("image/")) {
+    try { return await downscale(file); } catch { /* fall through */ }
+  }
+  return await readAsDataUrl(file);
+}
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result ?? ""));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+
+async function downscale(file: File): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url;
+    });
+    let w = img.naturalWidth, h = img.naturalHeight;
+    if (w > MAX_EDGE || h > MAX_EDGE) {
+      const r = w > h ? MAX_EDGE / w : MAX_EDGE / h;
+      w = Math.round(w * r); h = Math.round(h * r);
+    }
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d");
+    if (!ctx) throw new Error("no ctx");
+    ctx.drawImage(img, 0, 0, w, h);
+    return c.toDataURL("image/jpeg", JPEG_QUALITY);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
