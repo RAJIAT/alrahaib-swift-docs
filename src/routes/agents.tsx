@@ -237,7 +237,7 @@ function AdminAgents() {
                 <td className="px-5 py-4 font-semibold text-foreground">
                   {a.name}
                   {a.createdByRole === "admin" && (
-                    <span className="ms-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Admin</span>
+                    <span className="ms-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">{t.agents.adminBadge}</span>
                   )}
                 </td>
                 <td className="px-5 py-4 text-muted-foreground">{a.id}</td>
