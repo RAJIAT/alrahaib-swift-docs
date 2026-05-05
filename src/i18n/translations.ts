@@ -700,7 +700,7 @@ export const translations = {
       filesHint: "Images / PDF / docs — max 5MB per file",
     },
     footer: {
-      rights: (year: number) => `© ${year} DocFlow Demo All rights reserved.`,
+      rights: (year: number) => `© ${year} DocFlow Demo. All rights reserved.`,
       tagline: "A secure portal for uploading and managing insurance documents.",
       dataNotice: "All submitted data is encrypted and handled confidentially in accordance with our privacy policy.",
       privacy: "Privacy Policy",
