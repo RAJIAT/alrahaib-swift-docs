@@ -40,6 +40,7 @@ function useFilterOptions(t: ReturnType<typeof useLang>["t"]) {
 
 function AuditPage() {
   const { dir, t } = useLang();
+  const { ACTION_FILTERS, ENTITY_FILTERS } = useFilterOptions(t);
   const navigate = useNavigate();
   const [user, setUser] = useState<AuthUser | null>(() => getCurrentUser());
   const [entries, setEntries] = useState<AuditEntry[]>([]);
