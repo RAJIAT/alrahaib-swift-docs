@@ -1,78 +1,94 @@
+## Goal
 
-# خطة نسخة Demo (Local-Only)
+تطبيق هرمية الصلاحيات الجديدة الي طلبها العميل: Admin (عام) → Branches → Supervisor → Underwriters + Sales Staff، مع تقييد صلاحيات السوبرفايزر، ولوج تدقيق غني، وموافقة اختيارية من الأدمن.
 
-تحويل التطبيق لنسخة تجريبية مستقلة بالكامل تشتغل في المتصفح بدون Directus / Supabase / أي API. كل البيانات تتخزن في `localStorage` و الملفات تتحول لـ Data URLs.
+## التغييرات الرئيسية
 
-## 1. طبقة بيانات Demo جديدة
+### 1. أدوار جديدة (Underwriter + Sales)
 
-أنشئ `src/services/demoStore.ts`:
-- `demoUsers` (3 حسابات جاهزة):
-  - `admin@demo.com` / `demo123` — Admin
-  - `supervisor@demo.com` / `demo123` — Supervisor (فرع Dubai)
-  - `agent@demo.com` / `demo123` — Agent (id: A001, فرع Dubai)
-- `demoBranches`: Dubai, Abu Dhabi, Sharjah
-- `demoAgents`: 3 agents وهميين
-- `demoRequests`: 4 طلبات seed بحالات مختلفة (new / processing / sold / reupload) مع صور placeholder
-- كل الـ CRUD يكتب على `localStorage` تحت مفتاح `demo:*`
-- يرسل `aib:requests-changed` event بعد كل تغيير → الـ polling في `useRequestsLive` يلتقطها فوراً
+حالياً عندنا فقط: `admin` / `supervisor` / `agent`. بنوسعها:
 
-## 2. إعادة كتابة `src/services/api.ts`
+- `AgentRole` يصير: `"supervisor" | "underwriter" | "sales"` (نلغي مفهوم "agent" الموحّد ونعتبر underwriter+sales يشكّلون الستاف داخل الفرع).
+- `Role` (نوع المستخدم المسجّل) يصير: `"admin" | "supervisor" | "underwriter" | "sales"`.
+- نحافظ على توافق خلفي: أي بيانات قديمة فيها `role: "agent"` نعرضها/نعالجها كـ `underwriter` افتراضياً (migration سهل بالـ seed).
 
-استبدال كل `dx*` calls بـ helpers من `demoStore`:
-- `login()` → فحص الإيميل/الباسورد من `demoUsers`
-- `submitUpload()` → يحفظ الطلب لوكال + يحول الملفات لـ Data URLs (مع compression للصور عبر `imagePrep`)
-- `listRequests / getRequest / updateRequestStatus / addRequestNote / etc.` كلها على store الذاكرة
-- نفس الـ types و الـ exports تبقى زي ما هي → لا تعديلات بباقي المكونات
+في `demoStore.ts`:
+- نضيف `DemoRole = "admin" | "supervisor" | "underwriter" | "sales"`.
+- نضيف على `DemoAgent` و `DemoUser` الحقول: `createdByUserId?`, `pendingApproval?: boolean`.
+- نوسّع الـ seed: 3 فروع، لكل فرع supervisor + 1-2 underwriter + 1-2 sales، مع IDs بالتنسيق `SUP-001` / `UW-001` / `SLS-001`.
+- نضيف toggle عام `demo:settings` فيه `requireAdminApproval: boolean` (افتراضي = false).
 
-## 3. حذف كل ما هو backend-related
+### 2. صفحة Agents تتحول لـ Users بـ 3 تابات
 
-- حذف: `src/services/directus.ts`, `src/integrations/supabase/*`, مجلد `supabase/`, مجلد `directus/`, `DIRECTUS_SETUP.md`
-- حذف: كل routes تحت `src/routes/api/` (submit-upload, upload-file, resolve-agent, role-id, agent-users, notes, directus.$, reupload-*)
-- إزالة `audit.ts` references للسيرفر، تحويل audit log لـ localStorage بسيط
+`src/routes/agents.tsx` (نسميها داخلياً Users):
+- Admin يشوف 3 تابات: **Supervisors / Underwriters / Sales**، مع فلتر فرع.
+- Supervisor يشوف تابين فقط: **Underwriters / Sales** ومحصور بفرعه.
+- زر "Add" يفتح الفورم بالـ role الحالي مقفول (lockedRole) للسوبرفايزر، والفرع مقفول دائماً على فرع السوبرفايزر.
+- Supervisor ما يقدر يحذف يوزر أنشأه Admin (نحقق `createdByUserId`): زر الحذف يصير معطّل بـ tooltip.
+- Supervisor يشوف فقط: اليوزرات الي بفرعه أو الي أنشأهم هو.
 
-## 4. صفحة Login محسّنة (التعبئة التلقائية)
+### 3. Supervisor permissions enforcement
 
-في `src/routes/login.tsx` نضيف 3 أزرار كبيرة فوق الفورم:
-```
-[Login as Admin]  [Login as Supervisor]  [Login as Agent]
-```
-كل زر يعبّي الإيميل/الباسورد ويسجّل دخول مباشرة.
+في `services/api.ts` نضيف helpers ونعدل `createAgent` / `updateAgent` / `deleteAgent`:
 
-## 5. صفحة الرفع (`/`) — زر تعبئة تلقائية
+- `createAgent`: 
+  - لو الـ caller سوبرفايزر → نجبر `branch = caller.branch`، ونرفض أي role غير `underwriter`/`sales`، ونسجّل `createdByUserId = caller.id`.
+  - لو `requireAdminApproval=true` والـ caller سوبرفايزر → `active=false, pendingApproval=true`.
+- `updateAgent`:
+  - السوبرفايزر ما يقدر يغيّر `branch` ولا `role` لأي يوزر.
+  - السوبرفايزر ما يقدر يعدّل أو يفعّل/يعطّل يوزر أنشأه Admin.
+- `deleteAgent`: نفس القاعدة (يمنع لو `createdByUserId !== caller.id` وكان منشأه Admin).
+- Admin يبقى فوق كل شيء (يقدر ينقل بين الفروع، يعطّل سوبرفايزر، إلخ).
 
-نضيف زر "Fill demo data" يعبّي:
-- اسم/إيميل/تلفون عميل وهمي
-- 3 صور placeholder كملفات للـ registration / license / emirates
-- agent_id افتراضي = A001
-عشان أي حدا يعمل submit بضغطة واحدة ويشوف النتيجة على dashboard.
+### 4. Approval workflow (اختياري)
 
-## 6. Demo Banner + Reset
+- في صفحة `/admin` نضيف toggle (Switch) "Require Admin approval for new users" (يحفظ بـ `demo:settings`).
+- أي يوزر أنشأه سوبرفايزر تحت هذا الوضع: `active=false`, `pendingApproval=true`، يظهر بـ badge "Pending approval" بصفحة Users.
+- Admin يشوف زر **Approve** بدل Suspend/Activate لتفعيله، أو **Reject** للحذف.
+- `logEvent("agent.pending_created")` و `agent.approved` / `agent.rejected`.
 
-- Banner ثابت أعلى كل صفحة: "Demo Mode — data is stored locally on this browser"
-- زر "Reset Demo Data" في الـ DashboardShell (header) يعيد كل البيانات للـ seed الأصلي
-- زر اختيار اللغة بقي زي ما هو
+### 5. Audit log enrichment
 
-## 7. Branding Generic
+`logEvent` بصير يخزّن صراحة:
+- `createdBy` (actor)، الـ role المنشأ، الفرع، والـ timestamp (موجود أصلاً).
+- نضيف actions: `agent.pending_created`, `agent.approved`, `agent.rejected`, `agent.branch_moved` (admin only), `agent.role_changed` (admin only).
+- صفحة `/audit` تعرض عمود "Performed by" + "Target role" + "Branch" بشكل واضح (صف من Action).
 
-- استبدال "Al Rahaib" / "AIB" بـ "DocFlow Demo" بكل النصوص و translations
-- استبدال اللوغو بأيقونة عامة (Lucide `FileCheck2` مثلاً)
-- إزالة أي references لـ insurance-specific copy لو فيه (الإبقاء على المعنى العام: insurance documents flow)
+### 6. Submission flow
 
-## 8. تنظيف ملفات أخرى
+الـ submit upload الحالي بستخدم `agentId`. منزبطه يقبل أي يوزر من نوع `underwriter` أو `sales` (الـ underwriter بيرفع الطلبات، الـ sales بيشوفها فقط حسب طلب العميل بعدين — حالياً منخليهم نفس الصلاحية على الطلبات داخل الفرع، ومنوثّق الفرق بتاب). لو حابب تفصيل أدق بصلاحيات الطلبات بين Underwriter و Sales، نوسّعها بمرحلة لاحقة.
 
-- إزالة `auth-middleware.ts`, `client.server.ts` imports
-- تنظيف `package.json` من dependencies غير المستخدمة (Supabase, إلخ) — اختياري
-- مسح `.env` للقيم Supabase (تبقى الملف فاضي)
-- حذف ملفات الـ migrations في `supabase/migrations/`
+### 7. Translations
 
-## النتيجة
+نضيف للـ AR و EN:
+- `tabSupervisors` (موجود)، `tabUnderwriters`, `tabSales`
+- `roleSupervisor`, `roleUnderwriter`, `roleSales`
+- `addUnderwriter`, `addSales`
+- `pendingApproval`, `approve`, `reject`
+- `requireApprovalSetting`
+- `noEditAdminCreated`, `noDeleteAdminCreated`
 
-- يفتح أي حدا الرابط → يلاقي banner + 3 أزرار دخول
-- يدخل بأي دور → يشوف dashboard مع بيانات seed
-- يفتح Tab/متصفح ثاني (نفس الجهاز) → نفس الداتا
-- يفتح من تلفون مختلف → بيانات seed نضيفة (لأن لكل جهاز localStorage مستقل) — هذا مطلوب حسب اختيارك "لوكال 100%"
-- زر Reset يرجّع كل شيء
+### 8. ملفات هتتعدّل/تتنشأ
 
-## ملاحظة مهمة
+تعديل:
+- `src/services/demoStore.ts` — types + seed + settings helpers
+- `src/services/api.ts` — role enforcement, approval, new audit actions
+- `src/components/AgentFormDialog.tsx` — role selector جديد (3 خيارات للأدمن، مقفول للسوبرفايزر)
+- `src/routes/agents.tsx` — تابات، فلتر فرع (admin)، أزرار Approve/Reject، حظر تعديل/حذف يوزرات الأدمن
+- `src/routes/admin.tsx` — toggle الموافقة + counter للـ pending
+- `src/routes/audit.tsx` — أعمدة محسّنة
+- `src/i18n/translations.ts`
+- `src/routes/login.tsx` — quick-login chips للأدوار الجديدة (Supervisor / Underwriter / Sales)
 
-اختيارك "لوكال 100%" يعني: لو رفعت طلب من اللابتوب، **لن يظهر** على التلفون لأن localStorage مش مشترك بين الأجهزة. الطريقة الوحيدة لمشاركة نفس البيانات بين الأجهزة هي backend. لو لاحقاً بدك "نفس الداتا تظهر على التلفون لما ترفع من اللابتوب"، رجعلي وبنفعّل الخيار الثاني (Lovable Cloud).
+ما بنلمس:
+- `client.ts` / `types.ts` (Supabase auto-generated، مش مستخدمين على أي حال بالديمو)
+
+### 9. ملاحظات
+
+- كل شيء لسه local (localStorage) — مفيش تغيير backend.
+- ما بنغيّر شكل الـ `agentId` في الـ requests الحالية (نحتفظ بنفس IDs)، بس الـ IDs الجديدة بتتولّد بالـ prefix الصحيح حسب الـ role.
+- `resetDemo()` بيعيد كل شي للبذر الجديد — السوبرفايزر يقدر يجرّب فوراً.
+
+### بعد الاعتماد
+
+أنفّذ كل التغييرات دفعة واحدة، أعمل QA سريع للـ login بكل دور، وأرجع بنتيجة جاهزة للعميل.
