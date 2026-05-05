@@ -12,7 +12,8 @@ import {
   getAudit, setAudit,
   getBranches as dsGetBranches,
   getRequests, setRequests,
-  getUsers,
+  getSettings, setSettings as dsSetSettings,
+  getUsers, setUsers,
   newRequestId,
   notify,
   setAgents as dsSetAgents,
@@ -22,6 +23,7 @@ import {
   type DemoBranch,
   type DemoNote,
   type DemoRequest,
+  type DemoStaffType,
   type DemoStatus,
   type DemoUser,
 } from "./demoStore";
