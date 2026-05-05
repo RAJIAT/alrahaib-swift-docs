@@ -352,41 +352,80 @@ export function listAgents(): Agent[] { return dsGetAgents().map(dsToAgent); }
 export async function getAgents(): Promise<Agent[]> { return listAgents(); }
 
 export async function createAgent(input: {
-  id: string; name: string; email?: string; branch?: string; role?: AgentRole; supervisorId?: string; password?: string;
+  id: string; name: string; email?: string; branch?: string;
+  role?: AgentRole; staffType?: StaffType;
+  supervisorId?: string; password?: string;
 }): Promise<Agent> {
   if (!input.email) throw new Error("Email is required");
   if (!input.password || input.password.length < 6) throw new Error("Password (min 6 chars) is required");
+  const me = getCurrentUser();
   const list = dsGetAgents();
   if (list.find((a) => a.id === input.id)) throw new Error("Agent ID already exists");
+  if (list.find((a) => a.email && input.email && a.email.toLowerCase() === input.email.toLowerCase())) {
+    throw new Error("Email already in use");
+  }
+
+  let role: AgentRole = input.role ?? "agent";
+  let branch = input.branch;
+  let staffType = input.staffType;
+
+  if (me?.role === "supervisor") {
+    if (role === "supervisor") throw new Error("Supervisors cannot create supervisors");
+    role = "agent";
+    branch = me.branch;
+    if (!staffType) staffType = "underwriter";
+  }
+  if (role === "agent" && !staffType) staffType = "underwriter";
+
+  const settings = getSettings();
+  const pending = me?.role === "supervisor" && settings.requireAdminApproval;
+
   const userId = `u-${crypto.randomUUID().slice(0, 8)}`;
   const agent: DemoAgent = {
-    userId, id: input.id, name: input.name, email: input.email, branch: input.branch,
-    active: true, role: input.role ?? "agent",
-    supervisorId: input.role === "agent" ? input.supervisorId : undefined,
+    userId, id: input.id, name: input.name, email: input.email, branch,
+    active: !pending, role,
+    staffType: role === "agent" ? staffType : undefined,
+    supervisorId: role === "agent"
+      ? (input.supervisorId || (me?.role === "supervisor" ? me.id : undefined))
+      : undefined,
+    createdByUserId: me?.id,
+    createdByRole: me?.role,
+    pendingApproval: pending || undefined,
   };
   dsSetAgents([...list, agent]);
-  // Add a matching demo user so they can also "log in" with their email.
-  const users = getUsers();
-  const usersKey = "demo:users";
+
   const newUser: DemoUser = {
     id: userId, email: input.email, password: input.password, name: input.name,
-    role: agent.role, agentId: agent.role === "agent" ? input.id : undefined, branch: input.branch,
+    role, agentId: role === "agent" ? input.id : undefined, branch,
   };
-  if (typeof window !== "undefined") {
-    localStorage.setItem(usersKey, JSON.stringify([...users, newUser]));
-  }
-  logEvent({ action: "agent.created", entityType: "agent", entityId: agent.id, entityLabel: agent.name, branch: agent.branch, after: agent });
+  setUsers([...getUsers(), newUser]);
+
+  logEvent({
+    action: pending ? "agent.pending_created" : "agent.created",
+    entityType: "agent", entityId: agent.id, entityLabel: agent.name, branch: agent.branch,
+    after: agent,
+    meta: { staffType: agent.staffType, role: agent.role, createdByRole: me?.role },
+  });
   return dsToAgent(agent);
 }
 
 export async function updateAgent(id: string, patch: Partial<{
   name: string; email: string | null; branch: string | null; active: boolean; supervisorId: string | null;
-  role: AgentRole; password: string;
+  role: AgentRole; staffType: StaffType; password: string;
 }>): Promise<Agent> {
   const list = dsGetAgents();
   const idx = list.findIndex((a) => a.id === id || a.userId === id);
   if (idx < 0) throw new Error("Agent not found");
   const before = list[idx];
+  const me = getCurrentUser();
+
+  if (me?.role === "supervisor") {
+    if (before.branch !== me.branch) throw new Error("Out of your branch");
+    if (before.createdByRole === "admin") throw new Error("This user was created by Admin and cannot be modified by a supervisor");
+    if (patch.branch !== undefined && patch.branch !== me.branch) throw new Error("Supervisors cannot change branch");
+    if (patch.role !== undefined && patch.role !== before.role) throw new Error("Supervisors cannot change role");
+  }
+
   const next = [...list];
   next[idx] = {
     ...before,
@@ -395,25 +434,44 @@ export async function updateAgent(id: string, patch: Partial<{
     branch: patch.branch === null ? undefined : (patch.branch ?? before.branch),
     active: patch.active ?? before.active,
     role: patch.role ?? before.role,
+    staffType: patch.staffType ?? before.staffType,
     supervisorId: patch.supervisorId === null ? undefined : (patch.supervisorId ?? before.supervisorId),
   };
   dsSetAgents(next);
-  // sync user
-  if (typeof window !== "undefined") {
-    const users = getUsers();
-    const u = users.findIndex((x) => x.id === before.userId);
-    if (u >= 0) {
-      const updated = { ...users[u] };
-      if (patch.name) updated.name = patch.name;
-      if (patch.email) updated.email = patch.email;
-      if (patch.branch !== undefined) updated.branch = patch.branch ?? undefined;
-      if (patch.password) updated.password = patch.password;
-      if (patch.role) updated.role = patch.role;
-      const arr = [...users]; arr[u] = updated;
-      localStorage.setItem("demo:users", JSON.stringify(arr));
-    }
+
+  const users = getUsers();
+  const u = users.findIndex((x) => x.id === before.userId);
+  if (u >= 0) {
+    const updated = { ...users[u] };
+    if (patch.name) updated.name = patch.name;
+    if (patch.email) updated.email = patch.email;
+    if (patch.branch !== undefined) updated.branch = patch.branch ?? undefined;
+    if (patch.password) updated.password = patch.password;
+    if (patch.role) updated.role = patch.role;
+    const arr = [...users]; arr[u] = updated;
+    setUsers(arr);
   }
-  logEvent({ action: "agent.updated", entityType: "agent", entityId: next[idx].id, entityLabel: next[idx].name, branch: next[idx].branch, before, after: next[idx] });
+
+  const changed: string[] = [];
+  (["name","email","branch","active","role","staffType","supervisorId"] as const).forEach((k) => {
+    if ((patch as any)[k] !== undefined && (before as any)[k] !== (next[idx] as any)[k]) changed.push(k);
+  });
+  logEvent({
+    action: "agent.updated",
+    entityType: "agent", entityId: next[idx].id, entityLabel: next[idx].name, branch: next[idx].branch,
+    before, after: next[idx], meta: { changed },
+  });
+  return dsToAgent(next[idx]);
+}
+
+export async function approveAgent(id: string): Promise<Agent> {
+  const list = dsGetAgents();
+  const idx = list.findIndex((a) => a.id === id || a.userId === id);
+  if (idx < 0) throw new Error("Agent not found");
+  const next = [...list];
+  next[idx] = { ...list[idx], active: true, pendingApproval: undefined };
+  dsSetAgents(next);
+  logEvent({ action: "agent.approved", entityType: "agent", entityId: next[idx].id, entityLabel: next[idx].name, branch: next[idx].branch });
   return dsToAgent(next[idx]);
 }
 
@@ -421,11 +479,13 @@ export async function deleteAgent(id: string): Promise<void> {
   const list = dsGetAgents();
   const before = list.find((a) => a.id === id || a.userId === id);
   if (!before) throw new Error("Agent not found");
-  dsSetAgents(list.filter((a) => a !== before));
-  if (typeof window !== "undefined") {
-    const users = getUsers().filter((u) => u.id !== before.userId);
-    localStorage.setItem("demo:users", JSON.stringify(users));
+  const me = getCurrentUser();
+  if (me?.role === "supervisor") {
+    if (before.branch !== me.branch) throw new Error("Out of your branch");
+    if (before.createdByRole === "admin") throw new Error("Cannot delete users created by Admin");
   }
+  dsSetAgents(list.filter((a) => a !== before));
+  setUsers(getUsers().filter((u) => u.id !== before.userId));
   logEvent({ action: "agent.deleted", entityType: "agent", entityId: before.id, entityLabel: before.name, branch: before.branch, before });
 }
 
