@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Pencil, Plus, Power, Trash2, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ArrowRight, Check, Pencil, Plus, Power, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/DashboardShell";
 import { EmptyState } from "@/components/EmptyState";
@@ -8,14 +8,17 @@ import { AgentFormDialog, type AgentFormValues } from "@/components/AgentFormDia
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useLang } from "@/i18n/LanguageProvider";
 import {
+  approveAgent,
   canDeleteAgents,
-  createAgent, deleteAgent, getAgents, getBranches, getCurrentUser, refreshCurrentUser,
-  subscribeAgents, updateAgent, type Agent, type AgentRole, type AuthUser,
+  createAgent, deleteAgent, getAgents, getBranches, getCurrentUser, listBranches, refreshCurrentUser,
+  subscribeAgents, updateAgent, type Agent, type AgentRole, type AuthUser, type StaffType,
 } from "@/services/api";
 
 export const Route = createFileRoute("/agents")({
   component: AdminAgents,
 });
+
+type TabKey = "supervisor" | "underwriter" | "sales";
 
 function AdminAgents() {
   const { t, dir } = useLang();
@@ -23,7 +26,8 @@ function AdminAgents() {
   const [user, setUser] = useState<AuthUser | null>(() => getCurrentUser());
   const [allAgents, setAllAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<AgentRole>("agent");
+  const [tab, setTab] = useState<TabKey>("underwriter");
+  const [branchFilter, setBranchFilter] = useState<string>("");
   const [dialog, setDialog] = useState<{ open: boolean; mode: "create" | "edit"; target?: Agent }>({
     open: false, mode: "create",
   });
@@ -39,10 +43,25 @@ function AdminAgents() {
     ((a.userId && a.userId === user.id) ||
       (!!a.email && !!user.email && a.email.toLowerCase() === user.email.toLowerCase()));
 
-  // Supervisors can only see/manage agents in their own branch — never the
-  // supervisors tab.
-  const effectiveTab: AgentRole = isSupervisor ? "agent" : tab;
-  const agents = allAgents.filter((a) => (a.role ?? "agent") === effectiveTab);
+  // Effective tab — supervisors can't see the Supervisors tab.
+  const effectiveTab: TabKey = isSupervisor && tab === "supervisor" ? "underwriter" : tab;
+
+  const branches = useMemo(() => listBranches(), []);
+
+  const filteredAgents = useMemo(() => {
+    return allAgents.filter((a) => {
+      const role = a.role ?? "agent";
+      if (effectiveTab === "supervisor") {
+        if (role !== "supervisor") return false;
+      } else {
+        if (role !== "agent") return false;
+        const st = a.staffType ?? "underwriter";
+        if (st !== effectiveTab) return false;
+      }
+      if (isAdmin && branchFilter && a.branch !== branchFilter) return false;
+      return true;
+    });
+  }, [allAgents, effectiveTab, branchFilter, isAdmin]);
 
   useEffect(() => {
     const u = getCurrentUser();
@@ -52,10 +71,10 @@ function AdminAgents() {
     const refresh = () => {
       getAgents().then((list) => {
         if (!alive) return;
-        const filtered = u.role === "supervisor" && u.branch
-          ? list.filter((a) => a.branch === u.branch)
+        const visible = u.role === "supervisor" && u.branch
+          ? list.filter((a) => a.branch === u.branch || a.createdByUserId === u.id)
           : list;
-        setAllAgents(filtered);
+        setAllAgents(visible);
         setLoading(false);
       });
     };
@@ -76,6 +95,7 @@ function AdminAgents() {
       password: v.password,
       branch: lockedBranch ?? v.branch,
       role: isSupervisor ? "agent" : v.role,
+      staffType: (v.role === "agent" || isSupervisor) ? (v.staffType ?? (effectiveTab === "sales" ? "sales" : "underwriter")) : undefined,
       supervisorId: v.supervisorId || undefined,
     });
     toast.success(t.agents.created);
@@ -83,34 +103,63 @@ function AdminAgents() {
 
   const onEdit = async (v: AgentFormValues) => {
     if (!dialog.target) return;
-    await updateAgent(dialog.target.id, {
-      name: v.name,
-      branch: lockedBranch ?? v.branch,
-      email: v.email,
-      supervisorId: v.supervisorId ? v.supervisorId : null,
-      ...(v.password ? { password: v.password } : {}),
-    });
-    toast.success(t.agents.updated);
+    try {
+      await updateAgent(dialog.target.id, {
+        name: v.name,
+        branch: isSupervisor ? undefined : v.branch,
+        email: v.email,
+        staffType: v.role === "agent" ? v.staffType : undefined,
+        supervisorId: v.supervisorId ? v.supervisorId : null,
+        ...(v.password ? { password: v.password } : {}),
+      });
+      toast.success(t.agents.updated);
+    } catch (e: any) {
+      toast.error(e?.message ?? t.agents.saveFailed);
+      throw e;
+    }
   };
 
   const onToggle = async (a: Agent) => {
-    await updateAgent(a.id, { active: !a.active });
+    try {
+      await updateAgent(a.id, { active: !a.active });
+      toast.success(t.agents.updated);
+    } catch (e: any) {
+      toast.error(e?.message ?? t.agents.saveFailed);
+    }
+  };
+
+  const onApprove = async (a: Agent) => {
+    await approveAgent(a.id);
     toast.success(t.agents.updated);
   };
 
-  const onDelete = (a: Agent) => {
-    setConfirmTarget(a);
-  };
+  const onDelete = (a: Agent) => setConfirmTarget(a);
 
   const confirmDelete = async () => {
     if (!confirmTarget) return;
-    await deleteAgent(confirmTarget.id);
-    toast.success(t.agents.deleted);
+    try {
+      await deleteAgent(confirmTarget.id);
+      toast.success(t.agents.deleted);
+    } catch (e: any) {
+      toast.error(e?.message ?? t.agents.saveFailed);
+    }
   };
 
-  const isSupervisorTab = effectiveTab === "supervisor";
-  const addLabel = isSupervisorTab ? t.agents.addSupervisor : t.agents.add;
-  const emptyLabel = isSupervisorTab ? t.agents.emptySupervisors : t.agents.empty;
+  const tabConfig: Record<TabKey, { label: string; addLabel: string; emptyLabel: string }> = {
+    supervisor: { label: t.agents.tabSupervisors, addLabel: t.agents.addSupervisor, emptyLabel: t.agents.emptySupervisors },
+    underwriter: { label: t.agents.tabUnderwriters, addLabel: t.agents.addUnderwriter, emptyLabel: t.agents.empty },
+    sales: { label: t.agents.tabSales, addLabel: t.agents.addSales, emptyLabel: t.agents.empty },
+  };
+  const cur = tabConfig[effectiveTab];
+  const lockedRoleForDialog: AgentRole | undefined = isSupervisor
+    ? "agent"
+    : (dialog.mode === "edit" ? dialog.target?.role : (effectiveTab === "supervisor" ? "supervisor" : "agent"));
+  const lockedStaffTypeForDialog: StaffType | undefined =
+    dialog.mode === "edit"
+      ? (dialog.target?.staffType)
+      : (effectiveTab === "underwriter" ? "underwriter" : effectiveTab === "sales" ? "sales" : undefined);
+
+  const isAdminCreated = (a: Agent) => a.createdByRole === "admin" && isSupervisor;
 
   return (
     <DashboardShell role={["admin", "supervisor"]} title={isSupervisor ? t.agents.titleAgentsOnly : t.agents.title}>
@@ -130,38 +179,38 @@ function AdminAgents() {
           className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-95"
         >
           <Plus className="h-4 w-4" />
-          {addLabel}
+          {cur.addLabel}
         </button>
       </div>
 
-      {/* Role tabs (admin only — supervisors stay on Agents) */}
-      {isAdmin && (
-        <div
-          role="tablist"
-          className="mb-4 inline-flex rounded-xl border border-border bg-surface p-1 text-sm"
-        >
-          <button
-            role="tab"
-            aria-selected={tab === "agent"}
-            onClick={() => setTab("agent")}
-            className={`rounded-lg px-4 py-2 font-semibold transition ${
-              tab === "agent" ? "bg-primary text-primary-foreground shadow-soft" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t.agents.tabAgents}
-          </button>
-          <button
-            role="tab"
-            aria-selected={tab === "supervisor"}
-            onClick={() => setTab("supervisor")}
-            className={`rounded-lg px-4 py-2 font-semibold transition ${
-              tab === "supervisor" ? "bg-primary text-primary-foreground shadow-soft" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t.agents.tabSupervisors}
-          </button>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div role="tablist" className="inline-flex rounded-xl border border-border bg-surface p-1 text-sm">
+          {(isAdmin ? (["supervisor", "underwriter", "sales"] as TabKey[]) : (["underwriter", "sales"] as TabKey[])).map((k) => (
+            <button
+              key={k}
+              role="tab"
+              aria-selected={effectiveTab === k}
+              onClick={() => setTab(k)}
+              className={`rounded-lg px-4 py-2 font-semibold transition ${
+                effectiveTab === k ? "bg-primary text-primary-foreground shadow-soft" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tabConfig[k].label}
+            </button>
+          ))}
         </div>
-      )}
+
+        {isAdmin && (
+          <select
+            value={branchFilter}
+            onChange={(e) => setBranchFilter(e.target.value)}
+            className="h-10 rounded-xl border border-input bg-surface px-3 text-sm text-foreground"
+          >
+            <option value="">{t.agents.filterBranchAll}</option>
+            {branches.map((b) => <option key={b} value={b}>{b}</option>)}
+          </select>
+        )}
+      </div>
 
       {/* Desktop table */}
       <div className="hidden overflow-hidden rounded-2xl border border-border bg-card shadow-card md:block">
@@ -179,26 +228,46 @@ function AdminAgents() {
           <tbody>
             {loading ? (
               <tr><td colSpan={6} className="px-5 py-12 text-center text-muted-foreground">…</td></tr>
-            ) : agents.length === 0 ? (
+            ) : filteredAgents.length === 0 ? (
               <tr><td colSpan={6} className="px-5 py-8">
-                <EmptyState icon={<Users className="h-7 w-7" />} title={emptyLabel} />
+                <EmptyState icon={<Users className="h-7 w-7" />} title={cur.emptyLabel} />
               </td></tr>
-            ) : agents.map((a) => (
+            ) : filteredAgents.map((a) => (
               <tr key={a.userId ?? a.id} className="border-t border-border hover:bg-muted/30">
-                <td className="px-5 py-4 font-semibold text-foreground">{a.name}</td>
+                <td className="px-5 py-4 font-semibold text-foreground">
+                  {a.name}
+                  {a.createdByRole === "admin" && (
+                    <span className="ms-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Admin</span>
+                  )}
+                </td>
                 <td className="px-5 py-4 text-muted-foreground">{a.id}</td>
                 <td className="px-5 py-4 text-muted-foreground">{a.email ?? "—"}</td>
                 <td className="px-5 py-4 text-muted-foreground">{a.branch ?? "—"}</td>
                 <td className="px-5 py-4">
-                  <StatusPill active={a.active} t={t} />
+                  <StatusPill agent={a} t={t} />
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex items-center justify-end gap-2">
-                    <IconBtn label={t.agents.edit} onClick={() => setDialog({ open: true, mode: "edit", target: a })}>
-                      <Pencil className="h-4 w-4" />
-                    </IconBtn>
+                    {isAdmin && a.pendingApproval && (
+                      <IconBtn label={t.agents.approve} onClick={() => onApprove(a)}>
+                        <Check className="h-4 w-4" />
+                      </IconBtn>
+                    )}
+                    {isAdminCreated(a) ? (
+                      <IconBtn disabledLook label={t.agents.noEditAdminCreated} onClick={() => toast.error(t.agents.noEditAdminCreated)}>
+                        <Pencil className="h-4 w-4" />
+                      </IconBtn>
+                    ) : (
+                      <IconBtn label={t.agents.edit} onClick={() => setDialog({ open: true, mode: "edit", target: a })}>
+                        <Pencil className="h-4 w-4" />
+                      </IconBtn>
+                    )}
                     {isSelf(a) ? (
                       <IconBtn disabledLook label={t.agents.selfNoSuspend} onClick={() => toast.error(t.agents.selfNoSuspend)}>
+                        <Power className="h-4 w-4" />
+                      </IconBtn>
+                    ) : isAdminCreated(a) ? (
+                      <IconBtn disabledLook label={t.agents.noEditAdminCreated} onClick={() => toast.error(t.agents.noEditAdminCreated)}>
                         <Power className="h-4 w-4" />
                       </IconBtn>
                     ) : (
@@ -210,17 +279,16 @@ function AdminAgents() {
                       <IconBtn danger disabledLook label={t.agents.selfNoDelete} onClick={() => toast.error(t.agents.selfNoDelete)}>
                         <Trash2 className="h-4 w-4" />
                       </IconBtn>
-                    ) : canDelete ? (
+                    ) : isAdminCreated(a) ? (
+                      <IconBtn danger disabledLook label={t.agents.noDeleteAdminCreated} onClick={() => toast.error(t.agents.noDeleteAdminCreated)}>
+                        <Trash2 className="h-4 w-4" />
+                      </IconBtn>
+                    ) : canDelete || (isSupervisor && a.createdByUserId === user?.id) ? (
                       <IconBtn danger label={t.agents.delete} onClick={() => onDelete(a)}>
                         <Trash2 className="h-4 w-4" />
                       </IconBtn>
                     ) : (
-                      <IconBtn
-                        danger
-                        disabledLook
-                        label={t.agents.supervisorNoDelete}
-                        onClick={() => toast.error(t.agents.supervisorNoDelete)}
-                      >
+                      <IconBtn danger disabledLook label={t.agents.supervisorNoDelete} onClick={() => toast.error(t.agents.supervisorNoDelete)}>
                         <Trash2 className="h-4 w-4" />
                       </IconBtn>
                     )}
@@ -234,9 +302,9 @@ function AdminAgents() {
 
       {/* Mobile cards */}
       <div className="space-y-3 md:hidden">
-        {!loading && agents.length === 0 ? (
-          <EmptyState icon={<Users className="h-7 w-7" />} title={emptyLabel} />
-        ) : agents.map((a) => (
+        {!loading && filteredAgents.length === 0 ? (
+          <EmptyState icon={<Users className="h-7 w-7" />} title={cur.emptyLabel} />
+        ) : filteredAgents.map((a) => (
           <div key={a.userId ?? a.id} className="rounded-2xl border border-border bg-card p-4 shadow-card">
             <div className="flex items-start justify-between">
               <div>
@@ -244,36 +312,24 @@ function AdminAgents() {
                 <div className="text-xs text-muted-foreground">{a.id} · {a.branch ?? "—"}</div>
                 <div className="text-xs text-muted-foreground">{a.email ?? "—"}</div>
               </div>
-              <StatusPill active={a.active} t={t} />
+              <StatusPill agent={a} t={t} />
             </div>
             <div className="mt-3 flex items-center justify-end gap-2">
+              {isAdmin && a.pendingApproval && (
+                <IconBtn label={t.agents.approve} onClick={() => onApprove(a)}>
+                  <Check className="h-4 w-4" />
+                </IconBtn>
+              )}
               <IconBtn label={t.agents.edit} onClick={() => setDialog({ open: true, mode: "edit", target: a })}>
                 <Pencil className="h-4 w-4" />
               </IconBtn>
-              {isSelf(a) ? (
-                <IconBtn disabledLook label={t.agents.selfNoSuspend} onClick={() => toast.error(t.agents.selfNoSuspend)}>
-                  <Power className="h-4 w-4" />
-                </IconBtn>
-              ) : (
+              {!isSelf(a) && !isAdminCreated(a) && (
                 <IconBtn label={a.active ? t.agents.suspend : t.agents.activate} onClick={() => onToggle(a)}>
                   <Power className="h-4 w-4" />
                 </IconBtn>
               )}
-              {isSelf(a) ? (
-                <IconBtn danger disabledLook label={t.agents.selfNoDelete} onClick={() => toast.error(t.agents.selfNoDelete)}>
-                  <Trash2 className="h-4 w-4" />
-                </IconBtn>
-              ) : canDelete ? (
+              {(canDelete || (isSupervisor && a.createdByUserId === user?.id)) && !isSelf(a) && !isAdminCreated(a) && (
                 <IconBtn danger label={t.agents.delete} onClick={() => onDelete(a)}>
-                  <Trash2 className="h-4 w-4" />
-                </IconBtn>
-              ) : (
-                <IconBtn
-                  danger
-                  disabledLook
-                  label={t.agents.supervisorNoDelete}
-                  onClick={() => toast.error(t.agents.supervisorNoDelete)}
-                >
                   <Trash2 className="h-4 w-4" />
                 </IconBtn>
               )}
@@ -287,11 +343,10 @@ function AdminAgents() {
         mode={dialog.mode}
         initial={dialog.target}
         lockedBranch={lockedBranch}
-        // Supervisors are forced to "agent". Admins:
-        //  - on create, the role selector starts on the active tab
-        //  - on edit, the existing role is locked (cannot be changed)
-        lockedRole={isSupervisor ? "agent" : (dialog.mode === "edit" ? dialog.target?.role : undefined)}
-        defaultRole={effectiveTab}
+        lockedRole={lockedRoleForDialog}
+        defaultRole={effectiveTab === "supervisor" ? "supervisor" : "agent"}
+        lockedStaffType={lockedStaffTypeForDialog}
+        defaultStaffType={effectiveTab === "sales" ? "sales" : "underwriter"}
         onClose={() => setDialog({ open: false, mode: "create" })}
         onSubmit={dialog.mode === "create" ? onCreate : onEdit}
       />
@@ -310,12 +365,19 @@ function AdminAgents() {
   );
 }
 
-function StatusPill({ active, t }: { active: boolean; t: any }) {
+function StatusPill({ agent, t }: { agent: Agent; t: any }) {
+  if (agent.pendingApproval) {
+    return (
+      <span className="inline-flex items-center rounded-full bg-warning/15 px-2.5 py-1 text-xs font-semibold text-warning-foreground">
+        {t.agents.pendingApproval}
+      </span>
+    );
+  }
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-      active ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
+      agent.active ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
     }`}>
-      {active ? t.agents.active : t.agents.suspended}
+      {agent.active ? t.agents.active : t.agents.suspended}
     </span>
   );
 }

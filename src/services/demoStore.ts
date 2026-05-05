@@ -8,6 +8,8 @@
  */
 
 export type DemoRole = "admin" | "supervisor" | "agent";
+/** Sub-type for staff users (role="agent"). */
+export type DemoStaffType = "underwriter" | "sales";
 export type DemoStatus = "new" | "linkSent" | "processing" | "sold" | "rejected" | "reupload";
 
 export type DemoUser = {
@@ -37,7 +39,11 @@ export type DemoAgent = {
   branch?: string;
   active: boolean;
   role: "agent" | "supervisor";
+  staffType?: DemoStaffType;
   supervisorId?: string;
+  createdByUserId?: string;
+  createdByRole?: DemoRole;
+  pendingApproval?: boolean;
 };
 
 export type DemoNote = {
@@ -96,6 +102,10 @@ export type DemoAuditEntry = {
   meta?: Record<string, unknown>;
 };
 
+export type DemoSettings = {
+  requireAdminApproval: boolean;
+};
+
 const KEY = {
   users: "demo:users",
   branches: "demo:branches",
@@ -103,7 +113,8 @@ const KEY = {
   requests: "demo:requests",
   audit: "demo:audit",
   seq: "demo:seq",
-  seeded: "demo:seeded:v1",
+  settings: "demo:settings",
+  seeded: "demo:seeded:v2",
 };
 
 // ---------- Seed data ----------
@@ -123,8 +134,19 @@ const PLACEHOLDER_CAR =
 function seedUsers(): DemoUser[] {
   return [
     { id: "u-admin", email: "admin@demo.com", password: "demo123", name: "Demo Admin", role: "admin" },
-    { id: "u-sup", email: "supervisor@demo.com", password: "demo123", name: "Demo Supervisor", role: "supervisor", branch: "Dubai" },
-    { id: "u-agent", email: "agent@demo.com", password: "demo123", name: "Demo Agent", role: "agent", agentId: "A001", branch: "Dubai" },
+    // Branch 1: Dubai
+    { id: "u-sup-1", email: "supervisor@demo.com", password: "demo123", name: "Demo Supervisor (Dubai)", role: "supervisor", branch: "Dubai" },
+    { id: "u-uw-1", email: "underwriter@demo.com", password: "demo123", name: "Omar Underwriter", role: "agent", agentId: "UW-001", branch: "Dubai" },
+    { id: "u-uw-2", email: "uw2@demo.com", password: "demo123", name: "Hala Underwriter", role: "agent", agentId: "UW-002", branch: "Dubai" },
+    { id: "u-sls-1", email: "sales@demo.com", password: "demo123", name: "Ali Sales", role: "agent", agentId: "SLS-001", branch: "Dubai" },
+    { id: "u-sls-2", email: "sls2@demo.com", password: "demo123", name: "Noor Sales", role: "agent", agentId: "SLS-002", branch: "Dubai" },
+    // Branch 2: Abu Dhabi
+    { id: "u-sup-2", email: "sup2@demo.com", password: "demo123", name: "Khalid Supervisor (Abu Dhabi)", role: "supervisor", branch: "Abu Dhabi" },
+    { id: "u-uw-3", email: "uw3@demo.com", password: "demo123", name: "Sara Underwriter", role: "agent", agentId: "UW-003", branch: "Abu Dhabi" },
+    { id: "u-sls-3", email: "sls3@demo.com", password: "demo123", name: "Yara Sales", role: "agent", agentId: "SLS-003", branch: "Abu Dhabi" },
+    // Branch 3: Sharjah
+    { id: "u-sup-3", email: "sup3@demo.com", password: "demo123", name: "Faisal Supervisor (Sharjah)", role: "supervisor", branch: "Sharjah" },
+    { id: "u-uw-4", email: "uw4@demo.com", password: "demo123", name: "Lina Underwriter", role: "agent", agentId: "UW-004", branch: "Sharjah" },
   ];
 }
 
@@ -138,10 +160,19 @@ function seedBranches(): DemoBranch[] {
 
 function seedAgents(): DemoAgent[] {
   return [
-    { userId: "u-sup", id: "S001", name: "Demo Supervisor", email: "supervisor@demo.com", branch: "Dubai", active: true, role: "supervisor" },
-    { userId: "u-agent", id: "A001", name: "Demo Agent", email: "agent@demo.com", branch: "Dubai", active: true, role: "agent", supervisorId: "u-sup" },
-    { userId: "u-agent2", id: "A002", name: "Sara Mohamed", email: "sara@demo.com", branch: "Abu Dhabi", active: true, role: "agent" },
-    { userId: "u-agent3", id: "A003", name: "Ahmed Khaled", email: "ahmed@demo.com", branch: "Sharjah", active: false, role: "agent" },
+    // Dubai
+    { userId: "u-sup-1", id: "SUP-001", name: "Demo Supervisor (Dubai)", email: "supervisor@demo.com", branch: "Dubai", active: true, role: "supervisor", createdByUserId: "u-admin", createdByRole: "admin" },
+    { userId: "u-uw-1", id: "UW-001", name: "Omar Underwriter", email: "underwriter@demo.com", branch: "Dubai", active: true, role: "agent", staffType: "underwriter", supervisorId: "u-sup-1", createdByUserId: "u-admin", createdByRole: "admin" },
+    { userId: "u-uw-2", id: "UW-002", name: "Hala Underwriter", email: "uw2@demo.com", branch: "Dubai", active: true, role: "agent", staffType: "underwriter", supervisorId: "u-sup-1", createdByUserId: "u-sup-1", createdByRole: "supervisor" },
+    { userId: "u-sls-1", id: "SLS-001", name: "Ali Sales", email: "sales@demo.com", branch: "Dubai", active: true, role: "agent", staffType: "sales", supervisorId: "u-sup-1", createdByUserId: "u-admin", createdByRole: "admin" },
+    { userId: "u-sls-2", id: "SLS-002", name: "Noor Sales", email: "sls2@demo.com", branch: "Dubai", active: true, role: "agent", staffType: "sales", supervisorId: "u-sup-1", createdByUserId: "u-sup-1", createdByRole: "supervisor" },
+    // Abu Dhabi
+    { userId: "u-sup-2", id: "SUP-002", name: "Khalid Supervisor (Abu Dhabi)", email: "sup2@demo.com", branch: "Abu Dhabi", active: true, role: "supervisor", createdByUserId: "u-admin", createdByRole: "admin" },
+    { userId: "u-uw-3", id: "UW-003", name: "Sara Underwriter", email: "uw3@demo.com", branch: "Abu Dhabi", active: true, role: "agent", staffType: "underwriter", supervisorId: "u-sup-2", createdByUserId: "u-sup-2", createdByRole: "supervisor" },
+    { userId: "u-sls-3", id: "SLS-003", name: "Yara Sales", email: "sls3@demo.com", branch: "Abu Dhabi", active: true, role: "agent", staffType: "sales", supervisorId: "u-sup-2", createdByUserId: "u-sup-2", createdByRole: "supervisor" },
+    // Sharjah
+    { userId: "u-sup-3", id: "SUP-003", name: "Faisal Supervisor (Sharjah)", email: "sup3@demo.com", branch: "Sharjah", active: true, role: "supervisor", createdByUserId: "u-admin", createdByRole: "admin" },
+    { userId: "u-uw-4", id: "UW-004", name: "Lina Underwriter", email: "uw4@demo.com", branch: "Sharjah", active: true, role: "agent", staffType: "underwriter", supervisorId: "u-sup-3", createdByUserId: "u-sup-3", createdByRole: "supervisor" },
   ];
 }
 
@@ -151,7 +182,7 @@ function seedRequests(): DemoRequest[] {
   return [
     {
       id: "REQ-1001", uuid: "req-1001",
-      agentId: "A001", agentName: "Demo Agent", branch: "Dubai",
+      agentId: "UW-001", agentName: "Omar Underwriter", branch: "Dubai",
       status: "new", createdAt: iso(15),
       customerName: "Mohammad Ali", customerEmail: "mohammad@example.com", customerPhone: "+971501234567",
       notes: [],
@@ -163,11 +194,11 @@ function seedRequests(): DemoRequest[] {
     },
     {
       id: "REQ-1002", uuid: "req-1002",
-      agentId: "A001", agentName: "Demo Agent", branch: "Dubai",
+      agentId: "UW-001", agentName: "Omar Underwriter", branch: "Dubai",
       status: "processing", createdAt: iso(180),
       customerName: "Fatima Al Hassan", customerEmail: "fatima@example.com", customerPhone: "+971502345678",
       notes: [
-        { id: "n1", authorId: "u-agent", authorName: "Demo Agent", authorRole: "agent", text: "Quote requested from insurer.", kind: "comment", createdAt: iso(120) },
+        { id: "n1", authorId: "u-uw-1", authorName: "Omar Underwriter", authorRole: "agent", text: "Quote requested from insurer.", kind: "comment", createdAt: iso(120) },
       ],
       images: {
         registration: [PLACEHOLDER_DOC], license: [PLACEHOLDER_DOC], emirates: [PLACEHOLDER_DOC],
@@ -177,7 +208,7 @@ function seedRequests(): DemoRequest[] {
     },
     {
       id: "REQ-1003", uuid: "req-1003",
-      agentId: "A002", agentName: "Sara Mohamed", branch: "Abu Dhabi",
+      agentId: "UW-003", agentName: "Sara Underwriter", branch: "Abu Dhabi",
       status: "sold", createdAt: iso(60 * 24),
       customerName: "Khalid Saeed", customerEmail: "khalid@example.com",
       notes: [],
@@ -188,11 +219,11 @@ function seedRequests(): DemoRequest[] {
     },
     {
       id: "REQ-1004", uuid: "req-1004",
-      agentId: "A001", agentName: "Demo Agent", branch: "Dubai",
+      agentId: "SLS-001", agentName: "Ali Sales", branch: "Dubai",
       status: "reupload", createdAt: iso(60 * 6),
       customerName: "Layla Ibrahim", customerEmail: "layla@example.com",
       notes: [
-        { id: "n2", authorId: "u-agent", authorName: "Demo Agent", authorRole: "agent", text: "Please send a clearer photo of the registration back.", kind: "missing", createdAt: iso(300) },
+        { id: "n2", authorId: "u-sls-1", authorName: "Ali Sales", authorRole: "agent", text: "Please send a clearer photo of the registration back.", kind: "missing", createdAt: iso(300) },
       ],
       images: {
         registration: [PLACEHOLDER_DOC], license: [PLACEHOLDER_DOC], emirates: [PLACEHOLDER_DOC],
@@ -229,21 +260,25 @@ function ensureSeeded() {
   if (_seeded) return;
   if (typeof window === "undefined") return;
   if (localStorage.getItem(KEY.seeded)) { _seeded = true; return; }
+  // Clear any older seed
+  ["demo:seeded:v1"].forEach((k) => localStorage.removeItem(k));
   write(KEY.users, seedUsers());
   write(KEY.branches, seedBranches());
   write(KEY.agents, seedAgents());
   write(KEY.requests, seedRequests());
   write(KEY.audit, [] as DemoAuditEntry[]);
   write(KEY.seq, 1005);
+  write(KEY.settings, { requireAdminApproval: false } as DemoSettings);
   localStorage.setItem(KEY.seeded, "1");
   _seeded = true;
 }
 
 export function resetDemo() {
   if (typeof window === "undefined") return;
-  [KEY.users, KEY.branches, KEY.agents, KEY.requests, KEY.audit, KEY.seq, KEY.seeded].forEach((k) =>
+  [KEY.users, KEY.branches, KEY.agents, KEY.requests, KEY.audit, KEY.seq, KEY.settings, KEY.seeded].forEach((k) =>
     localStorage.removeItem(k),
   );
+  _seeded = false;
   ensureSeeded();
   notify("requests");
   notify("agents");
@@ -256,6 +291,7 @@ const EVT: Record<string, string> = {
   agents: "aib:agents-changed",
   branches: "aib:branches-changed",
   audit: "aib:audit-changed",
+  settings: "aib:settings-changed",
 };
 
 export function notify(kind: keyof typeof EVT) {
@@ -273,6 +309,7 @@ function nextSeq(): number {
 // ---------- Public API ----------
 
 export function getUsers(): DemoUser[] { ensureSeeded(); return read(KEY.users, [] as DemoUser[]); }
+export function setUsers(list: DemoUser[]) { write(KEY.users, list); }
 export function getBranches(): DemoBranch[] { ensureSeeded(); return read(KEY.branches, [] as DemoBranch[]); }
 export function setBranches(list: DemoBranch[]) { write(KEY.branches, list); notify("branches"); }
 export function getAgents(): DemoAgent[] { ensureSeeded(); return read(KEY.agents, [] as DemoAgent[]); }
@@ -281,6 +318,18 @@ export function getRequests(): DemoRequest[] { ensureSeeded(); return read(KEY.r
 export function setRequests(list: DemoRequest[]) { write(KEY.requests, list); notify("requests"); }
 export function getAudit(): DemoAuditEntry[] { ensureSeeded(); return read(KEY.audit, [] as DemoAuditEntry[]); }
 export function setAudit(list: DemoAuditEntry[]) { write(KEY.audit, list); notify("audit"); }
+
+export function getSettings(): DemoSettings {
+  ensureSeeded();
+  return read(KEY.settings, { requireAdminApproval: false } as DemoSettings);
+}
+export function setSettings(s: DemoSettings) { write(KEY.settings, s); notify("settings"); }
+export function subscribeSettings(cb: () => void) {
+  if (typeof window === "undefined") return () => {};
+  const fn = () => cb();
+  window.addEventListener("aib:settings-changed", fn);
+  return () => window.removeEventListener("aib:settings-changed", fn);
+}
 
 export function newRequestId(): string { return `REQ-${nextSeq()}`; }
 

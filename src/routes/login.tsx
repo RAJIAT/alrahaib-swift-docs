@@ -98,12 +98,13 @@ function LoginPage() {
           <p className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             One-click demo login
           </p>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {(
               [
                 { label: "Admin", email: "admin@demo.com" },
                 { label: "Supervisor", email: "supervisor@demo.com" },
-                { label: "Agent", email: "agent@demo.com" },
+                { label: "Underwriter", email: "underwriter@demo.com" },
+                { label: "Sales", email: "sales@demo.com" },
               ] as const
             ).map((q) => (
               <button
@@ -112,7 +113,6 @@ function LoginPage() {
                 disabled={loading}
                 onClick={async () => {
                   setError("");
-                  // Fill the visible fields so the user sees the credentials
                   setEmail(q.email);
                   setPassword("demo123");
                   setLoading(true);

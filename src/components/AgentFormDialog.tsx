@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Lock, Loader2, X } from "lucide-react";
 import { useLang } from "@/i18n/LanguageProvider";
-import { getBranches, listAgents, listBranches, type Agent, type AgentRole } from "@/services/api";
+import { getBranches, listAgents, listBranches, type Agent, type AgentRole, type StaffType } from "@/services/api";
 
 export type AgentFormValues = {
   name: string;
@@ -10,11 +10,13 @@ export type AgentFormValues = {
   agentId: string;
   branch: string;
   role: AgentRole;
+  staffType?: StaffType;
   supervisorId?: string;
 };
 
 export function AgentFormDialog({
   open, mode, initial, onClose, onSubmit, lockedBranch, lockedRole, defaultRole,
+  lockedStaffType, defaultStaffType,
 }: {
   open: boolean;
   mode: "create" | "edit";
@@ -26,12 +28,17 @@ export function AgentFormDialog({
   lockedRole?: AgentRole;
   /** Initial role for create mode (when lockedRole is not set). */
   defaultRole?: AgentRole;
+  /** When set, hides the staffType selector and forces this value (for role=agent). */
+  lockedStaffType?: StaffType;
+  /** Initial staffType for create mode. */
+  defaultStaffType?: StaffType;
 }) {
   const { t, dir } = useLang();
   const [values, setValues] = useState<AgentFormValues>({
     name: "", email: "", password: "", agentId: "",
     branch: listBranches()[0] ?? "",
     role: lockedRole ?? defaultRole ?? "agent",
+    staffType: lockedStaffType ?? defaultStaffType ?? "underwriter",
     supervisorId: "",
   });
   const [error, setError] = useState("");
@@ -44,7 +51,6 @@ export function AgentFormDialog({
   useEffect(() => {
     if (!open) return;
     setError("");
-    // Refresh branches when dialog opens so the dropdown is never empty.
     getBranches().then(() => setBranches(listBranches())).catch(() => {});
     setValues({
       name: initial?.name ?? "",
@@ -53,9 +59,10 @@ export function AgentFormDialog({
       agentId: initial?.id ?? "",
       branch: lockedBranch ?? initial?.branch ?? (listBranches()[0] ?? ""),
       role: lockedRole ?? initial?.role ?? defaultRole ?? "agent",
+      staffType: lockedStaffType ?? initial?.staffType ?? defaultStaffType ?? "underwriter",
       supervisorId: initial?.supervisorId ?? "",
     });
-  }, [open, initial, lockedBranch, lockedRole, defaultRole]);
+  }, [open, initial, lockedBranch, lockedRole, defaultRole, lockedStaffType, defaultStaffType]);
 
   if (!open) return null;
 
@@ -128,6 +135,19 @@ export function AgentFormDialog({
               >
                 <option value="agent">{t.agents.roleAgent}</option>
                 <option value="supervisor">{t.agents.roleSupervisor}</option>
+              </select>
+            </Field>
+          )}
+
+          {(lockedRole ?? values.role) === "agent" && !lockedStaffType && (
+            <Field label={t.agents.staffType ?? "Type"}>
+              <select
+                value={values.staffType ?? "underwriter"}
+                onChange={(e) => setValues((v) => ({ ...v, staffType: e.target.value as StaffType }))}
+                className="h-11 w-full rounded-xl border border-input bg-surface px-3 text-sm text-foreground"
+              >
+                <option value="underwriter">{t.agents.roleUnderwriter ?? "Underwriter"}</option>
+                <option value="sales">{t.agents.roleSales ?? "Sales"}</option>
               </select>
             </Field>
           )}

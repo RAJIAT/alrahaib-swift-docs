@@ -19,11 +19,12 @@ export const Route = createFileRoute("/audit")({
 const ACTION_FILTERS: Array<{ value: "" | AuditAction; label: string }> = [
   { value: "", label: "All actions" },
   { value: "request.status_changed", label: "Request: status changed" },
-  { value: "agent.created", label: "Agent: created" },
-  { value: "agent.updated", label: "Agent: updated" },
-  { value: "agent.activated", label: "Agent: activated" },
-  { value: "agent.deactivated", label: "Agent: deactivated" },
-  { value: "agent.deleted", label: "Agent: deleted" },
+  { value: "agent.created", label: "User: created" },
+  { value: "agent.pending_created", label: "User: pending approval" },
+  { value: "agent.approved", label: "User: approved" },
+  { value: "agent.updated", label: "User: updated" },
+  { value: "agent.deleted", label: "User: deleted" },
+  { value: "settings.approval_changed", label: "Settings: approval toggle" },
   { value: "auth.login", label: "Auth: login" },
   { value: "auth.logout", label: "Auth: logout" },
 ];

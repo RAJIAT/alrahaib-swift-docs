@@ -8,12 +8,15 @@ export type AuditAction =
   | "request.status_changed"
   | "request.created"
   | "agent.created"
+  | "agent.pending_created"
+  | "agent.approved"
   | "agent.updated"
   | "agent.activated"
   | "agent.deactivated"
   | "agent.deleted"
   | "auth.login"
-  | "auth.logout";
+  | "auth.logout"
+  | "settings.approval_changed";
 export type AuditEntityType = "request" | "agent" | "auth";
 
 export async function fetchAudit(opts?: {
