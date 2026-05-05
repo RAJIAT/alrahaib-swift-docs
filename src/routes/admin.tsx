@@ -147,6 +147,21 @@ function AdminDashboard() {
         <StatCard label={t.admin.today} value={stats.today} icon={<CalendarDays className="h-5 w-5" />} tone="warning" />
       </div>
 
+      {!isSupervisor && (
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 shadow-card">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-foreground">{t.agents.requireApprovalSetting}</div>
+            <div className="text-xs text-muted-foreground">{t.agents.requireApprovalHint}</div>
+            {pendingCount > 0 && (
+              <div className="mt-1 inline-flex items-center rounded-full bg-warning/15 px-2.5 py-0.5 text-xs font-semibold text-warning-foreground">
+                {pendingCount} {t.agents.pendingApproval}
+              </div>
+            )}
+          </div>
+          <Switch checked={approvalReq} onCheckedChange={(v) => { setApprovalReq(v); setApprovalRequired(v); }} />
+        </div>
+      )}
+
       {/* Filters */}
       <div className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-card">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
