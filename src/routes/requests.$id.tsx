@@ -988,67 +988,73 @@ function ReassignCard({
   const showReturnToSales = (isOwner && myType === "underwriter" && !!originSales)
     || (!isOwner && (isAdmin || isBranchSup) && ownerType === "underwriter" && !!originSales);
 
+  // Default the dropdown selection based on the workflow direction:
+  // sales-owned → preselect first underwriter; underwriter-owned with originSales → preselect that sales.
+  const defaultTarget = showSendToUW
+    ? underwriters[0].id
+    : showReturnToSales && originSales
+      ? originSales.id
+      : "";
+  const effectiveTarget = target || defaultTarget;
+
+  const primaryLabel = showSendToUW
+    ? (lang === "ar" ? "إرسال للأندررايتر" : "Send to underwriter")
+    : showReturnToSales
+      ? (lang === "ar" ? "إرجاع للسيلز" : "Return to sales")
+      : (lang === "ar" ? "نقل" : "Transfer");
+  const successLabel = showSendToUW
+    ? (lang === "ar" ? "تم الإرسال للأندررايتر" : "Sent to underwriter")
+    : showReturnToSales
+      ? (lang === "ar" ? "تم إرجاع الطلب للسيلز" : "Returned to sales")
+      : (lang === "ar" ? "تم نقل الطلب" : "Request reassigned");
+
+  // Re-order options so the most likely target appears first.
+  const ordered = [...candidates].sort((a, b) => {
+    if (showSendToUW) {
+      const ua = a.staffType === "underwriter" ? 0 : 1;
+      const ub = b.staffType === "underwriter" ? 0 : 1;
+      if (ua !== ub) return ua - ub;
+    }
+    if (showReturnToSales && originSales) {
+      if (a.id === originSales.id) return -1;
+      if (b.id === originSales.id) return 1;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
   return (
     <section className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-card">
-      <h3 className="mb-3 text-sm font-bold text-foreground">
+      <h3 className="mb-1 text-sm font-bold text-foreground">
         {lang === "ar" ? "تحويل الطلب" : "Transfer request"}
       </h3>
-
-      {(showSendToUW || showReturnToSales) && (
-        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          {showSendToUW && (
-            <button
-              onClick={() => doReassign(
-                underwriters[0].id,
-                lang === "ar" ? "تم الإرسال للأندررايتر" : "Sent to underwriter",
-              )}
-              disabled={busy}
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-95 disabled:opacity-50"
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              {lang === "ar"
-                ? `إرسال للأندررايتر (${underwriters[0].name})`
-                : `Send to underwriter (${underwriters[0].name})`}
-            </button>
-          )}
-          {showReturnToSales && originSales && (
-            <button
-              onClick={() => doReassign(
-                originSales.id,
-                lang === "ar" ? "تم إرجاع الطلب للسيلز" : "Returned to sales",
-              )}
-              disabled={busy}
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-success px-4 text-sm font-semibold text-success-foreground shadow-soft transition active:scale-95 disabled:opacity-50"
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              {lang === "ar"
-                ? `إرجاع للسيلز (${originSales.name})`
-                : `Return to sales (${originSales.name})`}
-            </button>
-          )}
-        </div>
-      )}
+      <p className="mb-3 text-xs text-muted-foreground">
+        {showSendToUW
+          ? (lang === "ar" ? "اختر الأندررايتر الذي تريد إرسال الطلب له" : "Pick the underwriter to send this request to")
+          : showReturnToSales
+            ? (lang === "ar" ? "اختر السيلز الذي تريد إرجاع الطلب له" : "Pick the sales agent to return this request to")
+            : (lang === "ar" ? "اختر موظفاً لتحويل الطلب له" : "Pick an agent to transfer this request to")}
+      </p>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <select
-          value={target}
+          value={effectiveTarget}
           onChange={(e) => setTarget(e.target.value)}
           className="h-10 flex-1 rounded-xl border border-input bg-surface px-3 text-sm font-medium text-foreground"
         >
-          <option value="">{lang === "ar" ? "أو اختر موظفاً آخر…" : "Or pick another agent…"}</option>
-          {candidates.map((a) => (
+          <option value="">{lang === "ar" ? "اختر موظفاً…" : "Pick an agent…"}</option>
+          {ordered.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name} · {a.id} ({a.staffType ?? "agent"})
             </option>
           ))}
         </select>
         <button
-          onClick={() => doReassign(target, lang === "ar" ? "تم نقل الطلب" : "Request reassigned")}
-          disabled={!target || busy}
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-surface px-4 text-sm font-semibold text-foreground transition hover:bg-muted active:scale-95 disabled:opacity-50"
+          onClick={() => doReassign(effectiveTarget, successLabel)}
+          disabled={!effectiveTarget || busy}
+          className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-95 disabled:opacity-50"
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          {lang === "ar" ? "نقل" : "Transfer"}
+          {primaryLabel}
         </button>
       </div>
     </section>
