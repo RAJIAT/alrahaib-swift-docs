@@ -19,6 +19,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RequestsIdRouteImport } from './routes/requests.$id'
 import { Route as RRequestIdRouteImport } from './routes/r.$requestId'
+import { Route as QRequestIdRouteImport } from './routes/q.$requestId'
 
 const SuccessRoute = SuccessRouteImport.update({
   id: '/success',
@@ -70,6 +71,11 @@ const RRequestIdRoute = RRequestIdRouteImport.update({
   path: '/r/$requestId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const QRequestIdRoute = QRequestIdRouteImport.update({
+  id: '/q/$requestId',
+  path: '/q/$requestId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/branches': typeof BranchesRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
+  '/q/$requestId': typeof QRequestIdRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
 }
@@ -92,6 +99,7 @@ export interface FileRoutesByTo {
   '/branches': typeof BranchesRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
+  '/q/$requestId': typeof QRequestIdRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
 }
@@ -105,6 +113,7 @@ export interface FileRoutesById {
   '/branches': typeof BranchesRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
+  '/q/$requestId': typeof QRequestIdRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
 }
@@ -119,6 +128,7 @@ export interface FileRouteTypes {
     | '/branches'
     | '/login'
     | '/success'
+    | '/q/$requestId'
     | '/r/$requestId'
     | '/requests/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -131,6 +141,7 @@ export interface FileRouteTypes {
     | '/branches'
     | '/login'
     | '/success'
+    | '/q/$requestId'
     | '/r/$requestId'
     | '/requests/$id'
   id:
@@ -143,6 +154,7 @@ export interface FileRouteTypes {
     | '/branches'
     | '/login'
     | '/success'
+    | '/q/$requestId'
     | '/r/$requestId'
     | '/requests/$id'
   fileRoutesById: FileRoutesById
@@ -156,6 +168,7 @@ export interface RootRouteChildren {
   BranchesRoute: typeof BranchesRoute
   LoginRoute: typeof LoginRoute
   SuccessRoute: typeof SuccessRoute
+  QRequestIdRoute: typeof QRequestIdRoute
   RRequestIdRoute: typeof RRequestIdRoute
   RequestsIdRoute: typeof RequestsIdRoute
 }
@@ -232,6 +245,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RRequestIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/q/$requestId': {
+      id: '/q/$requestId'
+      path: '/q/$requestId'
+      fullPath: '/q/$requestId'
+      preLoaderRoute: typeof QRequestIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -244,9 +264,19 @@ const rootRouteChildren: RootRouteChildren = {
   BranchesRoute: BranchesRoute,
   LoginRoute: LoginRoute,
   SuccessRoute: SuccessRoute,
+  QRequestIdRoute: QRequestIdRoute,
   RRequestIdRoute: RRequestIdRoute,
   RequestsIdRoute: RequestsIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

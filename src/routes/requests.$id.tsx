@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Download, RotateCcw, FileText, Loader2, X, Mail, Send, Link2, MessageSquare, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Download, RotateCcw, FileText, Loader2, X, Mail, Send, Link2, MessageSquare, AlertTriangle, CheckCircle2, Upload, Trash2, ExternalLink, Copy } from "lucide-react";
 import JSZip from "jszip";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/DashboardShell";
@@ -10,7 +10,7 @@ import { isPdfDataUrl } from "@/lib/imageUtils";
 import {
   getCurrentUser, refreshCurrentUser, getRequest, updateRequestStatus, resolveAssetUrl,
   addRequestNote, resolveRequestNote, subscribeRequests,
-  reassignRequest, listAgents,
+  reassignRequest, listAgents, addQuotesToRequest, removeQuoteFromRequest,
   type AuthUser, type InsuranceRequest, type RequestStatus, type RequestNoteKind, type Agent,
 } from "@/services/api";
 import { isDirectusAssetUrl } from "@/services/directus";
@@ -491,6 +491,9 @@ function RequestDetails() {
 
           {/* Reassign */}
           <ReassignCard req={req} user={user} onReassigned={(r) => setReq(r)} />
+
+          {/* Quotes (underwriter uploads, sales shares with customer) */}
+          <QuotesCard req={req} user={user} onUpdated={(r) => setReq(r)} />
 
           {/* Actions */}
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

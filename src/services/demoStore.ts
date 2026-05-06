@@ -103,6 +103,18 @@ export type DemoRequest = {
     attachments: DemoAttachment[];
     missingAttachments?: DemoAttachment[];
   };
+  quotes?: DemoQuote[];
+};
+
+export type DemoQuote = {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  url: string;
+  uploadedByUserId: string;
+  uploadedByName: string;
+  uploadedAt: string;
 };
 
 export type DemoAuditEntry = {
