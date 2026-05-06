@@ -10,7 +10,8 @@ import { isPdfDataUrl } from "@/lib/imageUtils";
 import {
   getCurrentUser, refreshCurrentUser, getRequest, updateRequestStatus, resolveAssetUrl,
   addRequestNote, resolveRequestNote, subscribeRequests,
-  type AuthUser, type InsuranceRequest, type RequestStatus, type RequestNoteKind,
+  reassignRequest, listAgents,
+  type AuthUser, type InsuranceRequest, type RequestStatus, type RequestNoteKind, type Agent,
 } from "@/services/api";
 import { isDirectusAssetUrl } from "@/services/directus";
 
@@ -488,6 +489,9 @@ function RequestDetails() {
             onUpdated={(r) => setReq(r)}
           />
 
+          {/* Reassign */}
+          <ReassignCard req={req} user={user} onReassigned={(r) => setReq(r)} />
+
           {/* Actions */}
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <button
@@ -923,6 +927,77 @@ function NotesSection({
             {kind === "missing" ? t.details.missingAdd : t.details.noteAdd}
           </button>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function ReassignCard({
+  req, user, onReassigned,
+}: {
+  req: InsuranceRequest;
+  user: AuthUser | null;
+  onReassigned: (r: InsuranceRequest) => void;
+}) {
+  const { t, lang } = useLang();
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [target, setTarget] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { setAgents(listAgents()); }, []);
+
+  if (!user) return null;
+  const isAdmin = user.role === "admin";
+  const isBranchSup = user.role === "supervisor" && user.branch === req.branch;
+  const isOwner = user.role === "agent" && user.agentId === req.agentId;
+  if (!isAdmin && !isBranchSup && !isOwner) return null;
+
+  const candidates = agents.filter(
+    (a) => a.role === "agent" && a.branch === req.branch && a.id !== req.agentId && a.active,
+  );
+  if (candidates.length === 0) return null;
+
+  const submit = async () => {
+    if (!target || busy) return;
+    setBusy(true);
+    try {
+      const updated = await reassignRequest(req.id, target);
+      onReassigned(updated);
+      toast.success(lang === "ar" ? "تم نقل الطلب" : "Request reassigned");
+      setTarget("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-card">
+      <h3 className="mb-3 text-sm font-bold text-foreground">
+        {lang === "ar" ? "نقل الطلب لموظف آخر" : "Reassign to another agent"}
+      </h3>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <select
+          value={target}
+          onChange={(e) => setTarget(e.target.value)}
+          className="h-10 flex-1 rounded-xl border border-input bg-surface px-3 text-sm font-medium text-foreground"
+        >
+          <option value="">{lang === "ar" ? "اختر موظفاً" : "Pick an agent"}</option>
+          {candidates.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name} · {a.id} ({a.staffType ?? "agent"})
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={submit}
+          disabled={!target || busy}
+          className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-95 disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          {lang === "ar" ? "نقل" : "Reassign"}
+        </button>
       </div>
     </section>
   );

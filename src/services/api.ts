@@ -580,6 +580,9 @@ function notifyNewRequest(req: DemoRequest) {
   // Notify supervisor of the branch
   const sup = dsGetAgents().find((a) => a.role === "supervisor" && a.branch === req.branch);
   if (sup?.userId) targets.add(sup.userId);
+  // Notify the owner agent (the underwriter/sales whose link was used)
+  const owner = dsGetAgents().find((a) => a.id === req.agentId);
+  if (owner?.userId) targets.add(owner.userId);
   pushNotifications([...targets].map((uid) => ({
     recipientUserId: uid,
     title: `New request ${req.id}`,
@@ -587,6 +590,63 @@ function notifyNewRequest(req: DemoRequest) {
     kind: "request_new" as const,
     link: `/requests/${req.id}`,
   })));
+}
+
+// ---------------------------------------------------------------------------
+// Reassign request to another agent in the same branch
+// ---------------------------------------------------------------------------
+
+export async function reassignRequest(requestId: string, newAgentId: string): Promise<InsuranceRequest> {
+  const me = getCurrentUser();
+  if (!me) throw new Error("Not authenticated");
+  const list = getRequests();
+  const idx = list.findIndex((r) => r.id === requestId || r.uuid === requestId);
+  if (idx < 0) throw new Error("Request not found");
+  const req = list[idx];
+  const agents = dsGetAgents();
+  const target = agents.find((a) => a.id === newAgentId);
+  if (!target) throw new Error("Target agent not found");
+  if (target.role !== "agent") throw new Error("Can only assign to underwriter/sales");
+  if (target.branch !== req.branch) throw new Error("Target agent is in a different branch");
+
+  // Permission: admin OR supervisor of the branch OR current owner agent
+  const isAdmin = me.role === "admin";
+  const isBranchSup = me.role === "supervisor" && me.branch === req.branch;
+  const isOwner = me.role === "agent" && me.agentId === req.agentId;
+  if (!isAdmin && !isBranchSup && !isOwner) throw new Error("Not allowed");
+  if (target.id === req.agentId) return req; // no-op
+
+  const previousOwner = agents.find((a) => a.id === req.agentId);
+  const next = [...list];
+  next[idx] = { ...req, agentId: target.id, agentName: target.name };
+  setRequests(next);
+
+  logEvent({
+    action: "request.reassigned",
+    entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
+    before: { agentId: req.agentId, agentName: req.agentName },
+    after: { agentId: target.id, agentName: target.name },
+  });
+
+  // Notify previous owner, new owner, and branch supervisor
+  const branchSup = agents.find((a) => a.role === "supervisor" && a.branch === req.branch);
+  const recipients = new Set<string>();
+  if (previousOwner?.userId && previousOwner.userId !== me.id) recipients.add(previousOwner.userId);
+  if (target.userId && target.userId !== me.id) recipients.add(target.userId);
+  if (branchSup?.userId && branchSup.userId !== me.id) recipients.add(branchSup.userId);
+  pushNotifications([...recipients].map((uid) => ({
+    recipientUserId: uid,
+    title: uid === target.userId
+      ? `Request ${req.id} assigned to you`
+      : uid === previousOwner?.userId
+        ? `Request ${req.id} reassigned to ${target.name}`
+        : `Request ${req.id} reassigned: ${req.agentName} → ${target.name}`,
+    body: `${me.name} · ${req.branch}`,
+    kind: "request_status" as const,
+    link: `/requests/${req.id}`,
+  })));
+
+  return next[idx];
 }
 
 function notifyRequestStatus(req: DemoRequest, before: DemoStatus) {
