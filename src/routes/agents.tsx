@@ -383,6 +383,23 @@ function AdminAgents() {
         onConfirm={confirmDelete}
         onClose={() => setConfirmTarget(null)}
       />
+
+      <RemovalRequestDialog
+        open={removalTarget !== null}
+        agentName={removalTarget?.name}
+        onClose={() => setRemovalTarget(null)}
+        onSubmit={async (reason) => {
+          if (!removalTarget) return;
+          try {
+            await requestAgentRemoval(removalTarget.id, reason);
+            toast.success(t.agents.removalSent);
+          } catch (e: any) {
+            toast.error(e?.message ?? t.agents.saveFailed);
+          }
+        }}
+      />
+
+      <ImportUsersDialog open={importOpen} onClose={() => setImportOpen(false)} />
     </DashboardShell>
   );
 }
