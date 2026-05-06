@@ -957,21 +957,6 @@ function ReassignCard({
   );
   if (candidates.length === 0) return null;
 
-  const submit = async () => {
-    if (!target || busy) return;
-    setBusy(true);
-    try {
-      const updated = await reassignRequest(req.id, target);
-      onReassigned(updated);
-      toast.success(lang === "ar" ? "تم نقل الطلب" : "Request reassigned");
-      setTarget("");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const meAgent = agents.find((a) => a.id === user.agentId);
   const myType = meAgent?.staffType;
   const currentOwner = agents.find((a) => a.id === req.agentId);
