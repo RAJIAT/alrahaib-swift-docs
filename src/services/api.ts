@@ -68,7 +68,10 @@ export type Agent = {
   createdByUserId?: string;
   createdByRole?: Role;
   pendingApproval?: boolean;
+  removalRequest?: DemoAgent["removalRequest"];
 };
+
+export type AppNotification = DemoNotification;
 
 export function canDelete(u: AuthUser | null | undefined) { return u?.role === "admin"; }
 export function canManageAgents(u: AuthUser | null | undefined) { return u?.role === "admin" || u?.role === "supervisor"; }
