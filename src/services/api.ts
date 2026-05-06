@@ -414,6 +414,15 @@ export async function createAgent(input: {
     after: agent,
     meta: { staffType: agent.staffType, role: agent.role, createdByRole: me?.role },
   });
+  if (pending) {
+    pushNotifications(getUsers().filter((u) => u.role === "admin").map((u) => ({
+      recipientUserId: u.id,
+      title: `User pending approval: ${agent.name}`,
+      body: `Created by ${me?.name ?? "supervisor"} · ${agent.branch ?? ""}`,
+      kind: "user_pending" as const,
+      link: "/agents",
+    })));
+  }
   return dsToAgent(agent);
 }
 
