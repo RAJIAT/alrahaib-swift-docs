@@ -727,6 +727,8 @@ export async function removeQuoteFromRequest(requestId: string, quoteId: string)
   setRequests(next);
   return next[idx];
 }
+
+function notifyRequestStatus(req: DemoRequest, before: DemoStatus) {
   // Notify the request's owner agent
   const owner = dsGetAgents().find((a) => a.id === req.agentId);
   if (owner?.userId) {
