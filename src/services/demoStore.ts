@@ -278,8 +278,8 @@ function ensureSeeded() {
   if (_seeded) return;
   if (typeof window === "undefined") return;
   if (localStorage.getItem(KEY.seeded)) { _seeded = true; return; }
-  // Clear any older seed
-  ["demo:seeded:v1"].forEach((k) => localStorage.removeItem(k));
+  // Clear older seeds
+  ["demo:seeded:v1", "demo:seeded:v2"].forEach((k) => localStorage.removeItem(k));
   write(KEY.users, seedUsers());
   write(KEY.branches, seedBranches());
   write(KEY.agents, seedAgents());
@@ -287,13 +287,14 @@ function ensureSeeded() {
   write(KEY.audit, [] as DemoAuditEntry[]);
   write(KEY.seq, 1005);
   write(KEY.settings, { requireAdminApproval: false } as DemoSettings);
+  write(KEY.notifications, [] as DemoNotification[]);
   localStorage.setItem(KEY.seeded, "1");
   _seeded = true;
 }
 
 export function resetDemo() {
   if (typeof window === "undefined") return;
-  [KEY.users, KEY.branches, KEY.agents, KEY.requests, KEY.audit, KEY.seq, KEY.settings, KEY.seeded].forEach((k) =>
+  [KEY.users, KEY.branches, KEY.agents, KEY.requests, KEY.audit, KEY.seq, KEY.settings, KEY.notifications, KEY.seeded].forEach((k) =>
     localStorage.removeItem(k),
   );
   _seeded = false;
@@ -302,6 +303,7 @@ export function resetDemo() {
   notify("agents");
   notify("branches");
   notify("audit");
+  notify("notifications");
 }
 
 const EVT: Record<string, string> = {
