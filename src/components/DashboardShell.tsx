@@ -3,6 +3,7 @@ import { Building2, LayoutDashboard, LogOut, Menu, ScrollText, Users, X } from "
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
+import { NotificationBell } from "@/components/NotificationBell";
 
 import { useLang } from "@/i18n/LanguageProvider";
 import { canManageAgents, getCurrentUser, logout, refreshCurrentUser, type Role } from "@/services/api";
