@@ -147,7 +147,7 @@ const KEY = {
   seq: "demo:seq",
   settings: "demo:settings",
   notifications: "demo:notifications",
-  seeded: "demo:seeded:v3",
+  seeded: "demo:seeded:v4",
 };
 
 // ---------- Seed data ----------
@@ -351,13 +351,13 @@ function ensureSeeded() {
   if (typeof window === "undefined") return;
   if (localStorage.getItem(KEY.seeded)) { _seeded = true; return; }
   // Clear older seeds
-  ["demo:seeded:v1", "demo:seeded:v2"].forEach((k) => localStorage.removeItem(k));
+  ["demo:seeded:v1", "demo:seeded:v2", "demo:seeded:v3"].forEach((k) => localStorage.removeItem(k));
   write(KEY.users, seedUsers());
   write(KEY.branches, seedBranches());
   write(KEY.agents, seedAgents());
   write(KEY.requests, seedRequests());
   write(KEY.audit, [] as DemoAuditEntry[]);
-  write(KEY.seq, 1005);
+  write(KEY.seq, 1010);
   write(KEY.settings, { requireAdminApproval: false } as DemoSettings);
   write(KEY.notifications, [] as DemoNotification[]);
   localStorage.setItem(KEY.seeded, "1");
