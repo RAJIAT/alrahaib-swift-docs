@@ -350,11 +350,21 @@ function AdminAgents() {
                   <Power className="h-4 w-4" />
                 </IconBtn>
               )}
-              {(canDelete || (isSupervisor && a.createdByUserId === user?.id)) && !isSelf(a) && !isAdminCreated(a) && (
+              {isSelf(a) ? null : isAdminCreated(a) ? (
+                a.removalRequest ? (
+                  <IconBtn danger disabledLook label={t.agents.removalAlreadyRequested} onClick={() => toast.message(t.agents.removalAlreadyRequested)}>
+                    <Send className="h-4 w-4" />
+                  </IconBtn>
+                ) : (
+                  <IconBtn danger label={t.agents.requestRemoval} onClick={() => setRemovalTarget(a)}>
+                    <Send className="h-4 w-4" />
+                  </IconBtn>
+                )
+              ) : (canDelete || (isSupervisor && a.createdByUserId === user?.id)) ? (
                 <IconBtn danger label={t.agents.delete} onClick={() => onDelete(a)}>
                   <Trash2 className="h-4 w-4" />
                 </IconBtn>
-              )}
+              ) : null}
             </div>
           </div>
         ))}
