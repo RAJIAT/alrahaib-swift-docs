@@ -44,7 +44,15 @@ function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => vo
             Try again
           </button>
           <a
-            href="/"
+            href={(() => {
+              try {
+                const u = getCurrentUser();
+                if (!u) return "/login";
+                if (u.role === "admin") return "/admin";
+                if (u.role === "supervisor") return "/agents";
+                return "/agent";
+              } catch { return "/login"; }
+            })()}
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
             Go home
