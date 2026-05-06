@@ -28,6 +28,7 @@ import {
   type DemoStaffType,
   type DemoStatus,
   type DemoUser,
+  type DemoQuote,
 } from "./demoStore";
 
 // Trigger seeding by accessing the store once.
@@ -42,6 +43,7 @@ export type RequestNoteKind = "comment" | "missing";
 export type RequestNote = DemoNote;
 export type AttachmentMeta = DemoAttachment;
 export type InsuranceRequest = DemoRequest;
+export type RequestQuote = DemoQuote;
 export type Role = "agent" | "admin" | "supervisor";
 export type AgentRole = "agent" | "supervisor";
 export type StaffType = DemoStaffType;
@@ -647,10 +649,84 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
     link: `/requests/${req.id}`,
   })));
 
+}
+
+// ---------------------------------------------------------------------------
+// Quotes (underwriter uploads quote files; sales shares with customer)
+// ---------------------------------------------------------------------------
+
+export async function addQuotesToRequest(requestId: string, files: File[]): Promise<InsuranceRequest> {
+  const me = getCurrentUser();
+  if (!me) throw new Error("Not authenticated");
+  const meAgent = dsGetAgents().find((a) => a.userId === me.id);
+  const isUW = meAgent?.staffType === "underwriter";
+  const isAdminOrSup = me.role === "admin" || me.role === "supervisor";
+  if (!isUW && !isAdminOrSup) throw new Error("Only underwriters can upload quotes");
+  if (!files.length) throw new Error("No files");
+
+  const list = getRequests();
+  const idx = list.findIndex((r) => r.id === requestId || r.uuid === requestId);
+  if (idx < 0) throw new Error("Request not found");
+  const req = list[idx];
+
+  const newQuotes: DemoQuote[] = await Promise.all(
+    files.map(async (f) => ({
+      id: crypto.randomUUID(),
+      name: f.name,
+      type: f.type,
+      size: f.size,
+      url: await fileToDataUrl(f),
+      uploadedByUserId: me.id,
+      uploadedByName: me.name,
+      uploadedAt: new Date().toISOString(),
+    })),
+  );
+
+  const next = [...list];
+  next[idx] = { ...req, quotes: [...(req.quotes ?? []), ...newQuotes] };
+  setRequests(next);
+
+  logEvent({
+    action: "request.quote_uploaded",
+    entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
+    meta: { count: newQuotes.length },
+  });
+
+  // Notify the original sales agent
+  const agents = dsGetAgents();
+  const recipients = new Set<string>();
+  if (req.originAgentId) {
+    const origin = agents.find((a) => a.id === req.originAgentId);
+    if (origin?.userId && origin.userId !== me.id) recipients.add(origin.userId);
+  }
+  const owner = agents.find((a) => a.id === req.agentId);
+  if (owner?.userId && owner.userId !== me.id) recipients.add(owner.userId);
+  pushNotifications([...recipients].map((uid) => ({
+    recipientUserId: uid,
+    title: `Quote uploaded for ${req.id}`,
+    body: `${me.name} · ${newQuotes.length} file${newQuotes.length === 1 ? "" : "s"}`,
+    kind: "request_status" as const,
+    link: `/requests/${req.id}`,
+  })));
+
   return next[idx];
 }
 
-function notifyRequestStatus(req: DemoRequest, before: DemoStatus) {
+export async function removeQuoteFromRequest(requestId: string, quoteId: string): Promise<InsuranceRequest> {
+  const me = getCurrentUser();
+  if (!me) throw new Error("Not authenticated");
+  const list = getRequests();
+  const idx = list.findIndex((r) => r.id === requestId || r.uuid === requestId);
+  if (idx < 0) throw new Error("Request not found");
+  const req = list[idx];
+  const q = (req.quotes ?? []).find((x) => x.id === quoteId);
+  if (!q) throw new Error("Quote not found");
+  if (me.role !== "admin" && q.uploadedByUserId !== me.id) throw new Error("Not allowed");
+  const next = [...list];
+  next[idx] = { ...req, quotes: (req.quotes ?? []).filter((x) => x.id !== quoteId) };
+  setRequests(next);
+  return next[idx];
+}
   // Notify the request's owner agent
   const owner = dsGetAgents().find((a) => a.id === req.agentId);
   if (owner?.userId) {
