@@ -1157,7 +1157,11 @@ function QuotesCard({
 
       {quotes.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {ar ? "لم يتم رفع أي عرض سعر بعد." : "No quotes uploaded yet."}
+          {isUW
+            ? (ar ? "ارفع عرض السعر هنا — سيرجع الطلب تلقائياً للسيلز ليرسله للعميل." : "Upload the quote here — the request returns to sales automatically so they can share it with the customer.")
+            : isSales
+              ? (ar ? "بانتظار رفع عرض السعر من الأندررايتر." : "Waiting for the underwriter to upload the quote.")
+              : (ar ? "لم يتم رفع أي عرض سعر بعد." : "No quotes uploaded yet.")}
         </p>
       ) : (
         <ul className="space-y-2">
