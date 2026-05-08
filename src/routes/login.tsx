@@ -5,6 +5,7 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
 import { useLang } from "@/i18n/LanguageProvider";
 import { login } from "@/services/api";
+import { resetDemo } from "@/services/demoStore";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
