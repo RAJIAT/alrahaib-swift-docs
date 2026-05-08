@@ -84,7 +84,7 @@ export function DashboardShell({
     <div className="min-h-screen bg-background">
       <div className="flex min-h-screen">
         <aside className={`hidden lg:flex w-72 shrink-0 flex-col bg-sidebar p-5 ${sideBorder} border-border`}>
-          <SidebarInner items={items} user={user} onLogout={onLogout} />
+          <SidebarInner items={items} user={user} roleLabel={roleLabel} onLogout={onLogout} />
         </aside>
 
         {open && (
@@ -93,7 +93,7 @@ export function DashboardShell({
             <aside
               className={`absolute top-0 ${dir === "rtl" ? "right-0" : "left-0"} flex h-full w-72 shrink-0 flex-col bg-sidebar p-5 ${sideBorder} border-border`}
             >
-              <SidebarInner items={items} user={user} onLogout={onLogout} />
+              <SidebarInner items={items} user={user} roleLabel={roleLabel} onLogout={onLogout} />
             </aside>
           </div>
         )}
