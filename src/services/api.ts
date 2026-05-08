@@ -197,7 +197,9 @@ export async function deleteBranch(id: number): Promise<void> {
 
 export async function listRequests(opts?: { agentId?: string; branch?: string }): Promise<InsuranceRequest[]> {
   let list = getRequests();
-  if (opts?.agentId) list = list.filter((r) => r.agentId === opts.agentId);
+  // Show requests assigned to this agent OR originally created by them
+  // (so a sales agent keeps seeing the request after it's reassigned to an underwriter).
+  if (opts?.agentId) list = list.filter((r) => r.agentId === opts.agentId || r.originAgentId === opts.agentId);
   if (opts?.branch) list = list.filter((r) => r.branch === opts.branch);
   return [...list].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
