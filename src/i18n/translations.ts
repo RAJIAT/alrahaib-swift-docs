@@ -5,7 +5,7 @@ type Dir = "rtl" | "ltr";
 export const translations = {
   ar: {
     dir: "rtl" as Dir,
-    brand: "DocFlow Demo",
+    brand: "ميدل إيست للتأمين",
     langSwitch: "EN",
     upload: {
       title: "ارفع مستنداتك خلال دقيقة",
@@ -398,7 +398,7 @@ export const translations = {
       filesHint: "صور / PDF / مستندات — حد أقصى 5MB لكل ملف",
     },
     footer: {
-      rights: (year: number) => `© ${year} DocFlow Demo. جميع الحقوق محفوظة.`,
+      rights: (year: number) => `© ${year} ميدل إيست للتأمين. جميع الحقوق محفوظة.`,
       tagline: "بوابة آمنة لرفع وإدارة مستندات التأمين.",
       dataNotice: "جميع البيانات المرسلة مشفّرة وتُعالَج بسرّية تامة وفقاً لسياسة الخصوصية المعتمدة.",
       privacy: "سياسة الخصوصية",
@@ -407,7 +407,7 @@ export const translations = {
   },
   en: {
     dir: "ltr" as Dir,
-    brand: "DocFlow Demo",
+    brand: "Middle East Insurance",
     langSwitch: "العربية",
     upload: {
       title: "Upload your documents in under a minute",
@@ -779,7 +779,7 @@ export const translations = {
     },
     hero: {
       trust: "Your data is encrypted and handled with full confidentiality",
-      valueProp: "DocFlow's secure portal for uploading and managing vehicle insurance documents in minutes.",
+      valueProp: "Middle East Insurance secure portal for uploading and managing vehicle insurance documents in minutes.",
     },
     common: {
       filtering: "Filtering...",
@@ -800,7 +800,7 @@ export const translations = {
       filesHint: "Images / PDF / docs — max 5MB per file",
     },
     footer: {
-      rights: (year: number) => `© ${year} DocFlow Demo. All rights reserved.`,
+      rights: (year: number) => `© ${year} Middle East Insurance. All rights reserved.`,
       tagline: "A secure portal for uploading and managing insurance documents.",
       dataNotice: "All submitted data is encrypted and handled confidentially in accordance with our privacy policy.",
       privacy: "Privacy Policy",
