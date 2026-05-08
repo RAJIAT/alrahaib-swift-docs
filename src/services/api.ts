@@ -622,8 +622,20 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
   if (target.id === req.agentId) return req; // no-op
 
   const previousOwner = agents.find((a) => a.id === req.agentId);
+  // Preserve the original sales agent so the request can auto-return after
+  // the underwriter uploads the quote. If origin isn't set yet (older data)
+  // and the previous owner is a sales agent, capture them as origin.
+  const shouldCaptureOrigin =
+    !req.originAgentId && previousOwner?.staffType === "sales" && target.staffType === "underwriter";
   const next = [...list];
-  next[idx] = { ...req, agentId: target.id, agentName: target.name };
+  next[idx] = {
+    ...req,
+    agentId: target.id,
+    agentName: target.name,
+    ...(shouldCaptureOrigin
+      ? { originAgentId: previousOwner!.id, originAgentName: previousOwner!.name }
+      : {}),
+  };
   setRequests(next);
 
   logEvent({
