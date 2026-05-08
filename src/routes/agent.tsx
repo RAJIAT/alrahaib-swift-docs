@@ -36,6 +36,11 @@ function AgentDashboard() {
   }, [navigate]);
 
   const { items, loading } = useRequestsLive(user?.agentId ? { agentId: user.agentId } : undefined);
+  const myStaffType = useMemo(
+    () => (user?.agentId ? listAgents().find((a) => a.id === user.agentId)?.staffType : undefined),
+    [user?.agentId],
+  );
+  const isUnderwriter = myStaffType === "underwriter";
 
   const counts = useMemo(
     () => ({
