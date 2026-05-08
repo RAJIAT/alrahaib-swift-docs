@@ -61,7 +61,7 @@ export const Route = createRootRoute({
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "رفع المستندات" },
       { name: "description", content: "بوابة آمنة لرفع مستندات التأمين (الرخصة، الاستمارة، الهوية) ." },
-      { name: "theme-color", content: "#F26B21" },
+      { name: "theme-color", content: "#B85C36" },
       { property: "og:site_name", content: "Middle East Insurance" },
       { property: "og:title", content: "رفع المستندات" },
       { name: "twitter:title", content: "رفع المستندات" },
