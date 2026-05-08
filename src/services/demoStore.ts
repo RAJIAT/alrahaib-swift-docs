@@ -84,6 +84,8 @@ export type DemoRequest = {
   /** The original agent (sales) who first received the request — used to return after underwriter review. */
   originAgentId?: string;
   originAgentName?: string;
+  /** Timestamp of the most recent assignment/reassignment — used to sort newest at top. */
+  assignedAt?: string;
   branch: string;
   status: DemoStatus;
   createdAt: string;
