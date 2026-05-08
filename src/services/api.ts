@@ -717,7 +717,7 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
     ...req,
     quotes: [...(req.quotes ?? []), ...newQuotes],
     ...(shouldReturnToSales
-      ? { agentId: originSales!.id, agentName: originSales!.name }
+      ? { agentId: originSales!.id, agentName: originSales!.name, assignedAt: new Date().toISOString() }
       : {}),
   };
   const next = [...list];
