@@ -6,7 +6,7 @@ import { Logo } from "@/components/Logo";
 import { NotificationBell } from "@/components/NotificationBell";
 
 import { useLang } from "@/i18n/LanguageProvider";
-import { canManageAgents, getCurrentUser, logout, refreshCurrentUser, type Role } from "@/services/api";
+import { canManageAgents, getCurrentUser, listAgents, logout, refreshCurrentUser, type Role } from "@/services/api";
 
 type NavItem = { to: string; label: string; icon: ReactNode };
 
@@ -80,11 +80,17 @@ export function DashboardShell({
   // Suppress unused warning — kept for potential per-shell admin gating
   void canManageAgents;
 
+  // Show staff type (Underwriter / Sales) for agents instead of generic "agent".
+  const staffType = user.agentId
+    ? listAgents().find((a) => a.id === user.agentId)?.staffType
+    : undefined;
+  const roleLabel = staffType ?? user.role;
+
   return (
     <div className="min-h-screen bg-background">
       <div className="flex min-h-screen">
         <aside className={`hidden lg:flex w-72 shrink-0 flex-col bg-sidebar p-5 ${sideBorder} border-border`}>
-          <SidebarInner items={items} user={user} onLogout={onLogout} />
+          <SidebarInner items={items} user={user} roleLabel={roleLabel} onLogout={onLogout} />
         </aside>
 
         {open && (
@@ -93,7 +99,7 @@ export function DashboardShell({
             <aside
               className={`absolute top-0 ${dir === "rtl" ? "right-0" : "left-0"} flex h-full w-72 shrink-0 flex-col bg-sidebar p-5 ${sideBorder} border-border`}
             >
-              <SidebarInner items={items} user={user} onLogout={onLogout} />
+              <SidebarInner items={items} user={user} roleLabel={roleLabel} onLogout={onLogout} />
             </aside>
           </div>
         )}
@@ -125,10 +131,12 @@ export function DashboardShell({
 function SidebarInner({
   items,
   user,
+  roleLabel,
   onLogout,
 }: {
   items: NavItem[];
   user: { name: string; email: string; role: Role };
+  roleLabel: string;
   onLogout: () => void;
 }) {
   const { t } = useLang();
@@ -141,7 +149,7 @@ function SidebarInner({
           <Logo size={40} />
           <div>
             <div className="text-sm font-bold text-sidebar-foreground">Middle East Insurance</div>
-            <div className="text-xs text-muted-foreground capitalize">{user.role}</div>
+            <div className="text-xs text-muted-foreground capitalize">{roleLabel}</div>
           </div>
         </div>
         <button

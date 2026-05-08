@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLang } from "@/i18n/LanguageProvider";
 import { useRequestsLive } from "@/hooks/useRequestsLive";
-import { getCurrentUser, refreshCurrentUser, type AuthUser } from "@/services/api";
+import { getCurrentUser, refreshCurrentUser, listAgents, type AuthUser } from "@/services/api";
 
 export const Route = createFileRoute("/agent")({
   component: AgentDashboard,
@@ -36,6 +36,11 @@ function AgentDashboard() {
   }, [navigate]);
 
   const { items, loading } = useRequestsLive(user?.agentId ? { agentId: user.agentId } : undefined);
+  const myStaffType = useMemo(
+    () => (user?.agentId ? listAgents().find((a) => a.id === user.agentId)?.staffType : undefined),
+    [user?.agentId],
+  );
+  const isUnderwriter = myStaffType === "underwriter";
 
   const counts = useMemo(
     () => ({
@@ -88,9 +93,8 @@ function AgentDashboard() {
         </div>
       </div>
 
-      {/* Personal client link */}
-      <ShareLinkCard agentId={user.agentId ?? ""} agentName={user.name} />
-
+      {/* Personal client link — sales only. Underwriters don't share links with customers. */}
+      {!isUnderwriter && <ShareLinkCard agentId={user.agentId ?? ""} agentName={user.name} />}
       {/* Status filter tabs */}
       <div className="mb-4 -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         <div className="flex w-max gap-2 sm:w-auto sm:flex-wrap">
