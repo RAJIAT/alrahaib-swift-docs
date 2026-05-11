@@ -797,6 +797,11 @@ export async function removeQuoteFromRequest(requestId: string, quoteId: string)
   const next = [...list];
   next[idx] = { ...req, quotes: (req.quotes ?? []).filter((x) => x.id !== quoteId) };
   setRequests(next);
+  logEvent({
+    action: "request.quote_removed",
+    entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
+    meta: { quoteId, name: q.name },
+  });
   return next[idx];
 }
 
