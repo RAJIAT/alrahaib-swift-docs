@@ -315,6 +315,11 @@ export async function addRequestNote(
   if (input.kind === "missing" && req.status !== "reupload") req.status = "reupload";
   next[idx] = req;
   setRequests(next);
+  logEvent({
+    action: input.kind === "missing" ? "request.reupload_requested" : "request.note_added",
+    entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
+    meta: { noteId: note.id, snippet: note.text.slice(0, 140), authorRole: me.role },
+  });
   return req;
 }
 
