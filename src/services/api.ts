@@ -749,8 +749,21 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
   logEvent({
     action: "request.quote_uploaded",
     entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
-    meta: { count: newQuotes.length, returnedToSales: !!shouldReturnToSales },
+    meta: {
+      count: newQuotes.length,
+      returnedToSales: !!shouldReturnToSales,
+      files: newQuotes.map((q) => ({ name: q.name, size: q.size, type: q.type })),
+    },
   });
+  if (shouldReturnToSales && originSales) {
+    logEvent({
+      action: "request.returned_to_sales",
+      entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
+      before: { agentId: currentOwner?.id, agentName: currentOwner?.name, staffType: "underwriter" },
+      after: { agentId: originSales.id, agentName: originSales.name, staffType: "sales" },
+      meta: { auto: true, reason: "quote_uploaded" },
+    });
+  }
 
   // Notify the original sales agent + branch supervisor
   const recipients = new Set<string>();
