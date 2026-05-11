@@ -372,6 +372,10 @@ export async function appendAttachmentsToRequest(
   return next[idx];
 }
 
+// ---------------------------------------------------------------------------
+// Agents
+// ---------------------------------------------------------------------------
+
 function dsToAgent(a: DemoAgent): Agent { return { ...a }; }
 
 export function listAgents(): Agent[] { return dsGetAgents().map(dsToAgent); }
