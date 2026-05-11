@@ -14,6 +14,7 @@ import {
   type AuthUser, type InsuranceRequest, type RequestStatus, type RequestNoteKind, type Agent,
 } from "@/services/api";
 import { isDirectusAssetUrl } from "@/services/directus";
+import { RequestHistoryTimeline } from "@/components/RequestHistoryTimeline";
 
 // Build a stable signature of the parts of the request that can change while
 // an agent has the page open: notes count, missing-attachment count, status,
