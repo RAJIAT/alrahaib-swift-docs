@@ -1,60 +1,28 @@
-# Quote Workflow: Underwriter → Sales → Customer
 
-Add the ability for an Underwriter to attach quotation files (PDF/any format, multiple) to a request, then let the Sales agent share those quotes with the customer through a public link with customer info shown at the top.
+## المشكلة
+في صفحة تفاصيل الطلب (`src/routes/requests.$id.tsx`)، قائمة "تحويل الطلب" (ReassignCard) تعرض حالياً كل موظفي نفس الفرع للسيلز — يعني السيلز يقدر يحوّل لسيلز ثاني، وهذا غلط. بالإضافة إلى أن الأندررايتر لا يرى بطاقة التحويل أصلاً (مخفية بـ `!isUnderwriter`)، فلا يقدر يمرّر الطلب لأندررايتر ثاني وقت الضغط.
 
-## What changes
+## المطلوب
+- **السيلز (مالك الطلب):** يقدر يحوّل **للأندررايتر فقط** (نفس الفرع). ما يظهر له أي سيلز في القائمة.
+- **الأندررايتر (مالك الطلب):** يقدر يحوّل **لأندررايتر ثاني** في نفس الفرع (لما يكون مضغوط). يبقى عنده أيضاً زر "إرجاع للسيلز" للسيلز الأصلي (`originSales`) كما هو.
+- **الأدمن والسوبرفايزر:** يبقون قادرين على التحويل لأي أحد بدون قيود (سلوك الإدارة الحالي).
 
-### 1) Data model (`src/services/demoStore.ts`)
-Extend `DemoRequest` with a new field:
-```
-quotes?: Array<{
-  id: string;
-  name: string;        // file name
-  type: string;        // mime type
-  size: number;
-  url: string;         // data URL
-  uploadedByUserId: string;
-  uploadedByName: string;
-  uploadedAt: string;
-}>;
-```
-No migration needed (localStorage; field is optional).
+## التغييرات
 
-### 2) API (`src/services/api.ts`)
-Add two functions:
-- `addQuotesToRequest(requestId, files: File[])` — only Underwriters can call. Converts files to data URLs (reuses `fileToDataUrl`), pushes them into `quotes`, writes a note ("Quote uploaded"), notifies the origin Sales agent + supervisor, and returns the updated request.
-- `removeQuoteFromRequest(requestId, quoteId)` — only the uploader (or admin) can remove.
+### 1) `src/routes/requests.$id.tsx` — السطر 498
+إزالة شرط `!isUnderwriter` حول `<ReassignCard />` حتى تظهر البطاقة للأندررايتر أيضاً (مع تقييد المرشحين داخل البطاقة نفسها).
 
-### 3) Request details page (`src/routes/requests.$id.tsx`)
-Add a new **"Quotes / عروض الأسعار"** card under the existing sections:
-- **Underwriters** see a `MultiUploadCard` (acceptAny, multi) + an "Upload quotes" button that calls `addQuotesToRequest`.
-- **Sales / Admin / Supervisor** see the list of uploaded quotes (filename, uploader, date, open + download buttons).
-- For Sales: a **"Share quote link with customer"** button that copies `/{origin}/q/{request.uuid}` to clipboard and optionally opens mailto with the link.
+### 2) `src/routes/requests.$id.tsx` — داخل `ReassignCard` (~السطر 967)
+تعديل فلترة `candidates` بحيث:
 
-### 4) New public route `src/routes/q.$requestId.tsx`
-Public, no-auth page (mirrors `r.$requestId.tsx` shape):
-- Header with logo + language switcher.
-- Customer card at top: "عرض السعر للسيد/ة {customerName}" + email/phone.
-- Request reference (`#REQ-xxxx`), agent name, branch, date.
-- List of quote files: each row shows filename, size, uploader/date, **Open** (opens data URL in new tab — works for PDFs/images) and **Download** buttons.
-- Empty state if no quotes yet ("لم يتم رفع عرض السعر بعد").
-- Uses `getRequest(requestId)` (already works without auth in demo store).
+- إذا المستخدم الحالي هو **السيلز المالك** (`isOwner && myType === "sales"`) → المرشحون = أندررايترز فقط في نفس الفرع.
+- إذا المستخدم الحالي هو **الأندررايتر المالك** (`isOwner && myType === "underwriter"`) → المرشحون = أندررايترز آخرون في نفس الفرع (مع استثناء نفسه). زر "إرجاع للسيلز" يبقى يستخدم `originSales` كما هو.
+- إذا أدمن/سوبرفايزر → المرشحون = كل الموظفين النشطين في الفرع (بدون تغيير).
 
-### 5) Notifications
-On quote upload: notify the `originAgent` (Sales) — "الاندرايتر رفع عرض السعر للطلب #...".
-On share (optional): no notification needed; Sales triggers it manually.
+### 3) نصوص العنوان/الزر
+- لما السيلز يحوّل: العنوان والزر يبقيان "اطلب عرض السعر من الأندررايتر" (موجود).
+- لما الأندررايتر يحوّل لأندررايتر ثاني: إضافة حالة جديدة بنص "تحويل لأندررايتر آخر" / "Transfer to another underwriter" مع رسالة نجاح مناسبة. زر "إرجاع للسيلز" يظل ظاهراً (السلوك الحالي عبر `defaultTarget`).
 
-### 6) i18n (`src/i18n/translations.ts`)
-Add keys under a new `quotes` namespace (AR + EN): `title`, `uploadHint`, `uploadCta`, `noneYet`, `uploadedBy`, `shareWithCustomer`, `linkCopied`, `customerPageTitle`, `openFile`, `download`, `forCustomer`.
-
-## Technical notes
-- Files stored as data URLs in localStorage, same pattern as existing attachments — keep individual files reasonably small (the `MultiUploadCard` already validates).
-- The public quote page reads from the same demo store; in a real backend this would be a server-rendered route with a signed token, but for the current demo architecture using `request.uuid` in the URL is consistent with how `/r/$requestId` works today.
-- Role gating done in the UI **and** in `addQuotesToRequest` (throws if caller is not an underwriter), matching the existing pattern in `deleteAgent`.
-
-## Files touched
-- `src/services/demoStore.ts` — add `quotes` field
-- `src/services/api.ts` — add `addQuotesToRequest`, `removeQuoteFromRequest`
-- `src/routes/requests.$id.tsx` — Quotes card + share button
-- `src/routes/q.$requestId.tsx` — new public page
-- `src/i18n/translations.ts` — new strings
+## ملاحظات تقنية
+- التغيير محصور في `src/routes/requests.$id.tsx` فقط — لا تعديل على `reassignRequest` في `src/services/api.ts` لأن المنطق الخادمي يقبل أي agent في نفس الفرع، والتقييد هنا تقييد UI كافٍ للسلوك المطلوب (المنطق الخادمي يبقى عام للأدمن/سوبرفايزر).
+- إذا تحب نفرض القيد أيضاً على مستوى `reassignRequest` (Defense-in-depth) أعلمني وأضيفه للخطة.

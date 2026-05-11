@@ -494,10 +494,8 @@ function RequestDetails() {
             onUpdated={(r) => setReq(r)}
           />
 
-          {/* Reassign — hidden for underwriter (their job is just to upload the quote) */}
-          {!isUnderwriter && (
-            <ReassignCard req={req} user={user} onReassigned={(r) => setReq(r)} />
-          )}
+          {/* Reassign — sales transfers to underwriters; underwriters can hand off to another underwriter or return to sales. */}
+          <ReassignCard req={req} user={user} onReassigned={(r) => setReq(r)} />
 
           {/* Quotes (underwriter uploads, sales shares with customer) */}
           <QuotesCard req={req} user={user} onUpdated={(r: InsuranceRequest) => setReq(r)} />
@@ -964,19 +962,36 @@ function ReassignCard({
   const isOwner = user.role === "agent" && user.agentId === req.agentId;
   if (!isAdmin && !isBranchSup && !isOwner) return null;
 
-  const candidates = agents.filter(
-    (a) => a.role === "agent" && a.branch === req.branch && a.id !== req.agentId && a.active,
-  );
-  if (candidates.length === 0) return null;
-
   const meAgent = agents.find((a) => a.id === user.agentId);
   const myType = meAgent?.staffType;
   const currentOwner = agents.find((a) => a.id === req.agentId);
   const ownerType = currentOwner?.staffType;
+
+  // Base pool: active agents in same branch, not the current owner.
+  const basePool = agents.filter(
+    (a) => a.role === "agent" && a.branch === req.branch && a.id !== req.agentId && a.active,
+  );
+
+  // Restrict candidates by who's acting:
+  // - Sales owner: only underwriters (cannot hand off to another sales).
+  // - Underwriter owner: only other underwriters (return-to-sales is a separate quick action).
+  // - Admin / supervisor: full pool.
+  let candidates = basePool;
+  if (isOwner && myType === "sales") {
+    candidates = basePool.filter((a) => a.staffType === "underwriter");
+  } else if (isOwner && myType === "underwriter") {
+    candidates = basePool.filter((a) => a.staffType === "underwriter");
+  }
+
   const underwriters = candidates.filter((a) => a.staffType === "underwriter");
   const originSales = req.originAgentId && req.originAgentId !== req.agentId
     ? agents.find((a) => a.id === req.originAgentId && a.active)
     : undefined;
+
+  // For underwriter owner, "return to sales" is always available if originSales exists,
+  // even when there are no other underwriters in the branch.
+  const canReturnToSales = isOwner && myType === "underwriter" && !!originSales;
+  if (candidates.length === 0 && !canReturnToSales) return null;
 
   const doReassign = async (targetId: string, label: string) => {
     if (!targetId || busy) return;
@@ -997,31 +1012,44 @@ function ReassignCard({
   const showSendToUW = (isOwner && myType === "sales" && underwriters.length > 0)
     || (!isOwner && (isAdmin || isBranchSup) && ownerType === "sales" && underwriters.length > 0);
   // Quick action: underwriter → return to origin sales
-  const showReturnToSales = (isOwner && myType === "underwriter" && !!originSales)
+  const showReturnToSales = canReturnToSales
     || (!isOwner && (isAdmin || isBranchSup) && ownerType === "underwriter" && !!originSales);
+  // Quick action: underwriter owner handing off to another underwriter
+  const showHandoffUW = isOwner && myType === "underwriter" && underwriters.length > 0;
 
   // Default the dropdown selection based on the workflow direction:
-  // sales-owned → preselect first underwriter; underwriter-owned with originSales → preselect that sales.
   const defaultTarget = showSendToUW
     ? underwriters[0].id
-    : showReturnToSales && originSales
-      ? originSales.id
-      : "";
+    : showHandoffUW
+      ? underwriters[0].id
+      : showReturnToSales && originSales
+        ? originSales.id
+        : "";
   const effectiveTarget = target || defaultTarget;
 
   const primaryLabel = showSendToUW
     ? (lang === "ar" ? "اطلب عرض السعر من الأندررايتر" : "Request quote from underwriter")
-    : showReturnToSales
-      ? (lang === "ar" ? "إرجاع للسيلز" : "Return to sales")
-      : (lang === "ar" ? "نقل" : "Transfer");
+    : showHandoffUW && (!originSales || effectiveTarget !== originSales.id)
+      ? (lang === "ar" ? "تحويل لأندررايتر آخر" : "Transfer to another underwriter")
+      : showReturnToSales
+        ? (lang === "ar" ? "إرجاع للسيلز" : "Return to sales")
+        : (lang === "ar" ? "نقل" : "Transfer");
   const successLabel = showSendToUW
     ? (lang === "ar" ? "تم إرسال الطلب للأندررايتر" : "Request sent to underwriter")
-    : showReturnToSales
-      ? (lang === "ar" ? "تم إرجاع الطلب للسيلز" : "Returned to sales")
-      : (lang === "ar" ? "تم نقل الطلب" : "Request reassigned");
+    : showHandoffUW && (!originSales || effectiveTarget !== originSales.id)
+      ? (lang === "ar" ? "تم تحويل الطلب لأندررايتر آخر" : "Request transferred to another underwriter")
+      : showReturnToSales
+        ? (lang === "ar" ? "تم إرجاع الطلب للسيلز" : "Returned to sales")
+        : (lang === "ar" ? "تم نقل الطلب" : "Request reassigned");
+
+  // Build the option list. For an underwriter owner, inject originSales so
+  // "return to sales" is selectable even though sales agents are filtered out.
+  const optionPool = canReturnToSales && originSales && !candidates.some((a) => a.id === originSales.id)
+    ? [...candidates, originSales]
+    : candidates;
 
   // Re-order options so the most likely target appears first.
-  const ordered = [...candidates].sort((a, b) => {
+  const ordered = [...optionPool].sort((a, b) => {
     if (showSendToUW) {
       const ua = a.staffType === "underwriter" ? 0 : 1;
       const ub = b.staffType === "underwriter" ? 0 : 1;
