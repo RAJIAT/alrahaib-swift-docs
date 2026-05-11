@@ -541,6 +541,13 @@ function RequestDetails() {
         </div>
       )}
 
+      {/* Audit timeline — admin & supervisor only */}
+      {(role === "admin" || role === "supervisor") && req && (
+        <div className="mt-4">
+          <RequestHistoryTimeline requestId={req.id} />
+        </div>
+      )}
+
       {/* Zoom modal */}
       {zoom && (
         <div
