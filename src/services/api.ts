@@ -67,6 +67,7 @@ export type Agent = {
   role?: AgentRole;
   staffType?: StaffType;
   supervisorId?: string;
+  assignedUnderwriterId?: string;
   createdByUserId?: string;
   createdByRole?: Role;
   pendingApproval?: boolean;
