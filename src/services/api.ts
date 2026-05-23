@@ -686,6 +686,20 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
   const isBranchSup = me.role === "supervisor" && me.branch === req.branch;
   const isOwner = me.role === "agent" && me.agentId === req.agentId;
   if (!isAdmin && !isBranchSup && !isOwner) throw new Error("Not allowed");
+
+  // Sales agents can only send their requests to their own assigned underwriter.
+  if (isOwner && me.role === "agent") {
+    const meAgent = agents.find((a) => a.id === me.agentId);
+    if (meAgent?.staffType === "sales" && target.staffType === "underwriter") {
+      if (!meAgent.assignedUnderwriterId) {
+        throw new Error("You don't have an assigned underwriter — contact your supervisor");
+      }
+      if (target.id !== meAgent.assignedUnderwriterId) {
+        throw new Error("You can only send requests to your assigned underwriter");
+      }
+    }
+  }
+
   if (target.id === req.agentId) return req; // no-op
 
   const previousOwner = agents.find((a) => a.id === req.agentId);
