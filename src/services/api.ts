@@ -465,6 +465,7 @@ export async function createAgent(input: {
 export async function updateAgent(id: string, patch: Partial<{
   name: string; email: string | null; branch: string | null; active: boolean; supervisorId: string | null;
   role: AgentRole; staffType: StaffType; password: string;
+  assignedUnderwriterId: string | null;
 }>): Promise<Agent> {
   const list = dsGetAgents();
   const idx = list.findIndex((a) => a.id === id || a.userId === id);
@@ -479,16 +480,45 @@ export async function updateAgent(id: string, patch: Partial<{
     if (patch.role !== undefined && patch.role !== before.role) throw new Error("Supervisors cannot change role");
   }
 
+  // Only admin / supervisor can change the assigned underwriter for a sales agent.
+  if (patch.assignedUnderwriterId !== undefined) {
+    if (me?.role !== "admin" && me?.role !== "supervisor") {
+      throw new Error("Only admin or supervisor can change the assigned underwriter");
+    }
+    if (before.staffType !== "sales") {
+      throw new Error("Assigned underwriter only applies to sales agents");
+    }
+    if (patch.assignedUnderwriterId) {
+      const target = list.find((a) => a.id === patch.assignedUnderwriterId);
+      if (!target) throw new Error("Assigned underwriter not found");
+      if (target.staffType !== "underwriter") throw new Error("Assigned target must be an underwriter");
+      const targetBranch = patch.branch ?? before.branch;
+      if (target.branch !== targetBranch) throw new Error("Assigned underwriter must be in the same branch");
+    }
+  }
+
   const next = [...list];
+  const nextBranch = patch.branch === null ? undefined : (patch.branch ?? before.branch);
+  // If branch changes and the previously assigned UW is no longer in the same branch, clear it.
+  let nextAssignedUW = before.assignedUnderwriterId;
+  if (patch.assignedUnderwriterId !== undefined) {
+    nextAssignedUW = patch.assignedUnderwriterId === null ? undefined : patch.assignedUnderwriterId;
+  } else if (nextBranch !== before.branch && nextAssignedUW) {
+    const cur = list.find((a) => a.id === nextAssignedUW);
+    if (!cur || cur.branch !== nextBranch) nextAssignedUW = undefined;
+  }
   next[idx] = {
     ...before,
     name: patch.name ?? before.name,
     email: patch.email === null ? undefined : (patch.email ?? before.email),
-    branch: patch.branch === null ? undefined : (patch.branch ?? before.branch),
+    branch: nextBranch,
     active: patch.active ?? before.active,
     role: patch.role ?? before.role,
     staffType: patch.staffType ?? before.staffType,
     supervisorId: patch.supervisorId === null ? undefined : (patch.supervisorId ?? before.supervisorId),
+    assignedUnderwriterId: next[idx]?.staffType === "sales" || (patch.staffType ?? before.staffType) === "sales"
+      ? nextAssignedUW
+      : undefined,
   };
   dsSetAgents(next);
 
@@ -506,9 +536,17 @@ export async function updateAgent(id: string, patch: Partial<{
   }
 
   const changed: string[] = [];
-  (["name","email","branch","active","role","staffType","supervisorId"] as const).forEach((k) => {
+  (["name","email","branch","active","role","staffType","supervisorId","assignedUnderwriterId"] as const).forEach((k) => {
     if ((patch as any)[k] !== undefined && (before as any)[k] !== (next[idx] as any)[k]) changed.push(k);
   });
+  if (changed.includes("assignedUnderwriterId")) {
+    logEvent({
+      action: "agent.assigned_underwriter_changed",
+      entityType: "agent", entityId: next[idx].id, entityLabel: next[idx].name, branch: next[idx].branch,
+      before: { assignedUnderwriterId: before.assignedUnderwriterId },
+      after: { assignedUnderwriterId: next[idx].assignedUnderwriterId },
+    });
+  }
   logEvent({
     action: "agent.updated",
     entityType: "agent", entityId: next[idx].id, entityLabel: next[idx].name, branch: next[idx].branch,
