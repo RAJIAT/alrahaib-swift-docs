@@ -217,8 +217,29 @@ export function AgentFormDialog({
             </Field>
           </div>
 
+          {((lockedRole ?? values.role) === "agent") && ((lockedStaffType ?? values.staffType) === "sales") && (
+            <Field label={t.agents.assignedUnderwriter ?? "Assigned Underwriter"}>
+              <select
+                value={values.assignedUnderwriterId ?? ""}
+                onChange={(e) => setValues((v) => ({ ...v, assignedUnderwriterId: e.target.value }))}
+                className="h-11 w-full rounded-xl border border-input bg-surface px-3 text-sm text-foreground"
+              >
+                <option value="">{t.agents.unassigned ?? "— Unassigned —"}</option>
+                {allAgents
+                  .filter((a) => a.role === "agent" && a.staffType === "underwriter" && a.active && a.branch === values.branch)
+                  .map((a) => (
+                    <option key={a.id} value={a.id}>{a.name} · {a.id}</option>
+                  ))}
+              </select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t.agents.assignedUnderwriterHint ?? "Sales requests will be routed to this underwriter only."}
+              </p>
+            </Field>
+          )}
 
           {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+
+
 
           <div className="flex items-center justify-end gap-2 pt-2">
             <button
