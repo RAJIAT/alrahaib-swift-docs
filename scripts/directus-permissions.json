@@ -143,14 +143,14 @@
     {
       "collection": "requests",
       "action": "update",
-      "fields": ["agent", "status", "customer_name", "customer_email", "customer_phone", "assigned_at"],
+      "fields": ["status", "customer_name", "customer_email", "customer_phone"],
       "permissions": {
         "_or": [
           { "agent": { "_eq": "$CURRENT_USER" } },
           { "origin_agent": { "_eq": "$CURRENT_USER" } }
         ]
       },
-      "_comment": "تغيير agent يخضع لـ enforce_sales_routing / enforce_underwriter_target flows"
+      "_comment": "agent field is NOT updatable here — reassignment goes through the lovable:reassign_request webhook flow which validates server-side."
     },
     {
       "collection": "request_notes",
