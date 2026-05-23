@@ -12,6 +12,7 @@ export type AgentFormValues = {
   role: AgentRole;
   staffType?: StaffType;
   supervisorId?: string;
+  assignedUnderwriterId?: string;
 };
 
 export function AgentFormDialog({
