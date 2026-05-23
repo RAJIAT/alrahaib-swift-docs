@@ -1095,28 +1095,42 @@ function ReassignCard({
             : (lang === "ar" ? "اختر موظفاً لتحويل الطلب له" : "Pick an agent to transfer this request to")}
       </p>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <select
-          value={effectiveTarget}
-          onChange={(e) => setTarget(e.target.value)}
-          className="h-10 flex-1 rounded-xl border border-input bg-surface px-3 text-sm font-medium text-foreground"
-        >
-          <option value="">{lang === "ar" ? "اختر موظفاً…" : "Pick an agent…"}</option>
-          {ordered.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name} · {a.id} ({a.staffType ?? "agent"})
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={() => doReassign(effectiveTarget, successLabel)}
-          disabled={!effectiveTarget || busy}
-          className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-95 disabled:opacity-50"
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          {primaryLabel}
-        </button>
-      </div>
+      {(() => {
+        // Sales owner: locked to a single assigned underwriter — show a fixed
+        // label + button instead of a dropdown so the choice can't be changed.
+        const lockToAssigned = isOwner && myType === "sales" && ordered.length === 1;
+        const lockedTarget = lockToAssigned ? ordered[0] : null;
+        return (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {lockedTarget ? (
+              <div className="h-10 flex-1 rounded-xl border border-input bg-surface px-3 text-sm font-medium text-foreground flex items-center">
+                {lockedTarget.name} · {lockedTarget.id} ({lockedTarget.staffType ?? "agent"})
+              </div>
+            ) : (
+              <select
+                value={effectiveTarget}
+                onChange={(e) => setTarget(e.target.value)}
+                className="h-10 flex-1 rounded-xl border border-input bg-surface px-3 text-sm font-medium text-foreground"
+              >
+                <option value="">{lang === "ar" ? "اختر موظفاً…" : "Pick an agent…"}</option>
+                {ordered.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} · {a.id} ({a.staffType ?? "agent"})
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              onClick={() => doReassign(lockedTarget?.id ?? effectiveTarget, successLabel)}
+              disabled={(!lockedTarget && !effectiveTarget) || busy}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-95 disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {primaryLabel}
+            </button>
+          </div>
+        );
+      })()}
     </section>
   );
 }
