@@ -41,6 +41,8 @@ export type DemoAgent = {
   role: "agent" | "supervisor";
   staffType?: DemoStaffType;
   supervisorId?: string;
+  /** For sales agents only — id of the underwriter their requests are routed to. */
+  assignedUnderwriterId?: string;
   createdByUserId?: string;
   createdByRole?: DemoRole;
   pendingApproval?: boolean;
