@@ -8,26 +8,50 @@
       "permissions": {}
     },
     {
+      "_comment": "Supervisors need to read role names to resolve the Agent role uuid when creating users.",
+      "collection": "directus_roles",
+      "action": "read",
+      "fields": ["id", "name"],
+      "permissions": {}
+    },
+    {
       "collection": "directus_users",
       "action": "read",
-      "fields": ["id", "first_name", "last_name", "email", "app_role", "staff_type", "branch", "agent_code", "supervisor", "assigned_underwriter", "pending_approval", "app_active"],
+      "fields": [
+        "id", "first_name", "last_name", "email",
+        "app_role", "staff_type", "branch", "agent_code",
+        "supervisor", "assigned_underwriter", "assigned_underwriter_code",
+        "pending_approval", "app_active", "app_created_by_role",
+        "app_removal_reason", "app_removal_requested_by", "app_removal_requested_at"
+      ],
       "permissions": { "branch": { "_eq": "$CURRENT_USER.branch" } }
     },
     {
       "collection": "directus_users",
       "action": "create",
-      "fields": ["first_name", "last_name", "email", "password", "app_role", "staff_type", "branch", "agent_code", "supervisor", "assigned_underwriter", "app_active"],
+      "fields": [
+        "first_name", "last_name", "email", "password", "role", "status",
+        "app_role", "staff_type", "branch", "agent_code",
+        "supervisor", "assigned_underwriter_code",
+        "pending_approval", "app_active", "app_created_by_role"
+      ],
       "validation": {
         "_and": [
           { "branch": { "_eq": "$CURRENT_USER.branch" } },
-          { "app_role": { "_in": ["agent"] } }
+          { "app_role": { "_in": ["agent"] } },
+          { "role": { "_eq": "$AGENT_ROLE_ID" } }
         ]
       }
     },
     {
       "collection": "directus_users",
       "action": "update",
-      "fields": ["first_name", "last_name", "staff_type", "supervisor", "assigned_underwriter", "pending_approval", "app_active", "agent_code"],
+      "fields": [
+        "first_name", "last_name", "password",
+        "staff_type", "supervisor", "assigned_underwriter_code", "agent_code",
+        "pending_approval", "app_active",
+        "app_removal_reason", "app_removal_requested_by", "app_removal_requested_at"
+      ],
       "permissions": {
         "_and": [
           { "branch": { "_eq": "$CURRENT_USER.branch" } },
