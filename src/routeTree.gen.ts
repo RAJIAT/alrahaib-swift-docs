@@ -20,6 +20,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as RequestsIdRouteImport } from './routes/requests.$id'
 import { Route as RRequestIdRouteImport } from './routes/r.$requestId'
 import { Route as QRequestIdRouteImport } from './routes/q.$requestId'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 
 const SuccessRoute = SuccessRouteImport.update({
   id: '/success',
@@ -76,6 +77,11 @@ const QRequestIdRoute = QRequestIdRouteImport.update({
   path: '/q/$requestId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -86,6 +92,7 @@ export interface FileRoutesByFullPath {
   '/branches': typeof BranchesRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
+  '/api/health': typeof ApiHealthRoute
   '/q/$requestId': typeof QRequestIdRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   '/branches': typeof BranchesRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
+  '/api/health': typeof ApiHealthRoute
   '/q/$requestId': typeof QRequestIdRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
@@ -113,6 +121,7 @@ export interface FileRoutesById {
   '/branches': typeof BranchesRoute
   '/login': typeof LoginRoute
   '/success': typeof SuccessRoute
+  '/api/health': typeof ApiHealthRoute
   '/q/$requestId': typeof QRequestIdRoute
   '/r/$requestId': typeof RRequestIdRoute
   '/requests/$id': typeof RequestsIdRoute
@@ -128,6 +137,7 @@ export interface FileRouteTypes {
     | '/branches'
     | '/login'
     | '/success'
+    | '/api/health'
     | '/q/$requestId'
     | '/r/$requestId'
     | '/requests/$id'
@@ -141,6 +151,7 @@ export interface FileRouteTypes {
     | '/branches'
     | '/login'
     | '/success'
+    | '/api/health'
     | '/q/$requestId'
     | '/r/$requestId'
     | '/requests/$id'
@@ -154,6 +165,7 @@ export interface FileRouteTypes {
     | '/branches'
     | '/login'
     | '/success'
+    | '/api/health'
     | '/q/$requestId'
     | '/r/$requestId'
     | '/requests/$id'
@@ -168,6 +180,7 @@ export interface RootRouteChildren {
   BranchesRoute: typeof BranchesRoute
   LoginRoute: typeof LoginRoute
   SuccessRoute: typeof SuccessRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   QRequestIdRoute: typeof QRequestIdRoute
   RRequestIdRoute: typeof RRequestIdRoute
   RequestsIdRoute: typeof RequestsIdRoute
@@ -252,6 +265,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof QRequestIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -264,6 +284,7 @@ const rootRouteChildren: RootRouteChildren = {
   BranchesRoute: BranchesRoute,
   LoginRoute: LoginRoute,
   SuccessRoute: SuccessRoute,
+  ApiHealthRoute: ApiHealthRoute,
   QRequestIdRoute: QRequestIdRoute,
   RRequestIdRoute: RRequestIdRoute,
   RequestsIdRoute: RequestsIdRoute,
@@ -271,3 +292,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
