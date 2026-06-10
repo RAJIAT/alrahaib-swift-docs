@@ -1,12 +1,25 @@
 /**
- * Compatibility shim — original Directus integration was removed when the
- * project switched to a fully local demo. These stubs keep existing imports
- * working without re-introducing any backend dependency.
+ * Compatibility shim — re-exports the Branch type and a helper that detects
+ * Directus asset URLs. Phase 3b entities (branches/agents) no longer depend
+ * on demoStore via this shim.
  */
-import type { DemoBranch } from "./demoStore";
 
-export type DxBranch = DemoBranch;
+export type DxBranch = {
+  id: number;
+  name: string;
+  code: string;
+  address?: string;
+  phone?: string;
+  is_active?: boolean;
+};
 
-export function isDirectusAssetUrl(_: string): boolean {
-  return false;
+export function isDirectusAssetUrl(url: string): boolean {
+  if (!url) return false;
+  const base = (import.meta.env.VITE_DIRECTUS_URL as string | undefined) ?? "";
+  if (!base) return false;
+  try {
+    return url.startsWith(base.replace(/\/+$/, "") + "/assets/");
+  } catch {
+    return false;
+  }
 }
