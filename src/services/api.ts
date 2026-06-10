@@ -332,30 +332,7 @@ export async function submitUpload(input: {
 }): Promise<{ id: string }> {
   const agent = dsGetAgents().find((a) => a.id === input.agentId);
   const id = newRequestId();
-  const toUrls = async (files: File[]) => Promise.all(files.map((f) => fileToDataUrl(f)));
-  const registration = await toUrls(input.images.registration);
-  const license = await toUrls(input.images.license);
-  const emirates = await toUrls(input.images.emirates);
-  const vehicleMedia = await Promise.all(
-    input.images.vehicleMedia.map(async (f) =>
-      f.type.startsWith("video/")
-        ? { kind: "video" as const, name: f.name, size: f.size, type: f.type }
-        : { kind: "image" as const, url: await fileToDataUrl(f) },
-    ),
-  );
-  const attachments: DemoAttachment[] = await Promise.all(
-    (input.images.attachments ?? []).map(async (f) => ({
-      name: f.name, type: f.type, size: f.size, url: await fileToDataUrl(f),
-    })),
-  );
-  const inspection = input.optional?.inspection ? await fileToDataUrl(input.optional.inspection) : undefined;
-
-  // Stash the files locally first (Phase 3d migrates to Directus /files).
-  setRequestFiles(id, {
-    images: { registration, license, emirates, vehicleMedia, inspection, attachments },
-    quotes: [],
-  });
-  // Create the request row in Directus.
+  // Create the request row first so file rows have something to link to.
   const req = await dxCreateRequest({
     id, uuid: id.toLowerCase(),
     agentCode: input.agentId,
@@ -364,6 +341,22 @@ export async function submitUpload(input: {
     customerEmail: input.customerEmail,
     customerPhone: input.customerPhone,
   });
+  // Upload all bytes to Directus and create matching request_files rows.
+  // Ordered kinds (front/back/etc.) upload sequentially; everything else in parallel.
+  const ownerUuid = agent?.userId ?? null;
+  await dxAttachFilesSequential(id, input.images.registration, "registration", ownerUuid);
+  await dxAttachFilesSequential(id, input.images.license, "license", ownerUuid);
+  await dxAttachFilesSequential(id, input.images.emirates, "emirates", ownerUuid);
+  if (input.optional?.inspection) {
+    await dxAttachFile(id, input.optional.inspection, "inspection", ownerUuid);
+  }
+  const vehicleImages = input.images.vehicleMedia.filter((f) => !f.type.startsWith("video/"));
+  const vehicleVideos = input.images.vehicleMedia.filter((f) => f.type.startsWith("video/"));
+  await Promise.all([
+    dxAttachFilesParallel(id, vehicleImages, "vehicle_image", ownerUuid),
+    dxAttachFilesParallel(id, vehicleVideos, "vehicle_video", ownerUuid),
+    dxAttachFilesParallel(id, input.images.attachments ?? [], "attachment", ownerUuid),
+  ]);
   logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
   notifyNewRequest(req);
   return { id };
@@ -407,13 +400,10 @@ export async function appendAttachmentsToRequest(
 ): Promise<InsuranceRequest> {
   const current = await dxGetRequest(requestId);
   if (!current) throw new Error("Request not found");
-  const newAttachments: DemoAttachment[] = await Promise.all(
-    files.filter((f) => !f.type.startsWith("video/")).map(async (f) => ({
-      name: f.name, type: f.type, size: f.size, url: await fileToDataUrl(f),
-    })),
-  );
-  // Persist file bytes locally (Phase 3d → Directus /files).
-  appendMissingAttachmentsLocal(current.id, newAttachments);
+  const me = getCurrentUser();
+  const eligible = files.filter((f) => !f.type.startsWith("video/"));
+  // Upload via Directus /files and create missing_attachment rows.
+  await dxAttachFilesParallel(current.id, eligible, "missing_attachment", me?.id ?? null);
   // Mark any open "missing" notes resolved and flip the status to processing.
   for (const n of current.notes) {
     if (n.kind === "missing" && !n.resolvedAt) {
@@ -426,8 +416,8 @@ export async function appendAttachmentsToRequest(
     entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
     meta: {
       docKey: "missingAttachments",
-      count: newAttachments.length,
-      files: newAttachments.map((a) => ({ name: a.name, size: a.size, type: a.type })),
+      count: eligible.length,
+      files: eligible.map((a) => ({ name: a.name, size: a.size, type: a.type })),
     },
   });
   return updated;
