@@ -230,6 +230,14 @@ const userFields: FieldDef[] = [
   { field: "assigned_underwriter", type: "uuid", meta: { interface: "select-dropdown-m2o", special: ["m2o"], note: "For sales staff only — the underwriter their requests are routed to." } },
   { field: "pending_approval", type: "boolean", meta: { interface: "boolean" }, schema: { default_value: false } },
   { field: "app_active", type: "boolean", meta: { interface: "boolean" }, schema: { default_value: true } },
+  // Added in Phase 3b — sales→underwriter assignment by agent code (matches app domain).
+  { field: "assigned_underwriter_code", type: "string", meta: { interface: "input", note: "Sales: agent_code of the underwriter their requests route to." } },
+  // Created-by lineage so supervisors can manage users they created and admins see provenance.
+  { field: "app_created_by_role", type: "string", meta: { interface: "select-dropdown", options: { choices: [ { text: "Admin", value: "admin" }, { text: "Supervisor", value: "supervisor" } ] } } },
+  // Removal-request workflow (supervisor → admin).
+  { field: "app_removal_reason", type: "string", meta: { interface: "input" } },
+  { field: "app_removal_requested_by", type: "uuid", meta: { interface: "select-dropdown-m2o", special: ["m2o"] } },
+  { field: "app_removal_requested_at", type: "timestamp", meta: { interface: "datetime" } },
 ];
 
 // Relations to create (M2O foreign keys)
@@ -237,6 +245,7 @@ const relations = [
   { collection: "directus_users", field: "branch", related_collection: "branches" },
   { collection: "directus_users", field: "supervisor", related_collection: "directus_users" },
   { collection: "directus_users", field: "assigned_underwriter", related_collection: "directus_users" },
+  { collection: "directus_users", field: "app_removal_requested_by", related_collection: "directus_users" },
   { collection: "requests", field: "agent", related_collection: "directus_users" },
   { collection: "requests", field: "origin_agent", related_collection: "directus_users" },
   { collection: "requests", field: "branch", related_collection: "branches" },
