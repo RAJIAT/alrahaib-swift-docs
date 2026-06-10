@@ -5,7 +5,6 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
 import { useLang } from "@/i18n/LanguageProvider";
 import { login } from "@/services/api";
-import { resetDemo } from "@/services/demoStore";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -68,7 +67,7 @@ function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="h-12 w-full rounded-xl border border-input bg-surface px-4 text-foreground outline-none ring-primary focus:ring-2"
-              placeholder="agent@demo.com"
+              placeholder="you@example.com"
             />
           </label>
           <label className="block">
@@ -94,59 +93,6 @@ function LoginPage() {
             {t.auth.submit}
           </button>
         </form>
-
-        <div className="mt-6 rounded-2xl border border-dashed border-border bg-card p-4">
-          <p className="mb-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {t.agents.quickLoginTitle}
-          </p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {(
-              [
-                { label: t.agents.quickAdmin, email: "admin@demo.com" },
-                { label: t.agents.quickSupervisor, email: "supervisor@demo.com" },
-                { label: t.agents.quickUnderwriter, email: "underwriter@demo.com" },
-                { label: t.agents.quickSales, email: "sales@demo.com" },
-              ] as const
-            ).map((q) => (
-              <button
-                key={q.email}
-                type="button"
-                disabled={loading}
-                onClick={async () => {
-                  setError("");
-                  setEmail(q.email);
-                  setPassword("demo123");
-                  setLoading(true);
-                  try {
-                    const u = await login(q.email, "demo123");
-                    navigate({ to: u.role === "agent" ? "/agent" : "/admin" });
-                  } catch {
-                    setError(t.auth.invalid);
-                  } finally { setLoading(false); }
-                }}
-                className="h-10 rounded-xl border border-border bg-surface text-xs font-semibold text-foreground transition hover:bg-muted disabled:opacity-50"
-              >
-                {q.label}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              resetDemo();
-              setError("");
-              setEmail("");
-              setPassword("");
-              if (typeof window !== "undefined") {
-                localStorage.removeItem("aib_auth_user");
-                window.location.reload();
-              }
-            }}
-            className="mt-3 w-full text-center text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-          >
-            إعادة تعيين بيانات الديمو
-          </button>
-        </div>
       </main>
     </div>
   );
