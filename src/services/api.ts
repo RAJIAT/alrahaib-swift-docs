@@ -715,10 +715,8 @@ function notifyNewRequest(req: DemoRequest) {
 export async function reassignRequest(requestId: string, newAgentId: string): Promise<InsuranceRequest> {
   const me = getCurrentUser();
   if (!me) throw new Error("Not authenticated");
-  const list = getRequests();
-  const idx = list.findIndex((r) => r.id === requestId || r.uuid === requestId);
-  if (idx < 0) throw new Error("Request not found");
-  const req = list[idx];
+  const req = await dxGetRequest(requestId);
+  if (!req) throw new Error("Request not found");
   const agents = dsGetAgents();
   const target = agents.find((a) => a.id === newAgentId);
   if (!target) throw new Error("Target agent not found");
@@ -747,22 +745,12 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
   if (target.id === req.agentId) return req; // no-op
 
   const previousOwner = agents.find((a) => a.id === req.agentId);
-  // Preserve the original sales agent so the request can auto-return after
-  // the underwriter uploads the quote. If origin isn't set yet (older data)
-  // and the previous owner is a sales agent, capture them as origin.
   const shouldCaptureOrigin =
     !req.originAgentId && previousOwner?.staffType === "sales" && target.staffType === "underwriter";
-  const next = [...list];
-  next[idx] = {
-    ...req,
-    agentId: target.id,
-    agentName: target.name,
-    assignedAt: new Date().toISOString(),
-    ...(shouldCaptureOrigin
-      ? { originAgentId: previousOwner!.id, originAgentName: previousOwner!.name }
-      : {}),
-  };
-  setRequests(next);
+  const updated = await dxReassignRequest(req.id, {
+    newAgentCode: target.id,
+    captureOriginAgentCode: shouldCaptureOrigin ? previousOwner!.id : undefined,
+  });
 
   const fromType = previousOwner?.staffType;
   const toType = target.staffType;
@@ -779,7 +767,6 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
     after: { agentId: target.id, agentName: target.name, staffType: toType },
   });
 
-  // Notify previous owner, new owner, and branch supervisor
   const branchSup = agents.find((a) => a.role === "supervisor" && a.branch === req.branch);
   const recipients = new Set<string>();
   if (previousOwner?.userId && previousOwner.userId !== me.id) recipients.add(previousOwner.userId);
@@ -797,7 +784,7 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
     link: `/requests/${req.id}`,
   })));
 
-  return next[idx];
+  return updated;
 }
 
 // ---------------------------------------------------------------------------
@@ -813,10 +800,8 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
   if (!isUW && !isAdminOrSup) throw new Error("Only underwriters can upload quotes");
   if (!files.length) throw new Error("No files");
 
-  const list = getRequests();
-  const idx = list.findIndex((r) => r.id === requestId || r.uuid === requestId);
-  if (idx < 0) throw new Error("Request not found");
-  const req = list[idx];
+  const req = await dxGetRequest(requestId);
+  if (!req) throw new Error("Request not found");
 
   const newQuotes: DemoQuote[] = await Promise.all(
     files.map(async (f) => ({
@@ -831,10 +816,6 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
     })),
   );
 
-  // If an underwriter is the current owner and there's an original sales agent,
-  // automatically return the request back to the sales agent so they can share
-  // the quote link with the customer. This makes the workflow explicit:
-  //   sales → (request quote) → underwriter → (upload quote) → sales → customer
   const agents = dsGetAgents();
   const currentOwner = agents.find((a) => a.id === req.agentId);
   const originSales = req.originAgentId && req.originAgentId !== req.agentId
@@ -843,16 +824,14 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
   const shouldReturnToSales =
     currentOwner?.staffType === "underwriter" && !!originSales;
 
-  const updated: DemoRequest = {
-    ...req,
-    quotes: [...(req.quotes ?? []), ...newQuotes],
-    ...(shouldReturnToSales
-      ? { agentId: originSales!.id, agentName: originSales!.name, assignedAt: new Date().toISOString() }
-      : {}),
-  };
-  const next = [...list];
-  next[idx] = updated;
-  setRequests(next);
+  // Persist quote files locally (Phase 3d → Directus /files).
+  appendQuotesLocal(req.id, newQuotes);
+  let updated = req;
+  if (shouldReturnToSales && originSales) {
+    updated = await dxReassignRequest(req.id, { newAgentCode: originSales.id });
+  } else {
+    updated = (await dxGetRequest(req.id)) ?? req;
+  }
 
   logEvent({
     action: "request.quote_uploaded",
@@ -889,22 +868,19 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
     link: `/requests/${req.id}`,
   })));
 
-  return next[idx];
+  return updated;
 }
 
 export async function removeQuoteFromRequest(requestId: string, quoteId: string): Promise<InsuranceRequest> {
   const me = getCurrentUser();
   if (!me) throw new Error("Not authenticated");
-  const list = getRequests();
-  const idx = list.findIndex((r) => r.id === requestId || r.uuid === requestId);
-  if (idx < 0) throw new Error("Request not found");
-  const req = list[idx];
+  const req = await dxGetRequest(requestId);
+  if (!req) throw new Error("Request not found");
   const q = (req.quotes ?? []).find((x) => x.id === quoteId);
   if (!q) throw new Error("Quote not found");
   if (me.role !== "admin" && q.uploadedByUserId !== me.id) throw new Error("Not allowed");
-  const next = [...list];
-  next[idx] = { ...req, quotes: (req.quotes ?? []).filter((x) => x.id !== quoteId) };
-  setRequests(next);
+  removeQuoteLocal(req.id, quoteId);
+  const updated = (await dxGetRequest(req.id)) ?? req;
   logEvent({
     action: "request.quote_removed",
     entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
