@@ -63,11 +63,10 @@ import {
   dxReassignRequest,
   dxAddNote,
   dxResolveNote,
-  appendMissingAttachmentsLocal,
-  appendQuotesLocal,
-  removeQuoteLocal,
-  getRequestFiles,
-  setRequestFiles,
+  dxAttachFile,
+  dxAttachFilesSequential,
+  dxAttachFilesParallel,
+  dxDeleteRequestFile,
 } from "./directusRequests";
 
 // Silence unused-import warnings; these legacy exports stay imported so other
