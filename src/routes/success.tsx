@@ -12,7 +12,7 @@ export const Route = createFileRoute("/success")({
   }),
   head: () => ({
     meta: [
-      { title: "Submitted — Middle East Insurance" },
+      { title: "Submitted — Al Diplomacy Insurance Services LLC" },
       { name: "description", content: "Your insurance documents were submitted successfully." },
     ],
   }),

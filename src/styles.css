@@ -70,19 +70,20 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0.03 230);
 
-  /* Primary: deep charcoal — matches logo's bold black wordmark */
-  --primary: oklch(0.25 0.01 240);
+  /* Primary: Al Diplomacy deep navy blue (#1E3A8A) */
+  --primary: oklch(0.36 0.16 265);
   --primary-foreground: oklch(1 0 0);
-  --primary-soft: oklch(0.95 0.005 240);
+  --primary-soft: oklch(0.94 0.04 240);
 
-  --secondary: oklch(0.96 0.01 230);
-  --secondary-foreground: oklch(0.22 0.03 230);
+  /* Secondary: bright sky blue (#2BA8E0) accent from logo */
+  --secondary: oklch(0.72 0.14 230);
+  --secondary-foreground: oklch(1 0 0);
 
   --muted: oklch(0.96 0.008 230);
   --muted-foreground: oklch(0.5 0.02 230);
 
-  --accent: oklch(0.94 0.005 240);
-  --accent-foreground: oklch(0.25 0.01 240);
+  --accent: oklch(0.93 0.05 230);
+  --accent-foreground: oklch(0.36 0.16 265);
 
   --destructive: oklch(0.6 0.22 25);
   --destructive-foreground: oklch(1 0 0);
@@ -93,7 +94,7 @@
   --warning: oklch(0.72 0.16 60);
   --warning-foreground: oklch(0.2 0.05 60);
 
-  --info: oklch(0.62 0.18 250);
+  --info: oklch(0.72 0.14 230);
   --info-foreground: oklch(1 0 0);
 
   --purple: oklch(0.6 0.2 300);
@@ -101,16 +102,16 @@
 
   --border: oklch(0.92 0.01 230);
   --input: oklch(0.92 0.01 230);
-  --ring: oklch(0.25 0.01 240);
+  --ring: oklch(0.36 0.16 265);
 
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.18 0.03 230);
-  --sidebar-primary: oklch(0.25 0.01 240);
+  --sidebar-primary: oklch(0.36 0.16 265);
   --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.95 0.005 240);
-  --sidebar-accent-foreground: oklch(0.25 0.01 240);
+  --sidebar-accent: oklch(0.94 0.04 240);
+  --sidebar-accent-foreground: oklch(0.36 0.16 265);
   --sidebar-border: oklch(0.92 0.01 230);
-  --sidebar-ring: oklch(0.25 0.01 240);
+  --sidebar-ring: oklch(0.36 0.16 265);
 }
 
 .dark {
