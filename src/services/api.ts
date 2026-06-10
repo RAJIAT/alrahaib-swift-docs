@@ -70,7 +70,8 @@ import {
 
 // Sync read of the Directus entity cache (warmed at login / on root mount).
 function dsGetAgents(): DemoAgent[] { return getAgentsCache(); }
-void fetchSettings; void DemoBranch;
+function _dsGetBranches(): DemoBranch[] { return getBranchesCache(); }
+void _dsGetBranches; void fetchSettings;
 
 // ---------------------------------------------------------------------------
 // Public types — kept stable for the rest of the app.
