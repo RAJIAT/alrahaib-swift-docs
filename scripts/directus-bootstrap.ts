@@ -389,30 +389,11 @@ async function ensureRoles(): Promise<Record<RoleName, string>> {
 
 async function ensurePermissions(roleMap: Record<RoleName, string>) {
   console.log("\n🔐 Permissions…");
-  // Directus 11.x removed the `comment` field on directus_permissions, so we
-  // can no longer tag rows. Instead: wipe every permission row owned by the
-  // roles we manage (Supervisor, Agent), then recreate from config. Admin
-  // has admin_access and needs no permission rows. Other roles (e.g. Public)
-  // are left untouched.
-  const managedRoleIds = [roleMap.Supervisor, roleMap.Agent];
-  const roleFilter = encodeURIComponent(JSON.stringify({ role: { _in: managedRoleIds } }));
-  const existing = await api<{ data: Array<{ id: number; role: string | null; collection: string; action: string }> }>(
-    `/permissions?limit=-1&filter=${roleFilter}&fields=id,role,collection,action`,
-  );
-  if (existing.data.length) {
-    // Delete one-by-one to tolerate stale rows; bulk DELETE with id array
-    // works on most installs but a single 400 would abort the whole batch.
-    let cleared = 0;
-    for (const p of existing.data) {
-      try {
-        await api(`/permissions/${p.id}`, { method: "DELETE" });
-        cleared++;
-      } catch (e) {
-        console.warn(`   ! failed to clear permission ${p.id}: ${String((e as Error).message ?? e).split("\n")[0]}`);
-      }
-    }
-    console.log(`   - cleared ${cleared} existing entries for managed roles`);
-  }
+  // Directus 11.3.5 restricts reads on directus_permissions (the `role`
+  // field is not introspectable via the items API, and `comment` no longer
+  // exists). We therefore skip introspection entirely and run the step as
+  // append-only: attempt to POST every configured permission and treat any
+  // "already exists" / 400 / 409 response as success.
 
   const config = permissionsConfig as Record<string, Array<Record<string, unknown>>>;
   const batches: Array<{ role: RoleName; entries: Array<Record<string, unknown>> }> = [
@@ -458,11 +439,13 @@ async function ensurePermissions(roleMap: Record<RoleName, string>) {
         });
         console.log(`   + ${role} → ${collection}.${action}${_comment ? " // " + _comment : ""}`);
       } catch (e) {
+        // Append-only: any failure (duplicate, 400, 409, validation) is
+        // logged and skipped — never abort the bootstrap.
         const msg = String((e as Error).message ?? e).split("\n")[0];
-        if (/RecordNotUnique|duplicate|already exists/i.test(msg)) {
-          console.log(`   = ${role} → ${collection}.${action} (already present)`);
+        if (/RecordNotUnique|duplicate|already exists|409|400/i.test(msg)) {
+          console.log(`   = ${role} → ${collection}.${action} (already present or rejected, skipped)`);
         } else {
-          console.warn(`   ! ${role} → ${collection}.${action} failed: ${msg}`);
+          console.warn(`   ! ${role} → ${collection}.${action} skipped: ${msg}`);
         }
       }
     }
