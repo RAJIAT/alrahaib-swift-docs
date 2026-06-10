@@ -30,6 +30,15 @@ import {
   type DemoUser,
   type DemoQuote,
 } from "./demoStore";
+import {
+  dxLogin,
+  dxLogout,
+  getProfile as dxGetProfile,
+  dxRequest,
+  userRecordToProfile,
+  type DxUserRecord,
+  type ProfileSnapshot,
+} from "./directusClient";
 
 // Trigger seeding by accessing the store once.
 export function ensureSeeded() { getUsers(); }
@@ -119,44 +128,66 @@ export const subscribeBranches = (cb: () => void) => sub(BR_EVT, cb);
 // Auth — match by email/password against demo users.
 // ---------------------------------------------------------------------------
 
-const AUTH_KEY = "aib_auth_user";
+// ---------------------------------------------------------------------------
+// Auth — Directus-backed (Phase 3a). Tokens + profile snapshot live in
+// directusClient; no plaintext auth state in localStorage.
+// ---------------------------------------------------------------------------
 
-function userToAuth(u: DemoUser): AuthUser {
-  return { id: u.id, email: u.email, name: u.name, role: u.role, agentId: u.agentId, branch: u.branch };
+function profileToAuth(p: ProfileSnapshot): AuthUser {
+  return { id: p.id, email: p.email, name: p.name, role: p.role, agentId: p.agentId, branch: p.branch };
 }
 
 export async function login(email: string, password: string): Promise<AuthUser> {
-  const u = getUsers().find(
-    (x) => x.email.toLowerCase() === email.toLowerCase() && x.password === password,
-  );
-  if (!u) throw new Error("Invalid credentials");
-  const auth = userToAuth(u);
-  if (typeof window !== "undefined") localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
-  logEvent({ action: "auth.login", entityType: "auth", entityId: auth.id, entityLabel: auth.name, actor: { id: auth.id, name: auth.name, role: auth.role, branch: auth.branch ?? null } });
+  const profile = await dxLogin(email, password);
+  const auth = profileToAuth(profile);
+  logEvent({
+    action: "auth.login", entityType: "auth", entityId: auth.id, entityLabel: auth.name,
+    actor: { id: auth.id, name: auth.name, role: auth.role, branch: auth.branch ?? null },
+  });
   return auth;
 }
 
 export async function signUp(): Promise<AuthUser> {
-  throw new Error("Sign up is disabled in demo.");
+  throw new Error("Sign up is disabled. Contact your administrator.");
 }
 
 export async function logout() {
   const cur = getCurrentUser();
   if (cur) {
-    logEvent({ action: "auth.logout", entityType: "auth", entityId: cur.id, entityLabel: cur.name, actor: { id: cur.id, name: cur.name, role: cur.role, branch: cur.branch ?? null } });
+    logEvent({
+      action: "auth.logout", entityType: "auth", entityId: cur.id, entityLabel: cur.name,
+      actor: { id: cur.id, name: cur.name, role: cur.role, branch: cur.branch ?? null },
+    });
   }
-  if (typeof window !== "undefined") localStorage.removeItem(AUTH_KEY);
+  await dxLogout();
 }
 
 export function getCurrentUser(): AuthUser | null {
-  if (typeof window === "undefined") return null;
-  const raw = localStorage.getItem(AUTH_KEY);
-  if (!raw) return null;
-  try { return JSON.parse(raw) as AuthUser; } catch { return null; }
+  const p = dxGetProfile();
+  return p ? profileToAuth(p) : null;
 }
 
+/**
+ * Re-fetch the authenticated user from Directus and refresh the cached
+ * profile snapshot. Returns null if the session is no longer valid.
+ */
 export async function refreshCurrentUser(): Promise<AuthUser | null> {
-  return getCurrentUser();
+  try {
+    const me = await dxRequest<{ data: DxUserRecord }>(
+      `/users/me?fields=id,email,first_name,last_name,app_role,app_branch,agent_code,staff_type,app_active,app_pending_approval`,
+    );
+    if (me.data.app_active === false || me.data.app_pending_approval === true) {
+      await dxLogout();
+      return null;
+    }
+    const profile = userRecordToProfile(me.data);
+    // Persist refreshed snapshot so sync getCurrentUser() stays in sync.
+    const { setProfile } = await import("./directusClient");
+    setProfile(profile);
+    return profileToAuth(profile);
+  } catch {
+    return getCurrentUser();
+  }
 }
 
 // ---------------------------------------------------------------------------
