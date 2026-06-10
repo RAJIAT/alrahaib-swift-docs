@@ -25,6 +25,7 @@ const AGT_EVT = "aib:agents-changed";
 
 let branchesCache: DemoBranch[] = [];
 let agentsCache: DemoAgent[] = [];
+let adminUserIdsCache: string[] = [];
 let rolesCache: Record<string, string> = {}; // name(lower) -> uuid
 let ready = false;
 
@@ -35,6 +36,7 @@ function emit(name: string) {
 
 export function getBranchesCache(): DemoBranch[] { return branchesCache; }
 export function getAgentsCache(): DemoAgent[] { return agentsCache; }
+export function getAdminUserIdsCache(): string[] { return adminUserIdsCache; }
 export function entitiesReady(): boolean { return ready; }
 
 // ---------------- mappers ----------------
@@ -141,10 +143,27 @@ export async function refreshAgents(): Promise<void> {
   emit(AGT_EVT);
 }
 
+export async function refreshAdminUserIds(): Promise<void> {
+  try {
+    const r = await dxRequest<{ data: Array<{ id: string }> }>(
+      `/users?fields=id&filter[app_role][_eq]=admin&limit=-1`,
+    );
+    adminUserIdsCache = r.data.map((u) => u.id);
+  } catch {
+    // Non-admin sessions usually cannot list other admins; leave empty.
+    adminUserIdsCache = [];
+  }
+}
+
 export async function bootstrapEntities(): Promise<void> {
   if (!dxIsLoggedIn()) return;
   try {
-    await Promise.all([refreshBranches(), refreshAgents(), loadRoles()]);
+    await Promise.all([
+      refreshBranches(),
+      refreshAgents(),
+      refreshAdminUserIds(),
+      loadRoles().catch(() => ({})),
+    ]);
     ready = true;
   } catch (e) {
     console.error("[directusEntities] bootstrap failed:", e);
@@ -154,6 +173,7 @@ export async function bootstrapEntities(): Promise<void> {
 export function resetEntitiesCache(): void {
   branchesCache = [];
   agentsCache = [];
+  adminUserIdsCache = [];
   rolesCache = {};
   ready = false;
 }
