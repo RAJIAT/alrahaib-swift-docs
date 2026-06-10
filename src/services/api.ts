@@ -1,35 +1,22 @@
 /**
- * Demo API service — fully local (localStorage-backed).
+ * App API service — Directus-backed (Phase 3a–3e).
  *
- * This module preserves the exact same exports the rest of the app uses
- * (login, listRequests, submitUpload, addRequestNote, getAgents, etc.) but
- * routes everything through src/services/demoStore.ts. No HTTP calls.
+ * All data layer calls go through Directus. No localStorage data store.
+ * Only auth tokens + profile snapshot are cached in localStorage (see
+ * directusClient.ts) so getCurrentUser() can stay synchronous.
  */
 
-import {
-  getAgents as _dsGetAgentsLegacy,
-  getAudit, setAudit,
-  getBranches as _dsGetBranchesLegacy,
-  getNotifications, setNotifications, pushNotifications,
-  getRequests as _dsGetRequestsLegacy,
-  setRequests as _dsSetRequestsLegacy,
-  getSettings, setSettings as dsSetSettings,
-  getUsers, setUsers,
-  newRequestId,
-  notify,
-  setAgents as _dsSetAgentsLegacy,
-  setBranches as _dsSetBranchesLegacy,
-  type DemoAgent,
-  type DemoAttachment,
-  type DemoBranch,
-  type DemoNote,
-  type DemoNotification,
-  type DemoRequest,
-  type DemoStaffType,
-  type DemoStatus,
-  type DemoUser,
-  type DemoQuote,
-} from "./demoStore";
+import type {
+  Agent as DemoAgent,
+  Attachment as DemoAttachment,
+  Branch as DemoBranch,
+  Note as DemoNote,
+  AppNotification as DemoNotification,
+  InsuranceRequest as DemoRequest,
+  StaffType as DemoStaffType,
+  RequestStatus as DemoStatus,
+  Quote as DemoQuote,
+} from "./types";
 import {
   dxLogin,
   dxLogout,
@@ -67,22 +54,24 @@ import {
   dxAttachFilesParallel,
   dxDeleteRequestFile,
 } from "./directusRequests";
+import {
+  ensureSettingsLoaded,
+  fetchNotificationsFor,
+  fetchSettings,
+  getSettingsCached,
+  logAudit,
+  markAllNotificationsRead as dxMarkAllNotificationsRead,
+  markNotificationRead as dxMarkNotificationRead,
+  pushNotifications,
+  setSettings as dxSetSettings,
+  subscribeNotifications as dxSubscribeNotifications,
+  subscribeSettings as dxSubscribeSettings,
+} from "./directusNotify";
 
-// Silence unused-import warnings; these legacy exports stay imported so other
-// (Phase 3c/3d/3e) functions in this file continue compiling unchanged.
-void _dsGetAgentsLegacy; void _dsGetBranchesLegacy;
-void _dsSetAgentsLegacy; void _dsSetBranchesLegacy;
-void _dsGetRequestsLegacy; void _dsSetRequestsLegacy;
-
-// Phase 3b sync helpers — read agents/branches from the Directus cache.
-// (Other functions in this file still call these names; they used to point
-// at demoStore. Now they bridge to the Directus cache so request/quote/notify
-// flows stay working until 3c migrates those too.)
+// Sync read of the Directus entity cache (warmed at login / on root mount).
 function dsGetAgents(): DemoAgent[] { return getAgentsCache(); }
-function dsGetBranches(): DemoBranch[] { return getBranchesCache(); }
-
-// Trigger seeding by accessing the store once.
-export function ensureSeeded() { getUsers(); }
+// Branches helper kept for future call sites; currently unused.
+void dsGetBranches; function dsGetBranches(): DemoBranch[] { return getBranchesCache(); }
 
 // ---------------------------------------------------------------------------
 // Public types — kept stable for the rest of the app.
@@ -132,15 +121,16 @@ export function canDeleteAgents(u: AuthUser | null | undefined) { return u?.role
 export function canSeeAllBranches(u: AuthUser | null | undefined) { return u?.role === "admin"; }
 
 // Settings
-export function getApprovalRequired(): boolean { return getSettings().requireAdminApproval; }
-export function setApprovalRequired(v: boolean) {
-  const before = getSettings().requireAdminApproval;
-  dsSetSettings({ requireAdminApproval: v });
+export function getApprovalRequired(): boolean { return getSettingsCached().requireAdminApproval; }
+export async function setApprovalRequired(v: boolean) {
+  const before = getSettingsCached().requireAdminApproval;
+  await dxSetSettings({ requireAdminApproval: v });
   if (before !== v) {
     logEvent({ action: "settings.approval_changed", entityType: "auth", entityId: null, entityLabel: "settings", before: { requireAdminApproval: before }, after: { requireAdminApproval: v } });
   }
 }
-export { subscribeSettings } from "./demoStore";
+export { subscribeSettings } from "./directusNotify";
+export { fetchSettings, ensureSettingsLoaded };
 
 // Asset URL helpers — re-export the real Directus implementations.
 export { dxAssetUrl, dxIsAssetUrl as isDirectusAssetUrl } from "./directusClient";
