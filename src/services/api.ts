@@ -319,7 +319,7 @@ export async function submitUpload(input: {
   optional?: { inspection?: File | null };
 }): Promise<{ id: string }> {
   const agent = dsGetAgents().find((a) => a.id === input.agentId);
-  const id = newRequestId();
+  const id = `REQ-${Date.now()}`;
   // Create the request row first so file rows have something to link to.
   const req = await dxCreateRequest({
     id, uuid: id.toLowerCase(),
@@ -465,8 +465,8 @@ export async function createAgent(input: {
     assignedUnderwriterCode = target.id;
   }
 
-  const settings = getSettings();
-  const pending = me?.role === "supervisor" && settings.requireAdminApproval;
+  await ensureSettingsLoaded();
+  const pending = me?.role === "supervisor" && getSettingsCached().requireAdminApproval;
 
   const created = await dxCreateUser({
     email: input.email,
@@ -639,34 +639,62 @@ function logEvent(input: {
     after: input.after ?? null,
     meta: input.meta ?? undefined,
   };
-  setAudit([entry, ...getAudit()].slice(0, 5000));
+  void entry;
+  void logAudit({
+    action: input.action,
+    entityType: input.entityType,
+    entityId: input.entityId ?? null,
+    entityLabel: input.entityLabel ?? null,
+    branch: input.branch ?? null,
+    before: input.before ?? null,
+    after: input.after ?? null,
+    meta: input.meta,
+    actor: {
+      id: u?.id ?? null,
+      name: u?.name ?? null,
+      role: (u?.role ?? "anonymous") as Role | "anonymous",
+      branch: (u && "branch" in u ? (u as { branch?: string | null }).branch ?? null : null),
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
 // Notifications
 // ---------------------------------------------------------------------------
 
-export { subscribeNotifications } from "./demoStore";
+export const subscribeNotifications = dxSubscribeNotifications;
+
+// Local cache of notifications per user — fetched from Directus on demand
+// and refreshed whenever the change-event fires.
+const _notifCache = new Map<string, DemoNotification[]>();
 
 export function listNotificationsFor(userId: string): DemoNotification[] {
-  return getNotifications().filter((n) => n.recipientUserId === userId);
+  if (!_notifCache.has(userId)) {
+    void fetchNotificationsFor(userId).then((rows) => {
+      _notifCache.set(userId, rows);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("aib:notifications-changed"));
+      }
+    });
+    return [];
+  }
+  return _notifCache.get(userId) ?? [];
 }
 
-export function markNotificationRead(id: string) {
-  const list = getNotifications();
-  const next = list.map((n) => (n.id === id ? { ...n, read: true } : n));
-  setNotifications(next);
+if (typeof window !== "undefined") {
+  window.addEventListener("aib:notifications-changed", () => {
+    // Refresh any cached recipients in the background.
+    for (const uid of [..._notifCache.keys()]) {
+      void fetchNotificationsFor(uid).then((rows) => _notifCache.set(uid, rows));
+    }
+  });
 }
 
-export function markAllNotificationsRead(userId: string) {
-  const list = getNotifications();
-  const next = list.map((n) => (n.recipientUserId === userId ? { ...n, read: true } : n));
-  setNotifications(next);
-}
+export function markNotificationRead(id: string) { void dxMarkNotificationRead(id); }
+export function markAllNotificationsRead(userId: string) { void dxMarkAllNotificationsRead(userId); }
 
-function adminUserIds(): string[] {
-  return getUsers().filter((u) => u.role === "admin").map((u) => u.id);
-}
+function adminUserIds(): string[] { return getAdminUserIdsCache(); }
+void dxSubscribeSettings;
 
 function notifyNewRequest(req: DemoRequest) {
   const targets = new Set<string>(adminUserIds());
