@@ -1,17 +1,18 @@
 /**
- * Phase 3c — Directus-backed requests + notes.
+ * Phase 3c + 3d — Directus-backed requests, notes, and files.
  *
- * - Requests + notes are stored in Directus collections `requests` and
- *   `request_notes` (provisioned by scripts/directus-bootstrap.ts).
- * - Files (images / quotes / attachments) still live in a local per-request
- *   bridge keyed by request id. Phase 3d migrates that to Directus `/files`
- *   and the `request_files` collection. Until then, the bridge keeps the
- *   existing UI working unchanged.
- * - Branch ↔ branch_id and agent_code ↔ user uuid mappings come from the
- *   Phase 3b caches (`directusEntities`).
+ * - Requests + notes live in Directus (`requests`, `request_notes`).
+ * - All uploaded bytes go to Directus `/files`; metadata rows live in
+ *   `request_files` with a `kind` tag (registration, license, emirates,
+ *   vehicle_image, vehicle_video, inspection, attachment,
+ *   missing_attachment, quote).
+ * - URLs resolve through `${VITE_DIRECTUS_URL}/assets/{file_id}` via
+ *   `dxAssetUrl()`.
+ * - The old local file bridge (`aib:request_files_bridge:v1`) is gone; we
+ *   wipe it once on first load to clean up any leftover demo state.
  */
 
-import { dxRequest } from "./directusClient";
+import { dxAssetUrl, dxRequest, dxUploadFile } from "./directusClient";
 import {
   getAgentsCache,
   getBranchesCache,
@@ -19,7 +20,6 @@ import {
   refreshBranches,
 } from "./directusEntities";
 import type {
-  DemoAttachment,
   DemoNote,
   DemoQuote,
   DemoRequest,
@@ -27,61 +27,16 @@ import type {
 } from "./demoStore";
 
 const REQ_EVT = "aib:requests-changed";
-const FILES_KEY = "aib:request_files_bridge:v1";
+const LEGACY_BRIDGE_KEY = "aib:request_files_bridge:v1";
 
 function emit() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(REQ_EVT));
 }
 
-// ---------------- local file bridge (Phase 3d will replace) ----------------
-
-export type RequestFilesBlob = {
-  images: DemoRequest["images"];
-  quotes?: DemoQuote[];
-};
-
-function emptyFiles(): RequestFilesBlob {
-  return {
-    images: { registration: [], license: [], emirates: [], vehicleMedia: [], attachments: [] },
-    quotes: [],
-  };
-}
-
-function readAllFiles(): Record<string, RequestFilesBlob> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = localStorage.getItem(FILES_KEY);
-    return raw ? (JSON.parse(raw) as Record<string, RequestFilesBlob>) : {};
-  } catch { return {}; }
-}
-function writeAllFiles(map: Record<string, RequestFilesBlob>) {
-  if (typeof window === "undefined") return;
-  try { localStorage.setItem(FILES_KEY, JSON.stringify(map)); } catch { /* quota */ }
-}
-
-export function getRequestFiles(id: string): RequestFilesBlob {
-  return readAllFiles()[id] ?? emptyFiles();
-}
-
-export function setRequestFiles(id: string, blob: RequestFilesBlob) {
-  const all = readAllFiles();
-  all[id] = blob;
-  writeAllFiles(all);
-}
-
-export function patchRequestFiles(
-  id: string,
-  patch: (prev: RequestFilesBlob) => RequestFilesBlob,
-) {
-  const cur = getRequestFiles(id);
-  setRequestFiles(id, patch(cur));
-}
-
-export function deleteRequestFiles(id: string) {
-  const all = readAllFiles();
-  delete all[id];
-  writeAllFiles(all);
+// One-shot cleanup: remove the Phase 3c local file bridge if present.
+if (typeof window !== "undefined") {
+  try { localStorage.removeItem(LEGACY_BRIDGE_KEY); } catch { /* ignore */ }
 }
 
 // ---------------- mappers ----------------
@@ -110,6 +65,35 @@ type DxNoteRow = {
   resolved_at?: string | null;
   date_created?: string | null;
 };
+
+export type RequestFileKind =
+  | "registration"
+  | "license"
+  | "emirates"
+  | "vehicle_image"
+  | "vehicle_video"
+  | "inspection"
+  | "attachment"
+  | "missing_attachment"
+  | "quote";
+
+type DxFileObj = { id: string; filename_download: string; type: string; filesize: number };
+
+type DxRequestFileRow = {
+  id: string;
+  request: string;
+  kind: RequestFileKind;
+  uploaded_by?: string | null;
+  uploaded_at?: string | null;
+  file?: DxFileObj | string | null;
+};
+
+function fileObj(row: DxRequestFileRow): DxFileObj | null {
+  const f = row.file;
+  if (!f) return null;
+  if (typeof f === "string") return { id: f, filename_download: "", type: "", filesize: 0 };
+  return f;
+}
 
 function agentCodeFromUuid(uuid: string | null | undefined): { code: string; name: string } {
   if (!uuid) return { code: "", name: "" };
@@ -144,10 +128,86 @@ function noteFromRow(n: DxNoteRow): DemoNote {
   };
 }
 
-function requestFromRow(r: DxRequestRow, notes: DxNoteRow[]): DemoRequest {
+function buildImages(files: DxRequestFileRow[]): DemoRequest["images"] {
+  const byKind = (k: RequestFileKind) =>
+    files
+      .filter((f) => f.kind === k)
+      .sort((a, b) => (a.uploaded_at ?? "").localeCompare(b.uploaded_at ?? ""));
+
+  const urls = (rows: DxRequestFileRow[]) => rows.map((r) => dxAssetUrl(fileObj(r)?.id ?? ""));
+
+  const inspectionRow = byKind("inspection")[0];
+  const vehicleImages = byKind("vehicle_image").map((r) => ({
+    kind: "image" as const,
+    url: dxAssetUrl(fileObj(r)?.id ?? ""),
+  }));
+  const vehicleVideos = byKind("vehicle_video").map((r) => {
+    const f = fileObj(r);
+    return {
+      kind: "video" as const,
+      name: f?.filename_download ?? "video",
+      size: f?.filesize ?? 0,
+      type: f?.type ?? "video/*",
+    };
+  });
+  const attachments = byKind("attachment").map((r) => {
+    const f = fileObj(r);
+    return {
+      name: f?.filename_download ?? "file",
+      type: f?.type ?? "",
+      size: f?.filesize ?? 0,
+      url: dxAssetUrl(f?.id ?? ""),
+    };
+  });
+  const missingAttachments = byKind("missing_attachment").map((r) => {
+    const f = fileObj(r);
+    return {
+      name: f?.filename_download ?? "file",
+      type: f?.type ?? "",
+      size: f?.filesize ?? 0,
+      url: dxAssetUrl(f?.id ?? ""),
+    };
+  });
+
+  return {
+    registration: urls(byKind("registration")),
+    license: urls(byKind("license")),
+    emirates: urls(byKind("emirates")),
+    vehicleMedia: [...vehicleImages, ...vehicleVideos],
+    inspection: inspectionRow ? dxAssetUrl(fileObj(inspectionRow)?.id ?? "") : undefined,
+    attachments,
+    ...(missingAttachments.length ? { missingAttachments } : {}),
+  };
+}
+
+function buildQuotes(files: DxRequestFileRow[]): DemoQuote[] {
+  return files
+    .filter((f) => f.kind === "quote")
+    .sort((a, b) => (a.uploaded_at ?? "").localeCompare(b.uploaded_at ?? ""))
+    .map((row) => {
+      const f = fileObj(row);
+      const uploader = agentCodeFromUuid(row.uploaded_by);
+      return {
+        id: row.id, // request_files row id (used for delete)
+        name: f?.filename_download ?? "quote",
+        type: f?.type ?? "",
+        size: f?.filesize ?? 0,
+        url: dxAssetUrl(f?.id ?? ""),
+        uploadedByUserId: row.uploaded_by ?? "",
+        uploadedByName: uploader.name,
+        uploadedAt: row.uploaded_at ?? new Date().toISOString(),
+      };
+    });
+}
+
+function requestFromRow(
+  r: DxRequestRow,
+  notes: DxNoteRow[],
+  fileRows: DxRequestFileRow[],
+): DemoRequest {
   const agent = agentCodeFromUuid(r.agent);
   const origin = r.origin_agent ? agentCodeFromUuid(r.origin_agent) : null;
-  const files = getRequestFiles(r.id);
+  const myFiles = fileRows.filter((f) => f.request === r.id);
   return {
     id: r.id,
     uuid: r.uuid ?? r.id.toLowerCase(),
@@ -163,8 +223,8 @@ function requestFromRow(r: DxRequestRow, notes: DxNoteRow[]): DemoRequest {
     customerEmail: r.customer_email ?? undefined,
     customerPhone: r.customer_phone ?? undefined,
     notes: notes.filter((n) => n.request === r.id).map(noteFromRow),
-    images: files.images,
-    quotes: files.quotes ?? [],
+    images: buildImages(myFiles),
+    quotes: buildQuotes(myFiles),
   };
 }
 
@@ -181,12 +241,13 @@ const REQ_FIELDS =
   "id,uuid,agent,origin_agent,branch,status,customer_name,customer_email,customer_phone,assigned_at,date_created";
 const NOTE_FIELDS =
   "id,request,author,author_role,text,kind,resolved_at,date_created";
+const FILE_FIELDS =
+  "id,request,kind,uploaded_by,uploaded_at,file.id,file.filename_download,file.type,file.filesize";
 
 export async function dxListRequests(opts?: { agentUuid?: string; branchId?: number }): Promise<DemoRequest[]> {
   await ensureEntitiesCached();
   const filters: string[] = [];
   if (opts?.agentUuid) {
-    // Either currently assigned OR originally created by the agent.
     filters.push(
       `filter[_or][0][agent][_eq]=${encodeURIComponent(opts.agentUuid)}`,
       `filter[_or][1][origin_agent][_eq]=${encodeURIComponent(opts.agentUuid)}`,
@@ -199,12 +260,17 @@ export async function dxListRequests(opts?: { agentUuid?: string; branchId?: num
   const r = await dxRequest<{ data: DxRequestRow[] }>(`/items/requests${qs}`);
   const ids = r.data.map((x) => x.id);
   let notes: DxNoteRow[] = [];
+  let files: DxRequestFileRow[] = [];
   if (ids.length) {
-    const nq = `?fields=${NOTE_FIELDS}&limit=-1&filter[request][_in]=${ids.map(encodeURIComponent).join(",")}`;
-    const nr = await dxRequest<{ data: DxNoteRow[] }>(`/items/request_notes${nq}`);
+    const idsParam = ids.map(encodeURIComponent).join(",");
+    const [nr, fr] = await Promise.all([
+      dxRequest<{ data: DxNoteRow[] }>(`/items/request_notes?fields=${NOTE_FIELDS}&limit=-1&filter[request][_in]=${idsParam}`),
+      dxRequest<{ data: DxRequestFileRow[] }>(`/items/request_files?fields=${FILE_FIELDS}&limit=-1&filter[request][_in]=${idsParam}`),
+    ]);
     notes = nr.data;
+    files = fr.data;
   }
-  const list = r.data.map((row) => requestFromRow(row, notes));
+  const list = r.data.map((row) => requestFromRow(row, notes, files));
   // Newest-first using max(createdAt, assignedAt) for reassignments
   const ts = (x: DemoRequest) => (x.assignedAt && x.assignedAt > x.createdAt ? x.assignedAt : x.createdAt);
   list.sort((a, b) => (ts(a) < ts(b) ? 1 : -1));
@@ -213,15 +279,19 @@ export async function dxListRequests(opts?: { agentUuid?: string; branchId?: num
 
 export async function dxGetRequest(id: string): Promise<DemoRequest | null> {
   await ensureEntitiesCached();
-  // Accept either canonical id or uuid lookup.
   const filter = `filter[_or][0][id][_eq]=${encodeURIComponent(id)}&filter[_or][1][uuid][_eq]=${encodeURIComponent(id.toLowerCase())}`;
   const r = await dxRequest<{ data: DxRequestRow[] }>(`/items/requests?fields=${REQ_FIELDS}&limit=1&${filter}`);
   const row = r.data[0];
   if (!row) return null;
-  const nr = await dxRequest<{ data: DxNoteRow[] }>(
-    `/items/request_notes?fields=${NOTE_FIELDS}&limit=-1&sort=date_created&filter[request][_eq]=${encodeURIComponent(row.id)}`,
-  );
-  return requestFromRow(row, nr.data);
+  const [nr, fr] = await Promise.all([
+    dxRequest<{ data: DxNoteRow[] }>(
+      `/items/request_notes?fields=${NOTE_FIELDS}&limit=-1&sort=date_created&filter[request][_eq]=${encodeURIComponent(row.id)}`,
+    ),
+    dxRequest<{ data: DxRequestFileRow[] }>(
+      `/items/request_files?fields=${FILE_FIELDS}&limit=-1&sort=uploaded_at&filter[request][_eq]=${encodeURIComponent(row.id)}`,
+    ),
+  ]);
+  return requestFromRow(row, nr.data, fr.data);
 }
 
 // ---------------- mutations ----------------
@@ -254,7 +324,7 @@ export async function dxCreateRequest(input: DxCreateRequestInput): Promise<Demo
     { method: "POST", body: JSON.stringify(body) },
   );
   emit();
-  return requestFromRow(r.data, []);
+  return requestFromRow(r.data, [], []);
 }
 
 export async function dxPatchRequest(id: string, patch: Record<string, unknown>): Promise<DemoRequest> {
@@ -262,11 +332,16 @@ export async function dxPatchRequest(id: string, patch: Record<string, unknown>)
     `/items/requests/${encodeURIComponent(id)}?fields=${REQ_FIELDS}`,
     { method: "PATCH", body: JSON.stringify(patch) },
   );
-  const nr = await dxRequest<{ data: DxNoteRow[] }>(
-    `/items/request_notes?fields=${NOTE_FIELDS}&limit=-1&sort=date_created&filter[request][_eq]=${encodeURIComponent(id)}`,
-  );
+  const [nr, fr] = await Promise.all([
+    dxRequest<{ data: DxNoteRow[] }>(
+      `/items/request_notes?fields=${NOTE_FIELDS}&limit=-1&sort=date_created&filter[request][_eq]=${encodeURIComponent(id)}`,
+    ),
+    dxRequest<{ data: DxRequestFileRow[] }>(
+      `/items/request_files?fields=${FILE_FIELDS}&limit=-1&sort=uploaded_at&filter[request][_eq]=${encodeURIComponent(id)}`,
+    ),
+  ]);
   emit();
-  return requestFromRow(r.data, nr.data);
+  return requestFromRow(r.data, nr.data, fr.data);
 }
 
 export async function dxSetRequestStatus(id: string, status: DemoStatus): Promise<DemoRequest> {
@@ -325,28 +400,74 @@ export async function dxResolveNote(requestId: string, noteId: string): Promise<
   return req;
 }
 
-// ---------------- attachment / quote file bridge mutators ----------------
+// ---------------- file uploads (Phase 3d) ----------------
 
-export function appendMissingAttachmentsLocal(id: string, atts: DemoAttachment[]) {
-  patchRequestFiles(id, (prev) => ({
-    ...prev,
-    images: {
-      ...prev.images,
-      missingAttachments: [...(prev.images.missingAttachments ?? []), ...atts],
-    },
-  }));
+/**
+ * Upload a single file to Directus `/files` and create a matching
+ * `request_files` row.
+ */
+export async function dxAttachFile(
+  requestId: string,
+  file: File,
+  kind: RequestFileKind,
+  uploadedByUuid?: string | null,
+): Promise<DxRequestFileRow> {
+  const uploaded = await dxUploadFile(file);
+  const body: Record<string, unknown> = {
+    request: requestId,
+    file: uploaded.id,
+    kind,
+    uploaded_at: new Date().toISOString(),
+  };
+  if (uploadedByUuid) body.uploaded_by = uploadedByUuid;
+  const r = await dxRequest<{ data: DxRequestFileRow }>(
+    `/items/request_files?fields=${FILE_FIELDS}`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+  return r.data;
 }
 
-export function appendQuotesLocal(id: string, quotes: DemoQuote[]) {
-  patchRequestFiles(id, (prev) => ({
-    ...prev,
-    quotes: [...(prev.quotes ?? []), ...quotes],
-  }));
+/**
+ * Upload many files of the SAME kind sequentially so that read-back ordering
+ * (by `uploaded_at`) matches the order callers passed them in. Use this for
+ * front/back-style kinds (registration, license, emirates). For unordered
+ * kinds (attachment, missing_attachment, quote) parallel upload is fine.
+ */
+export async function dxAttachFilesSequential(
+  requestId: string,
+  files: File[],
+  kind: RequestFileKind,
+  uploadedByUuid?: string | null,
+): Promise<DxRequestFileRow[]> {
+  const out: DxRequestFileRow[] = [];
+  for (const f of files) out.push(await dxAttachFile(requestId, f, kind, uploadedByUuid));
+  return out;
 }
 
-export function removeQuoteLocal(id: string, quoteId: string) {
-  patchRequestFiles(id, (prev) => ({
-    ...prev,
-    quotes: (prev.quotes ?? []).filter((q) => q.id !== quoteId),
-  }));
+export async function dxAttachFilesParallel(
+  requestId: string,
+  files: File[],
+  kind: RequestFileKind,
+  uploadedByUuid?: string | null,
+): Promise<DxRequestFileRow[]> {
+  return Promise.all(files.map((f) => dxAttachFile(requestId, f, kind, uploadedByUuid)));
+}
+
+export async function dxDeleteRequestFile(rowId: string, opts?: { deleteAsset?: boolean }): Promise<void> {
+  // Read row first so we can drop the underlying file asset if requested.
+  let fileId: string | undefined;
+  if (opts?.deleteAsset) {
+    try {
+      const r = await dxRequest<{ data: DxRequestFileRow }>(
+        `/items/request_files/${encodeURIComponent(rowId)}?fields=file.id`,
+      );
+      const f = r.data.file;
+      fileId = typeof f === "string" ? f : f?.id;
+    } catch { /* tolerate */ }
+  }
+  await dxRequest(`/items/request_files/${encodeURIComponent(rowId)}`, { method: "DELETE" });
+  if (fileId) {
+    try { await dxRequest(`/files/${encodeURIComponent(fileId)}`, { method: "DELETE" }); }
+    catch { /* ignore — orphan file is harmless */ }
+  }
 }
