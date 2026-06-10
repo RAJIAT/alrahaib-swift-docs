@@ -1,35 +1,22 @@
 /**
- * Demo API service — fully local (localStorage-backed).
+ * App API service — Directus-backed (Phase 3a–3e).
  *
- * This module preserves the exact same exports the rest of the app uses
- * (login, listRequests, submitUpload, addRequestNote, getAgents, etc.) but
- * routes everything through src/services/demoStore.ts. No HTTP calls.
+ * All data layer calls go through Directus. No localStorage data store.
+ * Only auth tokens + profile snapshot are cached in localStorage (see
+ * directusClient.ts) so getCurrentUser() can stay synchronous.
  */
 
-import {
-  getAgents as _dsGetAgentsLegacy,
-  getAudit, setAudit,
-  getBranches as _dsGetBranchesLegacy,
-  getNotifications, setNotifications, pushNotifications,
-  getRequests as _dsGetRequestsLegacy,
-  setRequests as _dsSetRequestsLegacy,
-  getSettings, setSettings as dsSetSettings,
-  getUsers, setUsers,
-  newRequestId,
-  notify,
-  setAgents as _dsSetAgentsLegacy,
-  setBranches as _dsSetBranchesLegacy,
-  type DemoAgent,
-  type DemoAttachment,
-  type DemoBranch,
-  type DemoNote,
-  type DemoNotification,
-  type DemoRequest,
-  type DemoStaffType,
-  type DemoStatus,
-  type DemoUser,
-  type DemoQuote,
-} from "./demoStore";
+import type {
+  Agent as DemoAgent,
+  Attachment as DemoAttachment,
+  Branch as DemoBranch,
+  Note as DemoNote,
+  AppNotification as DemoNotification,
+  InsuranceRequest as DemoRequest,
+  StaffType as DemoStaffType,
+  RequestStatus as DemoStatus,
+  Quote as DemoQuote,
+} from "./types";
 import {
   dxLogin,
   dxLogout,
@@ -67,22 +54,24 @@ import {
   dxAttachFilesParallel,
   dxDeleteRequestFile,
 } from "./directusRequests";
+import {
+  ensureSettingsLoaded,
+  fetchNotificationsFor,
+  fetchSettings,
+  getSettingsCached,
+  logAudit,
+  markAllNotificationsRead as dxMarkAllNotificationsRead,
+  markNotificationRead as dxMarkNotificationRead,
+  pushNotifications,
+  setSettings as dxSetSettings,
+  subscribeNotifications as dxSubscribeNotifications,
+  subscribeSettings as dxSubscribeSettings,
+} from "./directusNotify";
 
-// Silence unused-import warnings; these legacy exports stay imported so other
-// (Phase 3c/3d/3e) functions in this file continue compiling unchanged.
-void _dsGetAgentsLegacy; void _dsGetBranchesLegacy;
-void _dsSetAgentsLegacy; void _dsSetBranchesLegacy;
-void _dsGetRequestsLegacy; void _dsSetRequestsLegacy;
-
-// Phase 3b sync helpers — read agents/branches from the Directus cache.
-// (Other functions in this file still call these names; they used to point
-// at demoStore. Now they bridge to the Directus cache so request/quote/notify
-// flows stay working until 3c migrates those too.)
+// Sync read of the Directus entity cache (warmed at login / on root mount).
 function dsGetAgents(): DemoAgent[] { return getAgentsCache(); }
-function dsGetBranches(): DemoBranch[] { return getBranchesCache(); }
-
-// Trigger seeding by accessing the store once.
-export function ensureSeeded() { getUsers(); }
+function _dsGetBranches(): DemoBranch[] { return getBranchesCache(); }
+void _dsGetBranches; void fetchSettings;
 
 // ---------------------------------------------------------------------------
 // Public types — kept stable for the rest of the app.
@@ -132,15 +121,16 @@ export function canDeleteAgents(u: AuthUser | null | undefined) { return u?.role
 export function canSeeAllBranches(u: AuthUser | null | undefined) { return u?.role === "admin"; }
 
 // Settings
-export function getApprovalRequired(): boolean { return getSettings().requireAdminApproval; }
-export function setApprovalRequired(v: boolean) {
-  const before = getSettings().requireAdminApproval;
-  dsSetSettings({ requireAdminApproval: v });
+export function getApprovalRequired(): boolean { return getSettingsCached().requireAdminApproval; }
+export async function setApprovalRequired(v: boolean) {
+  const before = getSettingsCached().requireAdminApproval;
+  await dxSetSettings({ requireAdminApproval: v });
   if (before !== v) {
     logEvent({ action: "settings.approval_changed", entityType: "auth", entityId: null, entityLabel: "settings", before: { requireAdminApproval: before }, after: { requireAdminApproval: v } });
   }
 }
-export { subscribeSettings } from "./demoStore";
+export { subscribeSettings } from "./directusNotify";
+export { fetchSettings, ensureSettingsLoaded };
 
 // Asset URL helpers — re-export the real Directus implementations.
 export { dxAssetUrl, dxIsAssetUrl as isDirectusAssetUrl } from "./directusClient";
@@ -329,7 +319,7 @@ export async function submitUpload(input: {
   optional?: { inspection?: File | null };
 }): Promise<{ id: string }> {
   const agent = dsGetAgents().find((a) => a.id === input.agentId);
-  const id = newRequestId();
+  const id = `REQ-${Date.now()}`;
   // Create the request row first so file rows have something to link to.
   const req = await dxCreateRequest({
     id, uuid: id.toLowerCase(),
@@ -475,8 +465,8 @@ export async function createAgent(input: {
     assignedUnderwriterCode = target.id;
   }
 
-  const settings = getSettings();
-  const pending = me?.role === "supervisor" && settings.requireAdminApproval;
+  await ensureSettingsLoaded();
+  const pending = me?.role === "supervisor" && getSettingsCached().requireAdminApproval;
 
   const created = await dxCreateUser({
     email: input.email,
@@ -649,34 +639,62 @@ function logEvent(input: {
     after: input.after ?? null,
     meta: input.meta ?? undefined,
   };
-  setAudit([entry, ...getAudit()].slice(0, 5000));
+  void entry;
+  void logAudit({
+    action: input.action,
+    entityType: input.entityType,
+    entityId: input.entityId ?? null,
+    entityLabel: input.entityLabel ?? null,
+    branch: input.branch ?? null,
+    before: input.before ?? null,
+    after: input.after ?? null,
+    meta: input.meta,
+    actor: {
+      id: u?.id ?? null,
+      name: u?.name ?? null,
+      role: (u?.role ?? "anonymous") as Role | "anonymous",
+      branch: (u && "branch" in u ? (u as { branch?: string | null }).branch ?? null : null),
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
 // Notifications
 // ---------------------------------------------------------------------------
 
-export { subscribeNotifications } from "./demoStore";
+export const subscribeNotifications = dxSubscribeNotifications;
+
+// Local cache of notifications per user — fetched from Directus on demand
+// and refreshed whenever the change-event fires.
+const _notifCache = new Map<string, DemoNotification[]>();
 
 export function listNotificationsFor(userId: string): DemoNotification[] {
-  return getNotifications().filter((n) => n.recipientUserId === userId);
+  if (!_notifCache.has(userId)) {
+    void fetchNotificationsFor(userId).then((rows) => {
+      _notifCache.set(userId, rows);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("aib:notifications-changed"));
+      }
+    });
+    return [];
+  }
+  return _notifCache.get(userId) ?? [];
 }
 
-export function markNotificationRead(id: string) {
-  const list = getNotifications();
-  const next = list.map((n) => (n.id === id ? { ...n, read: true } : n));
-  setNotifications(next);
+if (typeof window !== "undefined") {
+  window.addEventListener("aib:notifications-changed", () => {
+    // Refresh any cached recipients in the background.
+    for (const uid of [..._notifCache.keys()]) {
+      void fetchNotificationsFor(uid).then((rows) => _notifCache.set(uid, rows));
+    }
+  });
 }
 
-export function markAllNotificationsRead(userId: string) {
-  const list = getNotifications();
-  const next = list.map((n) => (n.recipientUserId === userId ? { ...n, read: true } : n));
-  setNotifications(next);
-}
+export function markNotificationRead(id: string) { void dxMarkNotificationRead(id); }
+export function markAllNotificationsRead(userId: string) { void dxMarkAllNotificationsRead(userId); }
 
-function adminUserIds(): string[] {
-  return getUsers().filter((u) => u.role === "admin").map((u) => u.id);
-}
+function adminUserIds(): string[] { return getAdminUserIdsCache(); }
+void dxSubscribeSettings;
 
 function notifyNewRequest(req: DemoRequest) {
   const targets = new Set<string>(adminUserIds());

@@ -1,9 +1,18 @@
 /**
- * Audit service — local-only wrapper around demoStore.
+ * Audit service — Directus-backed (Phase 3e).
+ *
+ * Thin re-export layer for legacy import paths. All reads/writes go through
+ * the `audit_log` collection via `directusNotify.ts`.
  */
-import { getAudit, setAudit, type DemoAuditEntry } from "./demoStore";
+import {
+  clearAudit as dxClearAudit,
+  fetchAudit as dxFetchAudit,
+  fetchRequestAuditHistory,
+  subscribeAudit as dxSubscribeAudit,
+} from "./directusNotify";
+import type { AuditEntry } from "./types";
 
-export type AuditEntry = DemoAuditEntry;
+export type { AuditEntry };
 export type AuditAction =
   | "request.status_changed"
   | "request.created"
@@ -31,36 +40,7 @@ export type AuditAction =
   | "settings.approval_changed";
 export type AuditEntityType = "request" | "agent" | "auth";
 
-export async function fetchAudit(opts?: {
-  branch?: string;
-  action?: string;
-  entityType?: string;
-  limit?: number;
-}): Promise<AuditEntry[]> {
-  let rows = getAudit();
-  if (opts?.branch) rows = rows.filter((r) => r.branch === opts.branch || r.actorBranch === opts.branch);
-  if (opts?.action) rows = rows.filter((r) => r.action === opts.action);
-  if (opts?.entityType) rows = rows.filter((r) => r.entityType === opts.entityType);
-  if (opts?.limit) rows = rows.slice(0, opts.limit);
-  return rows;
-}
-
-/** Returns history for one request, oldest first. */
-export async function fetchRequestHistory(requestId: string): Promise<AuditEntry[]> {
-  const rows = getAudit().filter(
-    (r) => r.entityType === "request" && r.entityId === requestId,
-  );
-  // store is newest-first; reverse for chronological timeline
-  return rows.slice().reverse();
-}
-
-export async function clearAudit() {
-  setAudit([]);
-}
-
-export function subscribeAudit(cb: () => void) {
-  if (typeof window === "undefined") return () => {};
-  const fn = () => cb();
-  window.addEventListener("aib:audit-changed", fn);
-  return () => window.removeEventListener("aib:audit-changed", fn);
-}
+export const fetchAudit = dxFetchAudit;
+export const fetchRequestHistory = fetchRequestAuditHistory;
+export const clearAudit = dxClearAudit;
+export const subscribeAudit = dxSubscribeAudit;
