@@ -91,7 +91,7 @@ export async function prepareForUpload(file: File): Promise<File> {
   try {
     return await downscaleToJpeg(file);
   } catch (err) {
-    console.warn("image prep failed, using original file", err);
+    if (import.meta.env.DEV) console.warn("image prep failed, using original file", err);
     return file;
   }
 }

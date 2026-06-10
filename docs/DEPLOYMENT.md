@@ -1,174 +1,196 @@
-# دليل النشر — Al Raha Insurance Document Portal
+# دليل النشر — Al Diplomacy Insurance Services Portal
 
-> آخر تحديث: 2026-04-30  
-> الحالة: التطبيق جاهز 100% — يبقى فقط ربط الدومين + شهادة SSL
+> **الهدف:** نشر تطبيق TanStack Start على DirectAdmin عبر Node.js + PM2 خلف Apache reverse proxy، والاعتماد على Directus self-hosted كـ backend.
 
 ---
 
-## 1. نظرة عامة على البنية
+## 1. البنية بعد النشر
 
 ```
 المتصفح (HTTPS)
    │
-   ├─→ Frontend (TanStack Start SSR على Lovable hosting حالياً، قابل للنقل)
-   │
-   └─→ /api/directus/*  ──proxy──→  http://74.162.122.193:8055  (Directus + Postgres + uploads)
+   ▼
+Apache (DirectAdmin) ──/uploads/──► ملفات Directus (static)
+   │ (reverse proxy)
+   ▼
+Node 20 + PM2  (127.0.0.1:3000)        ← تطبيق TanStack Start (SSR)
+   │ HTTPS REST
+   ▼
+Directus + Postgres (نفس السيرفر، :8055)
 ```
 
-- **Backend:** Directus self-hosted على السيرفر `74.162.122.193:8055`
-- **DB:** Postgres داخل نفس السيرفر
-- **File storage:** المجلد المحلي `/uploads` التابع لـ Directus
-- **Frontend:** TanStack Start، يبني SSR worker — حالياً مستضاف على Lovable
+- **Frontend/SSR:** TanStack Start يُبنى لـ Node target ويعمل عبر PM2.
+- **Backend:** Directus self-hosted (مستقل، له `.env` خاص به).
+- **DB:** Postgres داخل نفس السيرفر يديره Directus.
+- **File storage:** مجلد `/uploads` التابع لـ Directus.
 
 ---
 
-## 2. ما تم إنجازه (Done)
+## 2. متطلبات السيرفر (تثبَّت مرة واحدة)
 
-| # | المهمة | الحالة |
-|---|--------|--------|
-| 1 | Directus collections (requests, branches, audit_log, request_notes, request_attachments, request_missing_attachments, request_vehicle_media) | ✅ |
-| 2 | Roles: Administrator / Supervisor / Agent | ✅ |
-| 3 | Server-side proxy لتجاوز Mixed Content | ✅ |
-| 4 | جميع عمليات CRUD تمر عبر Directus (لا localStorage للأعمال) | ✅ |
-| 5 | Audit log يكتب لجدول `audit_log` | ✅ |
-| 6 | شاشة إدارة الفروع `/branches` | ✅ |
-| 7 | إصلاحات النظام التلقائية تعمل من الكود بدون صفحة أو أزرار | ✅ |
-| 8 | حذف بانر الديمو والمكونات القديمة | ✅ |
-
----
-
-## 3. إصلاحات النظام التلقائية
-
-تعمل تلقائياً من الكود عند أول اتصال بالـ backend، بدون فتح صفحة وبدون ضغط أي زر. هذا يقوم بـ:
-1. منح صلاحيات Agent الناقصة (`audit_log.create`, `request_missing_attachments.read/create`)
-2. تشديد صلاحية Public على جدول `requests` (read by ID فقط، بدون list، حقول محدودة)
-3. حذف الجداول القديمة `agents` و `requests_files`
+| المتطلب | الإصدار | ملاحظات |
+|---|---|---|
+| Node.js | 20.x LTS | عبر **Node.js Selector** في DirectAdmin |
+| bun | ≥ 1.1 | `curl -fsSL https://bun.sh/install \| bash` |
+| PM2 | latest | `npm i -g pm2` |
+| Apache | مع mod_proxy + mod_proxy_http + mod_headers + mod_rewrite | فعّل من DirectAdmin |
+| Directus | latest | راجع `DIRECTUS_SETUP.md` |
+| Postgres | ≥ 14 | يديره Directus |
+| Certbot / AutoSSL | — | لإصدار شهادة Let's Encrypt |
 
 ---
 
-## 4. إنشاء مستخدمين جدد (Supervisor / Agent)
+## 3. ترتيب النشر (بعد توفر SSH)
 
-من لوحة الإدارة:
-- **Admin** يضيف **Supervisor** عبر `/agents`، ويُسند له `branch_id` لفرعه
-- **Supervisor** يضيف **Agents** ضمن نفس الفرع
-- لا حاجة لإنشاء حسابات تجريبية يدوياً — استخدم الواجهة
+### 3.1 تجهيز الكود محلياً (أو على CI)
 
----
-
-## 5. خطوات النشر على السيرفر (لاحقاً، بعد ربط الدومين)
-
-### 5.1 تجهيز السيرفر
 ```bash
-# نظام مشغّل (أوبونتو 22.04+)
-sudo apt update && sudo apt install -y nginx certbot python3-certbot-nginx nodejs npm
-sudo npm i -g bun pm2
-```
-
-### 5.2 بناء الـ frontend
-```bash
-cd /var/www/alrahaib-portal
-git clone <repo-url> .   # أو رفع الملفات يدوياً
+# 1. ثبّت الـ deps
 bun install
+
+# 2. ابنِ نسخة الإنتاج (target = Node)
 bun run build
-# الناتج في .output/  (TanStack Start worker)
+
+# الناتج:
+#   .output/         ← السيرفر (SSR + assets)
+#   .output/server/index.mjs  ← نقطة الدخول
 ```
 
-### 5.3 تشغيل SSR worker بـ PM2
+### 3.2 رفع الملفات للسيرفر
+
+ارفع (عبر SFTP / rsync) إلى `/home/<user>/apps/aldiplomacy-portal/`:
+
+```
+.output/
+public/
+package.json
+bun.lockb
+ecosystem.config.cjs
+.env                ← انسخه من .env.example واملأ القيم
+scripts/            ← للـ bootstrap (اختياري)
+```
+
+مثال rsync:
+
 ```bash
-pm2 start .output/server/index.mjs --name alrahaib-portal
-pm2 save && pm2 startup
+rsync -avz --delete \
+  .output public package.json bun.lockb ecosystem.config.cjs scripts \
+  user@server:/home/user/apps/aldiplomacy-portal/
 ```
-السيرفر يبدأ على المنفذ `3000` افتراضياً.
 
-### 5.4 إعداد Nginx (`/etc/nginx/sites-available/docportal`)
-```nginx
-server {
-  listen 80;
-  server_name docportal.alrahaib.com;
+### 3.3 إعداد متغيرات البيئة
 
-  client_max_body_size 50M;
-
-  location / {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-  }
-}
-```
 ```bash
-sudo ln -s /etc/nginx/sites-available/docportal /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
+ssh user@server
+cd ~/apps/aldiplomacy-portal
+cp .env.example .env
+nano .env                       # املأ VITE_APP_URL, VITE_DIRECTUS_URL, SESSION_SECRET, ...
+chmod 600 .env                  # مهم: حماية السر
+mkdir -p logs uploads
+chmod 755 uploads
 ```
 
-### 5.5 شهادة SSL (بعد ضبط DNS)
+### 3.4 تثبيت runtime deps (إن لزم)
+
 ```bash
-# تأكد أن A record لـ docportal.alrahaib.com يشير إلى 74.162.122.193
-sudo certbot --nginx -d docportal.alrahaib.com --redirect --agree-tos -m admin@alrahaib.com
-sudo systemctl enable certbot.timer
+bun install --production
 ```
 
-### 5.6 (اختياري) SSL على Directus
-بمجرد توفر دومين فرعي مثل `api.alrahaib.com`:
+> الـ `.output/` يحوي bundle مكتمل، لكن بعض الـ native deps قد تحتاج install على السيرفر.
+
+### 3.5 تشغيل Directus (مرة واحدة)
+
+راجع `DIRECTUS_SETUP.md`. باختصار:
+- شغّل Postgres.
+- ثبّت Directus عبر npm/Docker.
+- اضبط `.env` الخاص بـ Directus (DATABASE_URL, ADMIN_EMAIL, ADMIN_PASSWORD, STORAGE_LOCATIONS, EMAIL_*).
+- شغّل migrations + admin user.
+
+ثم طبّق الـ collections والـ permissions:
+
 ```bash
-sudo certbot --nginx -d api.alrahaib.com
+cd ~/apps/aldiplomacy-portal
+export DIRECTUS_URL=https://directus.alrahaib.com
+export DIRECTUS_ADMIN_TOKEN=<من Directus admin>
+bun run scripts/directus-bootstrap.ts
 ```
-ثم تعديل `DIRECTUS_TARGET` في `src/routes/api/directus.$.ts` إلى `https://api.alrahaib.com` (أو إلغاء الـ proxy نهائياً إذا تم تأمين Directus بـ HTTPS).
+
+### 3.6 تشغيل التطبيق عبر PM2
+
+```bash
+cd ~/apps/aldiplomacy-portal
+pm2 start ecosystem.config.cjs --env production
+pm2 save
+pm2 startup            # انفّذ الأمر اللي يطبعه pm2 (مرة وحدة)
+pm2 logs aldiplomacy-portal --lines 50
+```
+
+تأكد:
+```bash
+curl -I http://127.0.0.1:3000/
+# يجب أن يرجّع 200 أو 302 (redirect للـ login)
+```
+
+### 3.7 ربط الدومين عبر Apache
+
+1. من DirectAdmin → **Domain Setup** أضف الدومين `docportal.alrahaib.com`.
+2. ضع ملف `deploy/.htaccess` (الموجود في هذا الـ repo) داخل `public_html/`:
+   ```bash
+   cp ~/apps/aldiplomacy-portal/deploy/.htaccess ~/domains/docportal.alrahaib.com/public_html/
+   ```
+3. تأكد أن `mod_proxy` و `mod_proxy_http` و `mod_headers` مفعّلة (DirectAdmin → Custom HTTPD Configurations).
+4. أصدر شهادة SSL:
+   - DirectAdmin → **SSL Certificates** → Let's Encrypt → اختر الدومين → Save.
+
+### 3.8 التحقق النهائي
+
+```bash
+curl -I https://docportal.alrahaib.com/
+curl -I https://docportal.alrahaib.com/login
+curl -I https://directus.alrahaib.com/server/info
+```
 
 ---
 
-## 6. متغيرات البيئة المطلوبة (Frontend)
+## 4. التحديثات اللاحقة (deploy جديد)
 
-التطبيق لا يحتاج أي env var على جانب الـ frontend حالياً — كل الإعدادات mounted داخل الكود.
-
-في حال تم نقل المشروع إلى استضافة node منفصلة:
-```env
-NODE_ENV=production
-PORT=3000
-```
-
----
-
-## 7. النسخ الاحتياطي
-
-### Postgres (يومياً)
 ```bash
-0 2 * * * docker exec directus-pg pg_dump -U directus directus > /backups/db-$(date +\%F).sql
+# محلياً
+bun run build
+rsync -avz --delete .output public package.json bun.lockb \
+  user@server:/home/user/apps/aldiplomacy-portal/
+
+# على السيرفر
+ssh user@server "cd ~/apps/aldiplomacy-portal && pm2 reload aldiplomacy-portal"
 ```
 
-### Uploads (أسبوعياً)
-```bash
-0 3 * * 0 tar czf /backups/uploads-$(date +\%F).tgz /var/lib/directus/uploads
-```
+`pm2 reload` يعمل zero-downtime restart.
 
 ---
 
-## 8. مفاتيح الوصول
+## 5. مواقع مهمة على السيرفر
 
-| العنصر | القيمة |
-|--------|--------|
-| Directus URL | `http://74.162.122.193:8055` |
-| Admin Login | `admin@alrahaib.com` (كلمة السر مع المالك) |
-| Lovable Preview | https://id-preview--9c8d3e3e-fe20-40d1-bfe3-50d8fdcffe9a.lovable.app |
-| Lovable Published | https://alrahaib-docs-flow.lovable.app |
-| Custom Domain (نشط) | https://rahaib.rajiatiyah.com |
-| دومين الإنتاج المخطط | `docportal.alrahaib.com` (بانتظار الربط) |
+| المسار | المحتوى |
+|---|---|
+| `~/apps/aldiplomacy-portal/` | كود التطبيق |
+| `~/apps/aldiplomacy-portal/.env` | متغيرات البيئة (chmod 600) |
+| `~/apps/aldiplomacy-portal/logs/` | logs PM2 |
+| `~/apps/aldiplomacy-portal/uploads/` | (احتياطي) — الأساس عند Directus |
+| `~/directus/uploads/` | ملفات Directus |
+| `~/domains/docportal.alrahaib.com/public_html/.htaccess` | reverse proxy rules |
 
 ---
 
-## 9. قائمة الفحص قبل التشغيل العام
+## 6. استكشاف الأخطاء
 
-- [x] إصلاحات النظام تعمل تلقائياً من الكود
-- [ ] إنشاء فرع رئيسي على الأقل من `/branches`
-- [ ] إضافة Supervisor واحد + Agent تجريبي
-- [ ] إنشاء طلب اختباري والتأكد من ظهوره عند الإدارة
-- [ ] فحص `/audit` — يجب أن تظهر الأحداث
-- [ ] رفع ملف اختباري والتأكد من ظهور thumbnail
-- [ ] تجربة الواجهة على موبايل (responsive)
-- [ ] ضبط DNS للدومين النهائي
-- [ ] تشغيل certbot
-- [ ] نقل ملفات الـ build إلى السيرفر (اختياري — يمكن البقاء على Lovable)
+| الخطأ | الحل |
+|---|---|
+| 502 Bad Gateway | تأكد `pm2 status` يُظهر التطبيق `online`، وأن `mod_proxy_http` مفعّل |
+| `EADDRINUSE :3000` | بورت محجوز — غيّر `PORT` في `.env` و`ecosystem.config.cjs` |
+| Mixed content على `/api/...` | تأكد أن Directus يُخدم على HTTPS (نفس origin أو CORS مضبوط) |
+| 403 على `/uploads/...` | صلاحيات المجلد — `chmod 755 uploads` و owner = user الـ Apache |
+| login يرجّع 401 | راجع `VITE_DIRECTUS_URL` في `.env` + permissions Directus |
+
+---
+
+راجع أيضاً: `CHECKLIST.md` لقائمة جاهزية النشر الكاملة.
