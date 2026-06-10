@@ -389,15 +389,29 @@ async function ensureRoles(): Promise<Record<RoleName, string>> {
 
 async function ensurePermissions(roleMap: Record<RoleName, string>) {
   console.log("\n🔐 Permissions…");
-  // Wipe existing app-managed permissions for these roles, then recreate.
-  // Mark app-managed by stamping comment field.
-  const existing = await api<{ data: Array<{ id: number; comment: string | null }> }>(
-    "/permissions?limit=-1&filter[comment][_eq]=lovable-bootstrap",
+  // Directus 11.x removed the `comment` field on directus_permissions, so we
+  // can no longer tag rows. Instead: wipe every permission row owned by the
+  // roles we manage (Supervisor, Agent), then recreate from config. Admin
+  // has admin_access and needs no permission rows. Other roles (e.g. Public)
+  // are left untouched.
+  const managedRoleIds = [roleMap.Supervisor, roleMap.Agent];
+  const roleFilter = encodeURIComponent(JSON.stringify({ role: { _in: managedRoleIds } }));
+  const existing = await api<{ data: Array<{ id: number; role: string | null; collection: string; action: string }> }>(
+    `/permissions?limit=-1&filter=${roleFilter}&fields=id,role,collection,action`,
   );
   if (existing.data.length) {
-    const ids = existing.data.map((p) => p.id);
-    await api("/permissions", { method: "DELETE", body: JSON.stringify(ids) });
-    console.log(`   - cleared ${ids.length} stale entries`);
+    // Delete one-by-one to tolerate stale rows; bulk DELETE with id array
+    // works on most installs but a single 400 would abort the whole batch.
+    let cleared = 0;
+    for (const p of existing.data) {
+      try {
+        await api(`/permissions/${p.id}`, { method: "DELETE" });
+        cleared++;
+      } catch (e) {
+        console.warn(`   ! failed to clear permission ${p.id}: ${String((e as Error).message ?? e).split("\n")[0]}`);
+      }
+    }
+    console.log(`   - cleared ${cleared} existing entries for managed roles`);
   }
 
   const config = permissionsConfig as Record<string, Array<Record<string, unknown>>>;
@@ -430,19 +444,27 @@ async function ensurePermissions(roleMap: Record<RoleName, string>) {
         action: string;
         collection: string;
       };
-      await api("/permissions", {
-        method: "POST",
-        body: JSON.stringify({
-          role: roleMap[role],
-          collection,
-          action,
-          fields: fields ?? ["*"],
-          permissions: substitute(permissions ?? {}),
-          validation: substitute(validation ?? {}),
-          comment: "lovable-bootstrap",
-        }),
-      });
-      console.log(`   + ${role} → ${collection}.${action}${_comment ? " // " + _comment : ""}`);
+      try {
+        await api("/permissions", {
+          method: "POST",
+          body: JSON.stringify({
+            role: roleMap[role],
+            collection,
+            action,
+            fields: fields ?? ["*"],
+            permissions: substitute(permissions ?? {}),
+            validation: substitute(validation ?? {}),
+          }),
+        });
+        console.log(`   + ${role} → ${collection}.${action}${_comment ? " // " + _comment : ""}`);
+      } catch (e) {
+        const msg = String((e as Error).message ?? e).split("\n")[0];
+        if (/RecordNotUnique|duplicate|already exists/i.test(msg)) {
+          console.log(`   = ${role} → ${collection}.${action} (already present)`);
+        } else {
+          console.warn(`   ! ${role} → ${collection}.${action} failed: ${msg}`);
+        }
+      }
     }
   }
 }
