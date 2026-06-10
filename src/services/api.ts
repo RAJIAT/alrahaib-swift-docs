@@ -938,46 +938,38 @@ function notifyRequestStatus(req: DemoRequest, before: DemoStatus) {
 export async function requestAgentRemoval(agentId: string, reason: string): Promise<Agent> {
   const me = getCurrentUser();
   if (!me || me.role !== "supervisor") throw new Error("Only supervisors can request removal");
-  const list = dsGetAgents();
-  const idx = list.findIndex((a) => a.id === agentId);
-  if (idx < 0) throw new Error("Agent not found");
-  const target = list[idx];
+  const list = getAgentsCache();
+  const target = list.find((a) => a.id === agentId || a.userId === agentId);
+  if (!target) throw new Error("Agent not found");
   if (target.branch !== me.branch) throw new Error("Out of your branch");
   if (target.removalRequest) throw new Error("Removal already requested");
-  const next = [...list];
-  next[idx] = {
-    ...target,
-    removalRequest: {
-      requestedByUserId: me.id,
-      requestedByName: me.name,
-      reason: reason.trim() || "—",
-      requestedAt: new Date().toISOString(),
-    },
-  };
-  dsSetAgents(next);
+  const updated = await dxUpdateUser(target.userId!, {
+    removalReason: reason.trim() || "—",
+    removalRequestedBy: me.id,
+    removalRequestedAt: new Date().toISOString(),
+  });
   logEvent({
     action: "agent.removal_requested",
     entityType: "agent", entityId: target.id, entityLabel: target.name, branch: target.branch,
     meta: { reason },
   });
-  pushNotifications(adminUserIds().map((uid) => ({
+  pushNotifications(getAdminUserIdsCache().map((uid) => ({
     recipientUserId: uid,
     title: `Removal requested: ${target.name}`,
     body: `${me.name} (${target.branch}) · ${reason || "No reason"}`,
     kind: "removal_requested" as const,
     link: `/agents`,
   })));
-  return next[idx];
+  return updated;
 }
 
 export async function approveAgentRemoval(agentId: string): Promise<void> {
   const me = getCurrentUser();
   if (me?.role !== "admin") throw new Error("Only admin can approve");
-  const list = dsGetAgents();
-  const target = list.find((a) => a.id === agentId);
+  const list = getAgentsCache();
+  const target = list.find((a) => a.id === agentId || a.userId === agentId);
   if (!target?.removalRequest) throw new Error("No pending removal");
-  dsSetAgents(list.filter((a) => a !== target));
-  setUsers(getUsers().filter((u) => u.id !== target.userId));
+  await dxDeleteUser(target.userId!);
   logEvent({ action: "agent.removal_approved", entityType: "agent", entityId: target.id, entityLabel: target.name, branch: target.branch, before: target });
   if (target.removalRequest.requestedByUserId) {
     pushNotifications([{
@@ -992,15 +984,16 @@ export async function approveAgentRemoval(agentId: string): Promise<void> {
 export async function dismissAgentRemoval(agentId: string): Promise<Agent> {
   const me = getCurrentUser();
   if (me?.role !== "admin") throw new Error("Only admin can dismiss");
-  const list = dsGetAgents();
-  const idx = list.findIndex((a) => a.id === agentId);
-  if (idx < 0) throw new Error("Agent not found");
-  const target = list[idx];
+  const list = getAgentsCache();
+  const target = list.find((a) => a.id === agentId || a.userId === agentId);
+  if (!target) throw new Error("Agent not found");
   if (!target.removalRequest) throw new Error("No pending removal");
   const requesterId = target.removalRequest.requestedByUserId;
-  const next = [...list];
-  next[idx] = { ...target, removalRequest: undefined };
-  dsSetAgents(next);
+  const updated = await dxUpdateUser(target.userId!, {
+    removalReason: null,
+    removalRequestedBy: null,
+    removalRequestedAt: null,
+  });
   logEvent({ action: "agent.removal_dismissed", entityType: "agent", entityId: target.id, entityLabel: target.name, branch: target.branch });
   if (requesterId) {
     pushNotifications([{
@@ -1010,7 +1003,7 @@ export async function dismissAgentRemoval(agentId: string): Promise<Agent> {
       link: "/agents",
     }]);
   }
-  return dsToAgent(next[idx]);
+  return updated;
 }
 
 // ---------------------------------------------------------------------------
@@ -1044,64 +1037,42 @@ export async function bulkImportUsers(branch: string, rows: BulkImportRow[]): Pr
   if (me?.role !== "admin") throw new Error("Admin only");
   if (!branch) throw new Error("Branch is required");
   const result: BulkImportResult = { created: 0, skipped: [] };
-  const agents = [...dsGetAgents()];
-  const users = [...getUsers()];
-  // Resolve supervisor for the branch (the first existing one)
+  const agents = [...getAgentsCache()];
   const branchSupervisor = (): DemoAgent | undefined =>
     agents.find((a) => a.role === "supervisor" && a.branch === branch);
 
-  rows.forEach((row, i) => {
-    const lineNo = i + 2; // header is row 1
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const lineNo = i + 2;
     const name = (row.name ?? "").trim();
     const email = (row.email ?? "").trim().toLowerCase();
     const role = row.role;
-    if (!name || !email || !role) {
-      result.skipped.push({ row: lineNo, reason: "missing fields" });
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      result.skipped.push({ row: lineNo, reason: "invalid email" });
-      return;
-    }
-    if (!["supervisor", "underwriter", "sales"].includes(role)) {
-      result.skipped.push({ row: lineNo, reason: "invalid role" });
-      return;
-    }
-    if (agents.some((a) => a.email && a.email.toLowerCase() === email)) {
-      result.skipped.push({ row: lineNo, reason: "email exists" });
-      return;
-    }
-    if (users.some((u) => u.email.toLowerCase() === email)) {
-      result.skipped.push({ row: lineNo, reason: "email exists" });
-      return;
-    }
+    if (!name || !email || !role) { result.skipped.push({ row: lineNo, reason: "missing fields" }); continue; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { result.skipped.push({ row: lineNo, reason: "invalid email" }); continue; }
+    if (!["supervisor", "underwriter", "sales"].includes(role)) { result.skipped.push({ row: lineNo, reason: "invalid role" }); continue; }
+    if (agents.some((a) => a.email && a.email.toLowerCase() === email)) { result.skipped.push({ row: lineNo, reason: "email exists" }); continue; }
     const id = nextIdForRole(role, agents);
-    const userId = `u-${crypto.randomUUID().slice(0, 8)}`;
     const agentRole: AgentRole = role === "supervisor" ? "supervisor" : "agent";
-    const staffType = role === "supervisor" ? undefined : (role as StaffType);
+    const staffType: StaffType | undefined = role === "supervisor" ? undefined : (role as StaffType);
     const supervisor = role === "supervisor" ? undefined : branchSupervisor();
-    const password = (row.password && row.password.length >= 6) ? row.password : "demo123";
-    const newAgent: DemoAgent = {
-      userId, id, name, email, branch,
-      active: true,
-      role: agentRole,
-      staffType,
-      supervisorId: supervisor?.userId,
-      createdByUserId: me.id,
-      createdByRole: "admin",
-    };
-    agents.push(newAgent);
-    users.push({
-      id: userId, email, password, name,
-      role: role === "supervisor" ? "supervisor" : "agent",
-      agentId: agentRole === "agent" ? id : undefined,
-      branch,
-    });
-    result.created += 1;
-  });
-
-  dsSetAgents(agents);
-  setUsers(users);
+    const password = (row.password && row.password.length >= 6) ? row.password : `Pw-${crypto.randomUUID().slice(0, 10)}`;
+    try {
+      const created = await dxCreateUser({
+        email, password, name,
+        appRole: agentRole,
+        branchCode: branch,
+        agentCode: id,
+        staffType,
+        supervisorUserId: supervisor?.userId,
+        active: true,
+        createdByRole: "admin",
+      });
+      agents.push(created);
+      result.created += 1;
+    } catch (e) {
+      result.skipped.push({ row: lineNo, reason: (e as Error).message || "create failed" });
+    }
+  }
   logEvent({
     action: "agents.bulk_imported",
     entityType: "agent", entityId: null, entityLabel: branch, branch,
