@@ -792,19 +792,6 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
   const req = await dxGetRequest(requestId);
   if (!req) throw new Error("Request not found");
 
-  const newQuotes: DemoQuote[] = await Promise.all(
-    files.map(async (f) => ({
-      id: crypto.randomUUID(),
-      name: f.name,
-      type: f.type,
-      size: f.size,
-      url: await fileToDataUrl(f),
-      uploadedByUserId: me.id,
-      uploadedByName: me.name,
-      uploadedAt: new Date().toISOString(),
-    })),
-  );
-
   const agents = dsGetAgents();
   const currentOwner = agents.find((a) => a.id === req.agentId);
   const originSales = req.originAgentId && req.originAgentId !== req.agentId
@@ -813,8 +800,8 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
   const shouldReturnToSales =
     currentOwner?.staffType === "underwriter" && !!originSales;
 
-  // Persist quote files locally (Phase 3d → Directus /files).
-  appendQuotesLocal(req.id, newQuotes);
+  // Upload quote bytes to Directus and create request_files rows of kind "quote".
+  await dxAttachFilesParallel(req.id, files, "quote", me.id);
   let updated = req;
   if (shouldReturnToSales && originSales) {
     updated = await dxReassignRequest(req.id, { newAgentCode: originSales.id });
@@ -826,9 +813,9 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
     action: "request.quote_uploaded",
     entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
     meta: {
-      count: newQuotes.length,
+      count: files.length,
       returnedToSales: !!shouldReturnToSales,
-      files: newQuotes.map((q) => ({ name: q.name, size: q.size, type: q.type })),
+      files: files.map((q) => ({ name: q.name, size: q.size, type: q.type })),
     },
   });
   if (shouldReturnToSales && originSales) {
@@ -852,7 +839,7 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
     title: shouldReturnToSales && uid === originSales?.userId
       ? `Quote ready for ${req.id} — share with customer`
       : `Quote uploaded for ${req.id}`,
-    body: `${me.name} · ${newQuotes.length} file${newQuotes.length === 1 ? "" : "s"}`,
+    body: `${me.name} · ${files.length} file${files.length === 1 ? "" : "s"}`,
     kind: "request_status" as const,
     link: `/requests/${req.id}`,
   })));
@@ -868,7 +855,8 @@ export async function removeQuoteFromRequest(requestId: string, quoteId: string)
   const q = (req.quotes ?? []).find((x) => x.id === quoteId);
   if (!q) throw new Error("Quote not found");
   if (me.role !== "admin" && q.uploadedByUserId !== me.id) throw new Error("Not allowed");
-  removeQuoteLocal(req.id, quoteId);
+  // Delete the request_files row AND the underlying Directus file asset.
+  await dxDeleteRequestFile(quoteId, { deleteAsset: true });
   const updated = (await dxGetRequest(req.id)) ?? req;
   logEvent({
     action: "request.quote_removed",
