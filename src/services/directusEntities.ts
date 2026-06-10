@@ -16,7 +16,7 @@ import {
   userBranchCode,
   type DxUserRecord,
 } from "./directusClient";
-import type { DemoAgent, DemoBranch } from "./demoStore";
+import type { Agent as DemoAgent, Branch as DemoBranch } from "./types";
 
 // ---------------- cache + events ----------------
 
