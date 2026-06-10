@@ -8,17 +8,17 @@
 
 import {
   fileToDataUrl,
-  getAgents as dsGetAgents,
+  getAgents as _dsGetAgentsLegacy,
   getAudit, setAudit,
-  getBranches as dsGetBranches,
+  getBranches as _dsGetBranchesLegacy,
   getNotifications, setNotifications, pushNotifications,
   getRequests, setRequests,
   getSettings, setSettings as dsSetSettings,
   getUsers, setUsers,
   newRequestId,
   notify,
-  setAgents as dsSetAgents,
-  setBranches as dsSetBranches,
+  setAgents as _dsSetAgentsLegacy,
+  setBranches as _dsSetBranchesLegacy,
   type DemoAgent,
   type DemoAttachment,
   type DemoBranch,
@@ -39,6 +39,32 @@ import {
   type DxUserRecord,
   type ProfileSnapshot,
 } from "./directusClient";
+import {
+  bootstrapEntities,
+  getAgentsCache,
+  getBranchesCache,
+  refreshAgents,
+  refreshBranches,
+  resetEntitiesCache,
+  dxCreateBranch,
+  dxUpdateBranch,
+  dxDeleteBranch,
+  dxCreateUser,
+  dxUpdateUser,
+  dxDeleteUser,
+} from "./directusEntities";
+
+// Silence unused-import warnings; these legacy exports stay imported so other
+// (Phase 3c/3d/3e) functions in this file continue compiling unchanged.
+void _dsGetAgentsLegacy; void _dsGetBranchesLegacy;
+void _dsSetAgentsLegacy; void _dsSetBranchesLegacy;
+
+// Phase 3b sync helpers — read agents/branches from the Directus cache.
+// (Other functions in this file still call these names; they used to point
+// at demoStore. Now they bridge to the Directus cache so request/quote/notify
+// flows stay working until 3c migrates those too.)
+function dsGetAgents(): DemoAgent[] { return getAgentsCache(); }
+function dsGetBranches(): DemoBranch[] { return getBranchesCache(); }
 
 // Trigger seeding by accessing the store once.
 export function ensureSeeded() { getUsers(); }
@@ -140,6 +166,8 @@ function profileToAuth(p: ProfileSnapshot): AuthUser {
 export async function login(email: string, password: string): Promise<AuthUser> {
   const profile = await dxLogin(email, password);
   const auth = profileToAuth(profile);
+  // Warm caches so subsequent sync reads (listAgents/listBranches) have data.
+  bootstrapEntities().catch(() => {});
   logEvent({
     action: "auth.login", entityType: "auth", entityId: auth.id, entityLabel: auth.name,
     actor: { id: auth.id, name: auth.name, role: auth.role, branch: auth.branch ?? null },
@@ -160,6 +188,7 @@ export async function logout() {
     });
   }
   await dxLogout();
+  resetEntitiesCache();
 }
 
 export function getCurrentUser(): AuthUser | null {
@@ -190,36 +219,42 @@ export async function refreshCurrentUser(): Promise<AuthUser | null> {
 }
 
 // ---------------------------------------------------------------------------
-// Branches
+// Branches — Directus-backed (Phase 3b).
 // ---------------------------------------------------------------------------
 
 export function listBranches(): string[] {
-  return dsGetBranches().filter((b) => b.is_active).map((b) => b.code);
+  return getBranchesCache().filter((b) => b.is_active).map((b) => b.code);
 }
-export function listBranchObjects(): DemoBranch[] { return dsGetBranches(); }
+export function listBranchObjects(): DemoBranch[] { return getBranchesCache(); }
 
 export async function getBranches(opts?: { onlyActive?: boolean }): Promise<DemoBranch[]> {
-  const all = dsGetBranches();
+  // Refresh on demand; fall back to cache if Directus is briefly unreachable.
+  try { await refreshBranches(); } catch { /* keep stale cache */ }
+  const all = getBranchesCache();
   return opts?.onlyActive ? all.filter((b) => b.is_active) : all;
 }
 
 export async function createBranch(input: { name: string; code: string; address?: string; phone?: string; is_active?: boolean }): Promise<DemoBranch> {
-  const list = dsGetBranches();
-  const id = (list.reduce((m, x) => Math.max(m, x.id), 0) || 0) + 1;
-  const created: DemoBranch = { id, name: input.name, code: input.code, address: input.address, phone: input.phone, is_active: input.is_active ?? true };
-  dsSetBranches([...list, created]);
+  const created = await dxCreateBranch({
+    name: input.name, code: input.code,
+    address: input.address, phone: input.phone,
+    is_active: input.is_active ?? true,
+  });
+  logEvent({ action: "branch.created", entityType: "agent", entityId: String(created.id), entityLabel: created.name, branch: created.code, after: created });
   return created;
 }
 
 export async function updateBranch(id: number, patch: Partial<DemoBranch>): Promise<DemoBranch> {
-  const list = dsGetBranches();
-  const next = list.map((b) => (b.id === id ? { ...b, ...patch } : b));
-  dsSetBranches(next);
-  return next.find((b) => b.id === id)!;
+  const before = getBranchesCache().find((b) => b.id === id);
+  const updated = await dxUpdateBranch(id, patch);
+  logEvent({ action: "branch.updated", entityType: "agent", entityId: String(id), entityLabel: updated.name, branch: updated.code, before, after: updated });
+  return updated;
 }
 
 export async function deleteBranch(id: number): Promise<void> {
-  dsSetBranches(dsGetBranches().filter((b) => b.id !== id));
+  const before = getBranchesCache().find((b) => b.id === id);
+  await dxDeleteBranch(id);
+  logEvent({ action: "branch.deleted", entityType: "agent", entityId: String(id), entityLabel: before?.name ?? "", branch: before?.code, before });
 }
 
 // ---------------------------------------------------------------------------
