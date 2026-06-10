@@ -2,7 +2,6 @@ import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/r
 import { Component, type ReactNode } from "react";
 import { LanguageProvider, useLang } from "@/i18n/LanguageProvider";
 import { Footer } from "@/components/Footer";
-import { DemoBanner } from "@/components/DemoBanner";
 import { Toaster } from "@/components/ui/sonner";
 import appCss from "../styles.css?url";
 
