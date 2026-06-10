@@ -173,10 +173,9 @@ export function getCurrentUser(): AuthUser | null {
  */
 export async function refreshCurrentUser(): Promise<AuthUser | null> {
   try {
-    const me = await dxRequest<{ data: DxUserRecord }>(
-      `/users/me?fields=id,email,first_name,last_name,app_role,app_branch,agent_code,staff_type,app_active,app_pending_approval`,
-    );
-    if (me.data.app_active === false || me.data.app_pending_approval === true) {
+    const { USER_FIELDS } = await import("./directusClient");
+    const me = await dxRequest<{ data: DxUserRecord }>(`/users/me?fields=${USER_FIELDS}`);
+    if (me.data.app_active === false || me.data.pending_approval === true) {
       await dxLogout();
       return null;
     }
