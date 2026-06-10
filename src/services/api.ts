@@ -7,7 +7,6 @@
  */
 
 import {
-  fileToDataUrl,
   getAgents as _dsGetAgentsLegacy,
   getAudit, setAudit,
   getBranches as _dsGetBranchesLegacy,
@@ -143,9 +142,8 @@ export function setApprovalRequired(v: boolean) {
 }
 export { subscribeSettings } from "./demoStore";
 
-// Asset URL helpers — in demo mode every asset is a data URL.
-export function dxAssetUrl(s: string) { return s; }
-export function isDirectusAssetUrl(_: string) { return false; }
+// Asset URL helpers — re-export the real Directus implementations.
+export { dxAssetUrl, dxIsAssetUrl as isDirectusAssetUrl } from "./directusClient";
 export async function dxFetchAsset(_: string) { return null; }
 
 // ---------------------------------------------------------------------------
