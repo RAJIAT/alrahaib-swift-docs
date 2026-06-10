@@ -64,7 +64,7 @@ function BranchesPage() {
       code: b.code,
       address: b.address ?? "",
       phone: b.phone ?? "",
-      is_active: b.is_active,
+      is_active: b.is_active ?? true,
     });
     setEditing(b);
     setAdding(false);
