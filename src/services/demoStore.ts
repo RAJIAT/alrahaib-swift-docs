@@ -345,7 +345,7 @@ function write<T>(key: string, value: T) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
-    console.warn("[demo] write failed", key, e);
+    if (import.meta.env.DEV) console.warn("[demo] write failed", key, e);
   }
 }
 

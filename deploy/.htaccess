@@ -1,0 +1,27 @@
+# Apache reverse proxy for DirectAdmin → Node app on 127.0.0.1:3000
+# ضع هذا الملف في public_html/ الخاص بالدومين docportal.alrahaib.com
+# يتطلب تفعيل mod_proxy و mod_proxy_http (من DirectAdmin أو من المضيف).
+
+RewriteEngine On
+
+# لا تعكس مجلد uploads — يخدمه Apache مباشرة (أسرع)
+RewriteCond %{REQUEST_URI} !^/uploads/
+
+# مرّر كل شيء آخر للـ Node app
+RewriteRule ^(.*)$ http://127.0.0.1:3000/$1 [P,L]
+
+# مرّر الـ headers الأصلية
+ProxyPreserveHost On
+RequestHeader set X-Forwarded-Proto "https"
+RequestHeader set X-Forwarded-For "%{REMOTE_ADDR}s"
+
+# Cache طويل لأصول البناء (immutable)
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|woff2?|ttf|otf|png|jpg|jpeg|webp|avif|svg|ico)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
+
+# اجبر HTTPS
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]

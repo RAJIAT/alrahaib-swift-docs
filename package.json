@@ -8,6 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "start": "node .output/server/index.mjs",
+    "start:pm2": "pm2 start ecosystem.config.cjs --env production",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
