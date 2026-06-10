@@ -439,14 +439,21 @@ export async function appendAttachmentsToRequest(
 }
 
 // ---------------------------------------------------------------------------
-// Agents
+// Agents — Directus-backed (Phase 3b).
+//
+// Validation rules (branch scoping, role limits, sales→underwriter routing,
+// removal workflow, supervisor approval setting) are enforced client-side
+// here and additionally by Directus permissions on the server.
 // ---------------------------------------------------------------------------
 
 function dsToAgent(a: DemoAgent): Agent { return { ...a }; }
 
-export function listAgents(): Agent[] { return dsGetAgents().map(dsToAgent); }
+export function listAgents(): Agent[] { return getAgentsCache().map(dsToAgent); }
 
-export async function getAgents(): Promise<Agent[]> { return listAgents(); }
+export async function getAgents(): Promise<Agent[]> {
+  try { await refreshAgents(); } catch { /* keep cache */ }
+  return listAgents();
+}
 
 export async function createAgent(input: {
   id: string; name: string; email?: string; branch?: string;
@@ -457,7 +464,7 @@ export async function createAgent(input: {
   if (!input.email) throw new Error("Email is required");
   if (!input.password || input.password.length < 6) throw new Error("Password (min 6 chars) is required");
   const me = getCurrentUser();
-  const list = dsGetAgents();
+  const list = getAgentsCache();
   if (list.find((a) => a.id === input.id)) throw new Error("Agent ID already exists");
   if (list.find((a) => a.email && input.email && a.email.toLowerCase() === input.email.toLowerCase())) {
     throw new Error("Email already in use");
@@ -476,55 +483,51 @@ export async function createAgent(input: {
   if (role === "agent" && !staffType) staffType = "underwriter";
 
   // Validate assignedUnderwriterId — only meaningful for sales agents.
-  let assignedUnderwriterId: string | undefined;
+  let assignedUnderwriterCode: string | undefined;
   if (staffType === "sales" && input.assignedUnderwriterId) {
     const target = list.find((a) => a.id === input.assignedUnderwriterId);
     if (!target) throw new Error("Assigned underwriter not found");
     if (target.staffType !== "underwriter") throw new Error("Assigned target must be an underwriter");
     if (target.branch !== branch) throw new Error("Assigned underwriter must be in the same branch");
-    assignedUnderwriterId = target.id;
+    assignedUnderwriterCode = target.id;
   }
 
   const settings = getSettings();
   const pending = me?.role === "supervisor" && settings.requireAdminApproval;
 
-  const userId = `u-${crypto.randomUUID().slice(0, 8)}`;
-  const agent: DemoAgent = {
-    userId, id: input.id, name: input.name, email: input.email, branch,
-    active: !pending, role,
+  const created = await dxCreateUser({
+    email: input.email,
+    password: input.password,
+    name: input.name,
+    appRole: role,
+    branchCode: branch,
+    agentCode: input.id,
     staffType: role === "agent" ? staffType : undefined,
-    supervisorId: role === "agent"
+    supervisorUserId: role === "agent"
       ? (input.supervisorId || (me?.role === "supervisor" ? me.id : undefined))
       : undefined,
-    assignedUnderwriterId: staffType === "sales" ? assignedUnderwriterId : undefined,
-    createdByUserId: me?.id,
-    createdByRole: me?.role,
-    pendingApproval: pending || undefined,
-  };
-  dsSetAgents([...list, agent]);
-
-  const newUser: DemoUser = {
-    id: userId, email: input.email, password: input.password, name: input.name,
-    role, agentId: role === "agent" ? input.id : undefined, branch,
-  };
-  setUsers([...getUsers(), newUser]);
+    assignedUnderwriterCode: staffType === "sales" ? assignedUnderwriterCode : undefined,
+    pendingApproval: pending,
+    active: !pending,
+    createdByRole: me?.role === "admin" || me?.role === "supervisor" ? me.role : undefined,
+  });
 
   logEvent({
     action: pending ? "agent.pending_created" : "agent.created",
-    entityType: "agent", entityId: agent.id, entityLabel: agent.name, branch: agent.branch,
-    after: agent,
-    meta: { staffType: agent.staffType, role: agent.role, createdByRole: me?.role },
+    entityType: "agent", entityId: created.id, entityLabel: created.name, branch: created.branch,
+    after: created,
+    meta: { staffType: created.staffType, role: created.role, createdByRole: me?.role },
   });
   if (pending) {
-    pushNotifications(getUsers().filter((u) => u.role === "admin").map((u) => ({
-      recipientUserId: u.id,
-      title: `User pending approval: ${agent.name}`,
-      body: `Created by ${me?.name ?? "supervisor"} · ${agent.branch ?? ""}`,
+    pushNotifications(getAdminUserIdsCache().map((uid) => ({
+      recipientUserId: uid,
+      title: `User pending approval: ${created.name}`,
+      body: `Created by ${me?.name ?? "supervisor"} · ${created.branch ?? ""}`,
       kind: "user_pending" as const,
       link: "/agents",
     })));
   }
-  return dsToAgent(agent);
+  return created;
 }
 
 export async function updateAgent(id: string, patch: Partial<{
@@ -532,10 +535,9 @@ export async function updateAgent(id: string, patch: Partial<{
   role: AgentRole; staffType: StaffType; password: string;
   assignedUnderwriterId: string | null;
 }>): Promise<Agent> {
-  const list = dsGetAgents();
-  const idx = list.findIndex((a) => a.id === id || a.userId === id);
-  if (idx < 0) throw new Error("Agent not found");
-  const before = list[idx];
+  const list = getAgentsCache();
+  const before = list.find((a) => a.id === id || a.userId === id);
+  if (!before) throw new Error("Agent not found");
   const me = getCurrentUser();
 
   if (me?.role === "supervisor") {
@@ -545,7 +547,6 @@ export async function updateAgent(id: string, patch: Partial<{
     if (patch.role !== undefined && patch.role !== before.role) throw new Error("Supervisors cannot change role");
   }
 
-  // Only admin / supervisor can change the assigned underwriter for a sales agent.
   if (patch.assignedUnderwriterId !== undefined) {
     if (me?.role !== "admin" && me?.role !== "supervisor") {
       throw new Error("Only admin or supervisor can change the assigned underwriter");
@@ -562,92 +563,74 @@ export async function updateAgent(id: string, patch: Partial<{
     }
   }
 
-  const next = [...list];
   const nextBranch = patch.branch === null ? undefined : (patch.branch ?? before.branch);
   // If branch changes and the previously assigned UW is no longer in the same branch, clear it.
-  let nextAssignedUW = before.assignedUnderwriterId;
+  let nextAssignedUW: string | null | undefined = undefined;
   if (patch.assignedUnderwriterId !== undefined) {
-    nextAssignedUW = patch.assignedUnderwriterId === null ? undefined : patch.assignedUnderwriterId;
-  } else if (nextBranch !== before.branch && nextAssignedUW) {
-    const cur = list.find((a) => a.id === nextAssignedUW);
-    if (!cur || cur.branch !== nextBranch) nextAssignedUW = undefined;
+    nextAssignedUW = patch.assignedUnderwriterId === null ? null : patch.assignedUnderwriterId;
+  } else if (nextBranch !== before.branch && before.assignedUnderwriterId) {
+    const cur = list.find((a) => a.id === before.assignedUnderwriterId);
+    if (!cur || cur.branch !== nextBranch) nextAssignedUW = null;
   }
   const nextStaffType = patch.staffType ?? before.staffType;
-  next[idx] = {
-    ...before,
-    name: patch.name ?? before.name,
-    email: patch.email === null ? undefined : (patch.email ?? before.email),
-    branch: nextBranch,
-    active: patch.active ?? before.active,
-    role: patch.role ?? before.role,
-    staffType: nextStaffType,
-    supervisorId: patch.supervisorId === null ? undefined : (patch.supervisorId ?? before.supervisorId),
-    assignedUnderwriterId: nextStaffType === "sales" ? nextAssignedUW : undefined,
-  };
-  dsSetAgents(next);
 
-  const users = getUsers();
-  const u = users.findIndex((x) => x.id === before.userId);
-  if (u >= 0) {
-    const updated = { ...users[u] };
-    if (patch.name) updated.name = patch.name;
-    if (patch.email) updated.email = patch.email;
-    if (patch.branch !== undefined) updated.branch = patch.branch ?? undefined;
-    if (patch.password) updated.password = patch.password;
-    if (patch.role) updated.role = patch.role;
-    const arr = [...users]; arr[u] = updated;
-    setUsers(arr);
-  }
+  const updated = await dxUpdateUser(before.userId!, {
+    name: patch.name,
+    email: patch.email,
+    password: patch.password,
+    branchCode: patch.branch === undefined ? undefined : (patch.branch ?? null),
+    staffType: patch.staffType === undefined ? undefined : (patch.staffType ?? null),
+    supervisorUserId: patch.supervisorId === undefined ? undefined : (patch.supervisorId ?? null),
+    assignedUnderwriterCode: nextStaffType === "sales" ? nextAssignedUW : null,
+    active: patch.active,
+  });
 
   const changed: string[] = [];
   (["name","email","branch","active","role","staffType","supervisorId","assignedUnderwriterId"] as const).forEach((k) => {
-    if ((patch as any)[k] !== undefined && (before as any)[k] !== (next[idx] as any)[k]) changed.push(k);
+    if ((patch as Record<string, unknown>)[k] !== undefined && (before as Record<string, unknown>)[k] !== (updated as Record<string, unknown>)[k]) changed.push(k);
   });
   if (changed.includes("assignedUnderwriterId")) {
     logEvent({
       action: "agent.assigned_underwriter_changed",
-      entityType: "agent", entityId: next[idx].id, entityLabel: next[idx].name, branch: next[idx].branch,
+      entityType: "agent", entityId: updated.id, entityLabel: updated.name, branch: updated.branch,
       before: { assignedUnderwriterId: before.assignedUnderwriterId },
-      after: { assignedUnderwriterId: next[idx].assignedUnderwriterId },
+      after: { assignedUnderwriterId: updated.assignedUnderwriterId },
     });
   }
   logEvent({
     action: "agent.updated",
-    entityType: "agent", entityId: next[idx].id, entityLabel: next[idx].name, branch: next[idx].branch,
-    before, after: next[idx], meta: { changed },
+    entityType: "agent", entityId: updated.id, entityLabel: updated.name, branch: updated.branch,
+    before, after: updated, meta: { changed },
   });
-  return dsToAgent(next[idx]);
+  return updated;
 }
 
 export async function approveAgent(id: string): Promise<Agent> {
-  const list = dsGetAgents();
-  const idx = list.findIndex((a) => a.id === id || a.userId === id);
-  if (idx < 0) throw new Error("Agent not found");
-  const next = [...list];
-  next[idx] = { ...list[idx], active: true, pendingApproval: undefined };
-  dsSetAgents(next);
-  logEvent({ action: "agent.approved", entityType: "agent", entityId: next[idx].id, entityLabel: next[idx].name, branch: next[idx].branch });
-  if (next[idx].createdByUserId) {
+  const list = getAgentsCache();
+  const target = list.find((a) => a.id === id || a.userId === id);
+  if (!target) throw new Error("Agent not found");
+  const updated = await dxUpdateUser(target.userId!, { active: true, pendingApproval: false });
+  logEvent({ action: "agent.approved", entityType: "agent", entityId: updated.id, entityLabel: updated.name, branch: updated.branch });
+  if (target.createdByUserId) {
     pushNotifications([{
-      recipientUserId: next[idx].createdByUserId!,
-      title: `User approved: ${next[idx].name}`,
+      recipientUserId: target.createdByUserId,
+      title: `User approved: ${updated.name}`,
       kind: "user_approved",
       link: "/agents",
     }]);
   }
-  return dsToAgent(next[idx]);
+  return updated;
 }
 
 export async function deleteAgent(id: string): Promise<void> {
-  const list = dsGetAgents();
+  const list = getAgentsCache();
   const before = list.find((a) => a.id === id || a.userId === id);
   if (!before) throw new Error("Agent not found");
   const me = getCurrentUser();
   if (me?.role === "supervisor") {
     throw new Error("Supervisors must request removal from the admin");
   }
-  dsSetAgents(list.filter((a) => a !== before));
-  setUsers(getUsers().filter((u) => u.id !== before.userId));
+  await dxDeleteUser(before.userId!);
   logEvent({ action: "agent.deleted", entityType: "agent", entityId: before.id, entityLabel: before.name, branch: before.branch, before });
 }
 
