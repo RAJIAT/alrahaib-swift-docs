@@ -20,11 +20,11 @@ import {
   refreshBranches,
 } from "./directusEntities";
 import type {
-  DemoNote,
-  DemoQuote,
-  DemoRequest,
-  DemoStatus,
-} from "./demoStore";
+  Note as DemoNote,
+  Quote as DemoQuote,
+  InsuranceRequest as DemoRequest,
+  RequestStatus as DemoStatus,
+} from "./types";
 
 const REQ_EVT = "aib:requests-changed";
 const LEGACY_BRIDGE_KEY = "aib:request_files_bridge:v1";
