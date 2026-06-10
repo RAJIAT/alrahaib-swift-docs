@@ -242,7 +242,6 @@ export async function dxCreateRequest(input: DxCreateRequestInput): Promise<Demo
   const branchId = branchIdFromCode(input.branchCode);
   const body: Record<string, unknown> = {
     id: input.id,
-    uuid: input.uuid,
     status: "new",
     customer_name: input.customerName ?? null,
     customer_email: input.customerEmail ?? null,
