@@ -284,25 +284,72 @@ async function ensureUserFields() {
 
 async function ensureRelations() {
   console.log("\n🔗 Relations…");
+  // Pull all existing relations once so we can skip any (collection, field)
+  // pair that already has a relation row, regardless of how it was created
+  // (bootstrap re-run, manual setup, partial previous run, etc.).
+  const allRel = await api<{
+    data: Array<{ collection: string; field: string; related_collection: string | null }>;
+  }>("/relations?limit=-1").catch(() => ({ data: [] as Array<{ collection: string; field: string; related_collection: string | null }> }));
+  const have = new Set(allRel.data.map((r) => `${r.collection}.${r.field}`));
+
   for (const r of relations) {
     const id = `${r.collection}.${r.field}`;
-    const list = await api<{ data: Array<{ collection: string; field: string }> }>(
-      `/relations/${r.collection}/${r.field}`,
-    ).catch(() => null);
-    if (list) {
+    if (have.has(id)) {
       console.log(`   = ${id} (exists)`);
       continue;
     }
-    await api("/relations", {
-      method: "POST",
-      body: JSON.stringify({
-        collection: r.collection,
-        field: r.field,
-        related_collection: r.related_collection,
-        schema: { on_delete: r.on_delete ?? "SET NULL" },
-      }),
-    });
-    console.log(`   + ${id}`);
+
+    // Directus 11.x relations API expects collection/field/related_collection
+    // at the top level plus a `meta` block. The `schema` block is what
+    // creates the underlying FK constraint — but only if both columns
+    // already exist with compatible types. We let Directus infer the FK
+    // (omit `schema`) and only pass on_delete via meta if provided, then
+    // fall back to a no-schema payload if the DB-level FK fails.
+    const payload: Record<string, unknown> = {
+      collection: r.collection,
+      field: r.field,
+      related_collection: r.related_collection,
+      meta: {
+        many_collection: r.collection,
+        many_field: r.field,
+        one_collection: r.related_collection,
+      },
+      schema: { on_delete: r.on_delete ?? "SET NULL" },
+    };
+
+    try {
+      await api("/relations", { method: "POST", body: JSON.stringify(payload) });
+      console.log(`   + ${id}`);
+    } catch (e) {
+      const msg = String((e as Error).message ?? e);
+      // Already present (race / partial bootstrap) — treat as success.
+      if (/already exists|RecordNotUnique|duplicate/i.test(msg)) {
+        console.log(`   = ${id} (already present)`);
+        continue;
+      }
+      // Some DB states (existing column without FK, or self-referential
+      // user→user FKs on an external auth table) reject the FK creation
+      // with a misleading "Collection X doesn't exist". Retry as a
+      // metadata-only relation so the Directus UI still wires it up.
+      if (/doesn't exist|does not exist|Invalid payload/i.test(msg)) {
+        try {
+          const metaOnly = { ...payload };
+          delete (metaOnly as { schema?: unknown }).schema;
+          await api("/relations", { method: "POST", body: JSON.stringify(metaOnly) });
+          console.log(`   + ${id} (meta-only, no FK)`);
+          continue;
+        } catch (e2) {
+          const msg2 = String((e2 as Error).message ?? e2);
+          if (/already exists|RecordNotUnique|duplicate/i.test(msg2)) {
+            console.log(`   = ${id} (already present)`);
+            continue;
+          }
+          console.warn(`   ! ${id} skipped: ${msg2.split("\n")[0]}`);
+          continue;
+        }
+      }
+      throw e;
+    }
   }
 }
 
