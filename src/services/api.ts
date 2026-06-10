@@ -12,7 +12,8 @@ import {
   getAudit, setAudit,
   getBranches as _dsGetBranchesLegacy,
   getNotifications, setNotifications, pushNotifications,
-  getRequests, setRequests,
+  getRequests as _dsGetRequestsLegacy,
+  setRequests as _dsSetRequestsLegacy,
   getSettings, setSettings as dsSetSettings,
   getUsers, setUsers,
   newRequestId,
@@ -54,11 +55,26 @@ import {
   dxUpdateUser,
   dxDeleteUser,
 } from "./directusEntities";
+import {
+  dxListRequests,
+  dxGetRequest,
+  dxCreateRequest,
+  dxSetRequestStatus,
+  dxReassignRequest,
+  dxAddNote,
+  dxResolveNote,
+  appendMissingAttachmentsLocal,
+  appendQuotesLocal,
+  removeQuoteLocal,
+  getRequestFiles,
+  setRequestFiles,
+} from "./directusRequests";
 
 // Silence unused-import warnings; these legacy exports stay imported so other
 // (Phase 3c/3d/3e) functions in this file continue compiling unchanged.
 void _dsGetAgentsLegacy; void _dsGetBranchesLegacy;
 void _dsSetAgentsLegacy; void _dsSetBranchesLegacy;
+void _dsGetRequestsLegacy; void _dsSetRequestsLegacy;
 
 // Phase 3b sync helpers — read agents/branches from the Directus cache.
 // (Other functions in this file still call these names; they used to point
