@@ -1,9 +1,11 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
-import { Component, type ReactNode } from "react";
+import { Component, useEffect, type ReactNode } from "react";
 import { LanguageProvider, useLang } from "@/i18n/LanguageProvider";
 import { Footer } from "@/components/Footer";
 import { Toaster } from "@/components/ui/sonner";
 import appCss from "../styles.css?url";
+import { bootstrapEntities } from "@/services/directusEntities";
+import { dxIsLoggedIn } from "@/services/directusClient";
 
 class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -110,6 +112,14 @@ function RootComponent() {
 
 function AppChrome() {
   const { dir } = useLang();
+  useEffect(() => {
+    // After a page refresh we still have the Directus token cached but the
+    // in-memory branches/agents caches are empty. Re-hydrate them so pages
+    // that read synchronously from the cache (listBranches/listAgents) work.
+    if (dxIsLoggedIn()) {
+      void bootstrapEntities();
+    }
+  }, []);
   return (
     <div className="flex min-h-screen flex-col">
       <div className="flex-1">
