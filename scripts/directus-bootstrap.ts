@@ -359,6 +359,20 @@ async function ensurePermissions(roleMap: Record<RoleName, string>) {
     { role: "Agent", entries: config.agent },
   ];
 
+  // Substitute the dynamic Agent role UUID anywhere it appears as the
+  // literal string "$AGENT_ROLE_ID" inside validation/permissions JSON.
+  const agentRoleId = roleMap.Agent;
+  const substitute = (v: unknown): unknown => {
+    if (typeof v === "string") return v === "$AGENT_ROLE_ID" ? agentRoleId : v;
+    if (Array.isArray(v)) return v.map(substitute);
+    if (v && typeof v === "object") {
+      const o: Record<string, unknown> = {};
+      for (const [k, val] of Object.entries(v)) o[k] = substitute(val);
+      return o;
+    }
+    return v;
+  };
+
   for (const { role, entries } of batches) {
     for (const entry of entries) {
       const { _comment, validation, permissions, fields, action, collection } = entry as {
@@ -376,8 +390,8 @@ async function ensurePermissions(roleMap: Record<RoleName, string>) {
           collection,
           action,
           fields: fields ?? ["*"],
-          permissions: permissions ?? {},
-          validation: validation ?? {},
+          permissions: substitute(permissions ?? {}),
+          validation: substitute(validation ?? {}),
           comment: "lovable-bootstrap",
         }),
       });
