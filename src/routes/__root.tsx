@@ -112,7 +112,6 @@ function AppChrome() {
   const { dir } = useLang();
   return (
     <div className="flex min-h-screen flex-col">
-      <DemoBanner />
       <div className="flex-1">
         <Outlet />
       </div>
