@@ -5,7 +5,7 @@ type Dir = "rtl" | "ltr";
 export const translations = {
   ar: {
     dir: "rtl" as Dir,
-    brand: "الدبلوماسية لخدمات التأمين ش.ذ.م.م",
+    brand: "الدبلوماسي لخدمات التأمين ش.ذ.م.م",
     langSwitch: "EN",
     upload: {
       title: "ارفع مستنداتك خلال دقيقة",
@@ -403,7 +403,7 @@ export const translations = {
       filesHint: "صور / PDF / مستندات — حد أقصى 5MB لكل ملف",
     },
     footer: {
-      rights: (year: number) => `© ${year} الدبلوماسية لخدمات التأمين ش.ذ.م.م. جميع الحقوق محفوظة.`,
+      rights: (year: number) => `© ${year} الدبلوماسي لخدمات التأمين ش.ذ.م.م. جميع الحقوق محفوظة.`,
       tagline: "بوابة آمنة لرفع وإدارة مستندات التأمين.",
       dataNotice: "جميع البيانات المرسلة مشفّرة وتُعالَج بسرّية تامة وفقاً لسياسة الخصوصية المعتمدة.",
       privacy: "سياسة الخصوصية",
