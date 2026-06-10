@@ -157,24 +157,27 @@ export type DxUserRecord = {
   first_name?: string | null;
   last_name?: string | null;
   app_role?: "admin" | "supervisor" | "agent" | null;
-  app_branch?: string | null;
+  branch?: { id: number; code: string } | number | null;
   agent_code?: string | null;
   staff_type?: "underwriter" | "sales" | null;
-  supervisor_user_id?: string | null;
+  supervisor?: string | null;
   assigned_underwriter_code?: string | null;
-  app_pending_approval?: boolean | null;
+  pending_approval?: boolean | null;
   app_active?: boolean | null;
   app_created_by_role?: string | null;
   app_removal_reason?: string | null;
   app_removal_requested_by?: string | null;
   app_removal_requested_at?: string | null;
+  role?: string | null;
+  status?: string | null;
 };
 
-const USER_FIELDS = [
-  "id", "email", "first_name", "last_name",
-  "app_role", "app_branch", "agent_code", "staff_type",
-  "supervisor_user_id", "assigned_underwriter_code",
-  "app_pending_approval", "app_active", "app_created_by_role",
+export const USER_FIELDS = [
+  "id", "email", "first_name", "last_name", "role", "status",
+  "app_role", "agent_code", "staff_type",
+  "branch.id", "branch.code",
+  "supervisor", "assigned_underwriter_code",
+  "pending_approval", "app_active", "app_created_by_role",
   "app_removal_reason", "app_removal_requested_by", "app_removal_requested_at",
 ].join(",");
 
@@ -185,13 +188,20 @@ function fullName(u: { first_name?: string | null; last_name?: string | null; em
   return joined || u.email;
 }
 
+export function userBranchCode(u: DxUserRecord): string | undefined {
+  const b = u.branch;
+  if (!b) return undefined;
+  if (typeof b === "object" && "code" in b) return b.code ?? undefined;
+  return undefined;
+}
+
 export function userRecordToProfile(u: DxUserRecord): ProfileSnapshot {
   return {
     id: u.id,
     email: u.email,
     name: fullName(u),
     role: (u.app_role ?? "agent"),
-    branch: u.app_branch ?? undefined,
+    branch: userBranchCode(u),
     agentId: u.agent_code ?? undefined,
   };
 }
@@ -218,7 +228,7 @@ export async function dxLogin(email: string, password: string): Promise<ProfileS
     await dxLogout();
     throw new Error("Your account is disabled");
   }
-  if (me.data.app_pending_approval === true) {
+  if (me.data.pending_approval === true) {
     await dxLogout();
     throw new Error("Your account is pending approval");
   }

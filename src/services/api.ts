@@ -8,17 +8,17 @@
 
 import {
   fileToDataUrl,
-  getAgents as dsGetAgents,
+  getAgents as _dsGetAgentsLegacy,
   getAudit, setAudit,
-  getBranches as dsGetBranches,
+  getBranches as _dsGetBranchesLegacy,
   getNotifications, setNotifications, pushNotifications,
   getRequests, setRequests,
   getSettings, setSettings as dsSetSettings,
   getUsers, setUsers,
   newRequestId,
   notify,
-  setAgents as dsSetAgents,
-  setBranches as dsSetBranches,
+  setAgents as _dsSetAgentsLegacy,
+  setBranches as _dsSetBranchesLegacy,
   type DemoAgent,
   type DemoAttachment,
   type DemoBranch,
@@ -39,6 +39,33 @@ import {
   type DxUserRecord,
   type ProfileSnapshot,
 } from "./directusClient";
+import {
+  bootstrapEntities,
+  getAdminUserIdsCache,
+  getAgentsCache,
+  getBranchesCache,
+  refreshAgents,
+  refreshBranches,
+  resetEntitiesCache,
+  dxCreateBranch,
+  dxUpdateBranch,
+  dxDeleteBranch,
+  dxCreateUser,
+  dxUpdateUser,
+  dxDeleteUser,
+} from "./directusEntities";
+
+// Silence unused-import warnings; these legacy exports stay imported so other
+// (Phase 3c/3d/3e) functions in this file continue compiling unchanged.
+void _dsGetAgentsLegacy; void _dsGetBranchesLegacy;
+void _dsSetAgentsLegacy; void _dsSetBranchesLegacy;
+
+// Phase 3b sync helpers — read agents/branches from the Directus cache.
+// (Other functions in this file still call these names; they used to point
+// at demoStore. Now they bridge to the Directus cache so request/quote/notify
+// flows stay working until 3c migrates those too.)
+function dsGetAgents(): DemoAgent[] { return getAgentsCache(); }
+function dsGetBranches(): DemoBranch[] { return getBranchesCache(); }
 
 // Trigger seeding by accessing the store once.
 export function ensureSeeded() { getUsers(); }
@@ -140,6 +167,8 @@ function profileToAuth(p: ProfileSnapshot): AuthUser {
 export async function login(email: string, password: string): Promise<AuthUser> {
   const profile = await dxLogin(email, password);
   const auth = profileToAuth(profile);
+  // Warm caches so subsequent sync reads (listAgents/listBranches) have data.
+  bootstrapEntities().catch(() => {});
   logEvent({
     action: "auth.login", entityType: "auth", entityId: auth.id, entityLabel: auth.name,
     actor: { id: auth.id, name: auth.name, role: auth.role, branch: auth.branch ?? null },
@@ -160,6 +189,7 @@ export async function logout() {
     });
   }
   await dxLogout();
+  resetEntitiesCache();
 }
 
 export function getCurrentUser(): AuthUser | null {
@@ -173,10 +203,9 @@ export function getCurrentUser(): AuthUser | null {
  */
 export async function refreshCurrentUser(): Promise<AuthUser | null> {
   try {
-    const me = await dxRequest<{ data: DxUserRecord }>(
-      `/users/me?fields=id,email,first_name,last_name,app_role,app_branch,agent_code,staff_type,app_active,app_pending_approval`,
-    );
-    if (me.data.app_active === false || me.data.app_pending_approval === true) {
+    const { USER_FIELDS } = await import("./directusClient");
+    const me = await dxRequest<{ data: DxUserRecord }>(`/users/me?fields=${USER_FIELDS}`);
+    if (me.data.app_active === false || me.data.pending_approval === true) {
       await dxLogout();
       return null;
     }
@@ -191,36 +220,42 @@ export async function refreshCurrentUser(): Promise<AuthUser | null> {
 }
 
 // ---------------------------------------------------------------------------
-// Branches
+// Branches — Directus-backed (Phase 3b).
 // ---------------------------------------------------------------------------
 
 export function listBranches(): string[] {
-  return dsGetBranches().filter((b) => b.is_active).map((b) => b.code);
+  return getBranchesCache().filter((b) => b.is_active).map((b) => b.code);
 }
-export function listBranchObjects(): DemoBranch[] { return dsGetBranches(); }
+export function listBranchObjects(): DemoBranch[] { return getBranchesCache(); }
 
 export async function getBranches(opts?: { onlyActive?: boolean }): Promise<DemoBranch[]> {
-  const all = dsGetBranches();
+  // Refresh on demand; fall back to cache if Directus is briefly unreachable.
+  try { await refreshBranches(); } catch { /* keep stale cache */ }
+  const all = getBranchesCache();
   return opts?.onlyActive ? all.filter((b) => b.is_active) : all;
 }
 
 export async function createBranch(input: { name: string; code: string; address?: string; phone?: string; is_active?: boolean }): Promise<DemoBranch> {
-  const list = dsGetBranches();
-  const id = (list.reduce((m, x) => Math.max(m, x.id), 0) || 0) + 1;
-  const created: DemoBranch = { id, name: input.name, code: input.code, address: input.address, phone: input.phone, is_active: input.is_active ?? true };
-  dsSetBranches([...list, created]);
+  const created = await dxCreateBranch({
+    name: input.name, code: input.code,
+    address: input.address, phone: input.phone,
+    is_active: input.is_active ?? true,
+  });
+  logEvent({ action: "branch.created", entityType: "agent", entityId: String(created.id), entityLabel: created.name, branch: created.code, after: created });
   return created;
 }
 
 export async function updateBranch(id: number, patch: Partial<DemoBranch>): Promise<DemoBranch> {
-  const list = dsGetBranches();
-  const next = list.map((b) => (b.id === id ? { ...b, ...patch } : b));
-  dsSetBranches(next);
-  return next.find((b) => b.id === id)!;
+  const before = getBranchesCache().find((b) => b.id === id);
+  const updated = await dxUpdateBranch(id, patch);
+  logEvent({ action: "branch.updated", entityType: "agent", entityId: String(id), entityLabel: updated.name, branch: updated.code, before, after: updated });
+  return updated;
 }
 
 export async function deleteBranch(id: number): Promise<void> {
-  dsSetBranches(dsGetBranches().filter((b) => b.id !== id));
+  const before = getBranchesCache().find((b) => b.id === id);
+  await dxDeleteBranch(id);
+  logEvent({ action: "branch.deleted", entityType: "agent", entityId: String(id), entityLabel: before?.name ?? "", branch: before?.code, before });
 }
 
 // ---------------------------------------------------------------------------
@@ -405,14 +440,21 @@ export async function appendAttachmentsToRequest(
 }
 
 // ---------------------------------------------------------------------------
-// Agents
+// Agents — Directus-backed (Phase 3b).
+//
+// Validation rules (branch scoping, role limits, sales→underwriter routing,
+// removal workflow, supervisor approval setting) are enforced client-side
+// here and additionally by Directus permissions on the server.
 // ---------------------------------------------------------------------------
 
 function dsToAgent(a: DemoAgent): Agent { return { ...a }; }
 
-export function listAgents(): Agent[] { return dsGetAgents().map(dsToAgent); }
+export function listAgents(): Agent[] { return getAgentsCache().map(dsToAgent); }
 
-export async function getAgents(): Promise<Agent[]> { return listAgents(); }
+export async function getAgents(): Promise<Agent[]> {
+  try { await refreshAgents(); } catch { /* keep cache */ }
+  return listAgents();
+}
 
 export async function createAgent(input: {
   id: string; name: string; email?: string; branch?: string;
@@ -423,7 +465,7 @@ export async function createAgent(input: {
   if (!input.email) throw new Error("Email is required");
   if (!input.password || input.password.length < 6) throw new Error("Password (min 6 chars) is required");
   const me = getCurrentUser();
-  const list = dsGetAgents();
+  const list = getAgentsCache();
   if (list.find((a) => a.id === input.id)) throw new Error("Agent ID already exists");
   if (list.find((a) => a.email && input.email && a.email.toLowerCase() === input.email.toLowerCase())) {
     throw new Error("Email already in use");
@@ -442,55 +484,51 @@ export async function createAgent(input: {
   if (role === "agent" && !staffType) staffType = "underwriter";
 
   // Validate assignedUnderwriterId — only meaningful for sales agents.
-  let assignedUnderwriterId: string | undefined;
+  let assignedUnderwriterCode: string | undefined;
   if (staffType === "sales" && input.assignedUnderwriterId) {
     const target = list.find((a) => a.id === input.assignedUnderwriterId);
     if (!target) throw new Error("Assigned underwriter not found");
     if (target.staffType !== "underwriter") throw new Error("Assigned target must be an underwriter");
     if (target.branch !== branch) throw new Error("Assigned underwriter must be in the same branch");
-    assignedUnderwriterId = target.id;
+    assignedUnderwriterCode = target.id;
   }
 
   const settings = getSettings();
   const pending = me?.role === "supervisor" && settings.requireAdminApproval;
 
-  const userId = `u-${crypto.randomUUID().slice(0, 8)}`;
-  const agent: DemoAgent = {
-    userId, id: input.id, name: input.name, email: input.email, branch,
-    active: !pending, role,
+  const created = await dxCreateUser({
+    email: input.email,
+    password: input.password,
+    name: input.name,
+    appRole: role,
+    branchCode: branch,
+    agentCode: input.id,
     staffType: role === "agent" ? staffType : undefined,
-    supervisorId: role === "agent"
+    supervisorUserId: role === "agent"
       ? (input.supervisorId || (me?.role === "supervisor" ? me.id : undefined))
       : undefined,
-    assignedUnderwriterId: staffType === "sales" ? assignedUnderwriterId : undefined,
-    createdByUserId: me?.id,
-    createdByRole: me?.role,
-    pendingApproval: pending || undefined,
-  };
-  dsSetAgents([...list, agent]);
-
-  const newUser: DemoUser = {
-    id: userId, email: input.email, password: input.password, name: input.name,
-    role, agentId: role === "agent" ? input.id : undefined, branch,
-  };
-  setUsers([...getUsers(), newUser]);
+    assignedUnderwriterCode: staffType === "sales" ? assignedUnderwriterCode : undefined,
+    pendingApproval: pending,
+    active: !pending,
+    createdByRole: me?.role === "admin" || me?.role === "supervisor" ? me.role : undefined,
+  });
 
   logEvent({
     action: pending ? "agent.pending_created" : "agent.created",
-    entityType: "agent", entityId: agent.id, entityLabel: agent.name, branch: agent.branch,
-    after: agent,
-    meta: { staffType: agent.staffType, role: agent.role, createdByRole: me?.role },
+    entityType: "agent", entityId: created.id, entityLabel: created.name, branch: created.branch,
+    after: created,
+    meta: { staffType: created.staffType, role: created.role, createdByRole: me?.role },
   });
   if (pending) {
-    pushNotifications(getUsers().filter((u) => u.role === "admin").map((u) => ({
-      recipientUserId: u.id,
-      title: `User pending approval: ${agent.name}`,
-      body: `Created by ${me?.name ?? "supervisor"} · ${agent.branch ?? ""}`,
+    pushNotifications(getAdminUserIdsCache().map((uid) => ({
+      recipientUserId: uid,
+      title: `User pending approval: ${created.name}`,
+      body: `Created by ${me?.name ?? "supervisor"} · ${created.branch ?? ""}`,
       kind: "user_pending" as const,
       link: "/agents",
     })));
   }
-  return dsToAgent(agent);
+  return created;
 }
 
 export async function updateAgent(id: string, patch: Partial<{
@@ -498,10 +536,9 @@ export async function updateAgent(id: string, patch: Partial<{
   role: AgentRole; staffType: StaffType; password: string;
   assignedUnderwriterId: string | null;
 }>): Promise<Agent> {
-  const list = dsGetAgents();
-  const idx = list.findIndex((a) => a.id === id || a.userId === id);
-  if (idx < 0) throw new Error("Agent not found");
-  const before = list[idx];
+  const list = getAgentsCache();
+  const before = list.find((a) => a.id === id || a.userId === id);
+  if (!before) throw new Error("Agent not found");
   const me = getCurrentUser();
 
   if (me?.role === "supervisor") {
@@ -511,7 +548,6 @@ export async function updateAgent(id: string, patch: Partial<{
     if (patch.role !== undefined && patch.role !== before.role) throw new Error("Supervisors cannot change role");
   }
 
-  // Only admin / supervisor can change the assigned underwriter for a sales agent.
   if (patch.assignedUnderwriterId !== undefined) {
     if (me?.role !== "admin" && me?.role !== "supervisor") {
       throw new Error("Only admin or supervisor can change the assigned underwriter");
@@ -528,92 +564,74 @@ export async function updateAgent(id: string, patch: Partial<{
     }
   }
 
-  const next = [...list];
   const nextBranch = patch.branch === null ? undefined : (patch.branch ?? before.branch);
   // If branch changes and the previously assigned UW is no longer in the same branch, clear it.
-  let nextAssignedUW = before.assignedUnderwriterId;
+  let nextAssignedUW: string | null | undefined = undefined;
   if (patch.assignedUnderwriterId !== undefined) {
-    nextAssignedUW = patch.assignedUnderwriterId === null ? undefined : patch.assignedUnderwriterId;
-  } else if (nextBranch !== before.branch && nextAssignedUW) {
-    const cur = list.find((a) => a.id === nextAssignedUW);
-    if (!cur || cur.branch !== nextBranch) nextAssignedUW = undefined;
+    nextAssignedUW = patch.assignedUnderwriterId === null ? null : patch.assignedUnderwriterId;
+  } else if (nextBranch !== before.branch && before.assignedUnderwriterId) {
+    const cur = list.find((a) => a.id === before.assignedUnderwriterId);
+    if (!cur || cur.branch !== nextBranch) nextAssignedUW = null;
   }
   const nextStaffType = patch.staffType ?? before.staffType;
-  next[idx] = {
-    ...before,
-    name: patch.name ?? before.name,
-    email: patch.email === null ? undefined : (patch.email ?? before.email),
-    branch: nextBranch,
-    active: patch.active ?? before.active,
-    role: patch.role ?? before.role,
-    staffType: nextStaffType,
-    supervisorId: patch.supervisorId === null ? undefined : (patch.supervisorId ?? before.supervisorId),
-    assignedUnderwriterId: nextStaffType === "sales" ? nextAssignedUW : undefined,
-  };
-  dsSetAgents(next);
 
-  const users = getUsers();
-  const u = users.findIndex((x) => x.id === before.userId);
-  if (u >= 0) {
-    const updated = { ...users[u] };
-    if (patch.name) updated.name = patch.name;
-    if (patch.email) updated.email = patch.email;
-    if (patch.branch !== undefined) updated.branch = patch.branch ?? undefined;
-    if (patch.password) updated.password = patch.password;
-    if (patch.role) updated.role = patch.role;
-    const arr = [...users]; arr[u] = updated;
-    setUsers(arr);
-  }
+  const updated = await dxUpdateUser(before.userId!, {
+    name: patch.name,
+    email: patch.email,
+    password: patch.password,
+    branchCode: patch.branch === undefined ? undefined : (patch.branch ?? null),
+    staffType: patch.staffType === undefined ? undefined : (patch.staffType ?? null),
+    supervisorUserId: patch.supervisorId === undefined ? undefined : (patch.supervisorId ?? null),
+    assignedUnderwriterCode: nextStaffType === "sales" ? nextAssignedUW : null,
+    active: patch.active,
+  });
 
   const changed: string[] = [];
   (["name","email","branch","active","role","staffType","supervisorId","assignedUnderwriterId"] as const).forEach((k) => {
-    if ((patch as any)[k] !== undefined && (before as any)[k] !== (next[idx] as any)[k]) changed.push(k);
+    if ((patch as Record<string, unknown>)[k] !== undefined && (before as Record<string, unknown>)[k] !== (updated as Record<string, unknown>)[k]) changed.push(k);
   });
   if (changed.includes("assignedUnderwriterId")) {
     logEvent({
       action: "agent.assigned_underwriter_changed",
-      entityType: "agent", entityId: next[idx].id, entityLabel: next[idx].name, branch: next[idx].branch,
+      entityType: "agent", entityId: updated.id, entityLabel: updated.name, branch: updated.branch,
       before: { assignedUnderwriterId: before.assignedUnderwriterId },
-      after: { assignedUnderwriterId: next[idx].assignedUnderwriterId },
+      after: { assignedUnderwriterId: updated.assignedUnderwriterId },
     });
   }
   logEvent({
     action: "agent.updated",
-    entityType: "agent", entityId: next[idx].id, entityLabel: next[idx].name, branch: next[idx].branch,
-    before, after: next[idx], meta: { changed },
+    entityType: "agent", entityId: updated.id, entityLabel: updated.name, branch: updated.branch,
+    before, after: updated, meta: { changed },
   });
-  return dsToAgent(next[idx]);
+  return updated;
 }
 
 export async function approveAgent(id: string): Promise<Agent> {
-  const list = dsGetAgents();
-  const idx = list.findIndex((a) => a.id === id || a.userId === id);
-  if (idx < 0) throw new Error("Agent not found");
-  const next = [...list];
-  next[idx] = { ...list[idx], active: true, pendingApproval: undefined };
-  dsSetAgents(next);
-  logEvent({ action: "agent.approved", entityType: "agent", entityId: next[idx].id, entityLabel: next[idx].name, branch: next[idx].branch });
-  if (next[idx].createdByUserId) {
+  const list = getAgentsCache();
+  const target = list.find((a) => a.id === id || a.userId === id);
+  if (!target) throw new Error("Agent not found");
+  const updated = await dxUpdateUser(target.userId!, { active: true, pendingApproval: false });
+  logEvent({ action: "agent.approved", entityType: "agent", entityId: updated.id, entityLabel: updated.name, branch: updated.branch });
+  if (target.createdByUserId) {
     pushNotifications([{
-      recipientUserId: next[idx].createdByUserId!,
-      title: `User approved: ${next[idx].name}`,
+      recipientUserId: target.createdByUserId,
+      title: `User approved: ${updated.name}`,
       kind: "user_approved",
       link: "/agents",
     }]);
   }
-  return dsToAgent(next[idx]);
+  return updated;
 }
 
 export async function deleteAgent(id: string): Promise<void> {
-  const list = dsGetAgents();
+  const list = getAgentsCache();
   const before = list.find((a) => a.id === id || a.userId === id);
   if (!before) throw new Error("Agent not found");
   const me = getCurrentUser();
   if (me?.role === "supervisor") {
     throw new Error("Supervisors must request removal from the admin");
   }
-  dsSetAgents(list.filter((a) => a !== before));
-  setUsers(getUsers().filter((u) => u.id !== before.userId));
+  await dxDeleteUser(before.userId!);
   logEvent({ action: "agent.deleted", entityType: "agent", entityId: before.id, entityLabel: before.name, branch: before.branch, before });
 }
 
@@ -920,46 +938,38 @@ function notifyRequestStatus(req: DemoRequest, before: DemoStatus) {
 export async function requestAgentRemoval(agentId: string, reason: string): Promise<Agent> {
   const me = getCurrentUser();
   if (!me || me.role !== "supervisor") throw new Error("Only supervisors can request removal");
-  const list = dsGetAgents();
-  const idx = list.findIndex((a) => a.id === agentId);
-  if (idx < 0) throw new Error("Agent not found");
-  const target = list[idx];
+  const list = getAgentsCache();
+  const target = list.find((a) => a.id === agentId || a.userId === agentId);
+  if (!target) throw new Error("Agent not found");
   if (target.branch !== me.branch) throw new Error("Out of your branch");
   if (target.removalRequest) throw new Error("Removal already requested");
-  const next = [...list];
-  next[idx] = {
-    ...target,
-    removalRequest: {
-      requestedByUserId: me.id,
-      requestedByName: me.name,
-      reason: reason.trim() || "—",
-      requestedAt: new Date().toISOString(),
-    },
-  };
-  dsSetAgents(next);
+  const updated = await dxUpdateUser(target.userId!, {
+    removalReason: reason.trim() || "—",
+    removalRequestedBy: me.id,
+    removalRequestedAt: new Date().toISOString(),
+  });
   logEvent({
     action: "agent.removal_requested",
     entityType: "agent", entityId: target.id, entityLabel: target.name, branch: target.branch,
     meta: { reason },
   });
-  pushNotifications(adminUserIds().map((uid) => ({
+  pushNotifications(getAdminUserIdsCache().map((uid) => ({
     recipientUserId: uid,
     title: `Removal requested: ${target.name}`,
     body: `${me.name} (${target.branch}) · ${reason || "No reason"}`,
     kind: "removal_requested" as const,
     link: `/agents`,
   })));
-  return next[idx];
+  return updated;
 }
 
 export async function approveAgentRemoval(agentId: string): Promise<void> {
   const me = getCurrentUser();
   if (me?.role !== "admin") throw new Error("Only admin can approve");
-  const list = dsGetAgents();
-  const target = list.find((a) => a.id === agentId);
+  const list = getAgentsCache();
+  const target = list.find((a) => a.id === agentId || a.userId === agentId);
   if (!target?.removalRequest) throw new Error("No pending removal");
-  dsSetAgents(list.filter((a) => a !== target));
-  setUsers(getUsers().filter((u) => u.id !== target.userId));
+  await dxDeleteUser(target.userId!);
   logEvent({ action: "agent.removal_approved", entityType: "agent", entityId: target.id, entityLabel: target.name, branch: target.branch, before: target });
   if (target.removalRequest.requestedByUserId) {
     pushNotifications([{
@@ -974,15 +984,16 @@ export async function approveAgentRemoval(agentId: string): Promise<void> {
 export async function dismissAgentRemoval(agentId: string): Promise<Agent> {
   const me = getCurrentUser();
   if (me?.role !== "admin") throw new Error("Only admin can dismiss");
-  const list = dsGetAgents();
-  const idx = list.findIndex((a) => a.id === agentId);
-  if (idx < 0) throw new Error("Agent not found");
-  const target = list[idx];
+  const list = getAgentsCache();
+  const target = list.find((a) => a.id === agentId || a.userId === agentId);
+  if (!target) throw new Error("Agent not found");
   if (!target.removalRequest) throw new Error("No pending removal");
   const requesterId = target.removalRequest.requestedByUserId;
-  const next = [...list];
-  next[idx] = { ...target, removalRequest: undefined };
-  dsSetAgents(next);
+  const updated = await dxUpdateUser(target.userId!, {
+    removalReason: null,
+    removalRequestedBy: null,
+    removalRequestedAt: null,
+  });
   logEvent({ action: "agent.removal_dismissed", entityType: "agent", entityId: target.id, entityLabel: target.name, branch: target.branch });
   if (requesterId) {
     pushNotifications([{
@@ -992,7 +1003,7 @@ export async function dismissAgentRemoval(agentId: string): Promise<Agent> {
       link: "/agents",
     }]);
   }
-  return dsToAgent(next[idx]);
+  return updated;
 }
 
 // ---------------------------------------------------------------------------
@@ -1026,64 +1037,42 @@ export async function bulkImportUsers(branch: string, rows: BulkImportRow[]): Pr
   if (me?.role !== "admin") throw new Error("Admin only");
   if (!branch) throw new Error("Branch is required");
   const result: BulkImportResult = { created: 0, skipped: [] };
-  const agents = [...dsGetAgents()];
-  const users = [...getUsers()];
-  // Resolve supervisor for the branch (the first existing one)
+  const agents = [...getAgentsCache()];
   const branchSupervisor = (): DemoAgent | undefined =>
     agents.find((a) => a.role === "supervisor" && a.branch === branch);
 
-  rows.forEach((row, i) => {
-    const lineNo = i + 2; // header is row 1
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const lineNo = i + 2;
     const name = (row.name ?? "").trim();
     const email = (row.email ?? "").trim().toLowerCase();
     const role = row.role;
-    if (!name || !email || !role) {
-      result.skipped.push({ row: lineNo, reason: "missing fields" });
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      result.skipped.push({ row: lineNo, reason: "invalid email" });
-      return;
-    }
-    if (!["supervisor", "underwriter", "sales"].includes(role)) {
-      result.skipped.push({ row: lineNo, reason: "invalid role" });
-      return;
-    }
-    if (agents.some((a) => a.email && a.email.toLowerCase() === email)) {
-      result.skipped.push({ row: lineNo, reason: "email exists" });
-      return;
-    }
-    if (users.some((u) => u.email.toLowerCase() === email)) {
-      result.skipped.push({ row: lineNo, reason: "email exists" });
-      return;
-    }
+    if (!name || !email || !role) { result.skipped.push({ row: lineNo, reason: "missing fields" }); continue; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { result.skipped.push({ row: lineNo, reason: "invalid email" }); continue; }
+    if (!["supervisor", "underwriter", "sales"].includes(role)) { result.skipped.push({ row: lineNo, reason: "invalid role" }); continue; }
+    if (agents.some((a) => a.email && a.email.toLowerCase() === email)) { result.skipped.push({ row: lineNo, reason: "email exists" }); continue; }
     const id = nextIdForRole(role, agents);
-    const userId = `u-${crypto.randomUUID().slice(0, 8)}`;
     const agentRole: AgentRole = role === "supervisor" ? "supervisor" : "agent";
-    const staffType = role === "supervisor" ? undefined : (role as StaffType);
+    const staffType: StaffType | undefined = role === "supervisor" ? undefined : (role as StaffType);
     const supervisor = role === "supervisor" ? undefined : branchSupervisor();
-    const password = (row.password && row.password.length >= 6) ? row.password : "demo123";
-    const newAgent: DemoAgent = {
-      userId, id, name, email, branch,
-      active: true,
-      role: agentRole,
-      staffType,
-      supervisorId: supervisor?.userId,
-      createdByUserId: me.id,
-      createdByRole: "admin",
-    };
-    agents.push(newAgent);
-    users.push({
-      id: userId, email, password, name,
-      role: role === "supervisor" ? "supervisor" : "agent",
-      agentId: agentRole === "agent" ? id : undefined,
-      branch,
-    });
-    result.created += 1;
-  });
-
-  dsSetAgents(agents);
-  setUsers(users);
+    const password = (row.password && row.password.length >= 6) ? row.password : `Pw-${crypto.randomUUID().slice(0, 10)}`;
+    try {
+      const created = await dxCreateUser({
+        email, password, name,
+        appRole: agentRole,
+        branchCode: branch,
+        agentCode: id,
+        staffType,
+        supervisorUserId: supervisor?.userId,
+        active: true,
+        createdByRole: "admin",
+      });
+      agents.push(created);
+      result.created += 1;
+    } catch (e) {
+      result.skipped.push({ row: lineNo, reason: (e as Error).message || "create failed" });
+    }
+  }
   logEvent({
     action: "agents.bulk_imported",
     entityType: "agent", entityId: null, entityLabel: branch, branch,
