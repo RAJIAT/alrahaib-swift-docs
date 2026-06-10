@@ -886,7 +886,7 @@ export async function removeQuoteFromRequest(requestId: string, quoteId: string)
     entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
     meta: { quoteId, name: q.name },
   });
-  return next[idx];
+  return updated;
 }
 
 function notifyRequestStatus(req: DemoRequest, before: DemoStatus) {
