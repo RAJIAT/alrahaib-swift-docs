@@ -279,19 +279,25 @@ export async function deleteBranch(id: number): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function listRequests(opts?: { agentId?: string; branch?: string }): Promise<InsuranceRequest[]> {
-  let list = getRequests();
-  // Show requests assigned to this agent OR originally created by them
-  // (so a sales agent keeps seeing the request after it's reassigned to an underwriter).
-  if (opts?.agentId) list = list.filter((r) => r.agentId === opts.agentId || r.originAgentId === opts.agentId);
-  if (opts?.branch) list = list.filter((r) => r.branch === opts.branch);
-  // Newest first — use the most recent of createdAt / assignedAt so a freshly
-  // reassigned request bubbles to the top of the new owner's list.
-  const ts = (r: InsuranceRequest) => (r.assignedAt && r.assignedAt > r.createdAt ? r.assignedAt : r.createdAt);
-  return [...list].sort((a, b) => (ts(a) < ts(b) ? 1 : -1));
+  // Map agent_code → user uuid and branch code → branch id so we can filter
+  // server-side. If the agent/branch is unknown to the cache, fall back to a
+  // client-side filter on the returned list.
+  const agentUuid = opts?.agentId
+    ? getAgentsCache().find((a) => a.id === opts.agentId)?.userId
+    : undefined;
+  const branchId = opts?.branch
+    ? getBranchesCache().find((b) => b.code === opts.branch)?.id
+    : undefined;
+  const rows = await dxListRequests({ agentUuid, branchId });
+  // Belt-and-braces client filter for unmapped cases
+  return rows.filter((r) =>
+    (!opts?.agentId || r.agentId === opts.agentId || r.originAgentId === opts.agentId) &&
+    (!opts?.branch || r.branch === opts.branch),
+  );
 }
 
 export async function getRequest(id: string): Promise<InsuranceRequest | null> {
-  return getRequests().find((r) => r.id === id || r.uuid === id) ?? null;
+  return dxGetRequest(id);
 }
 
 export async function resolveAssetUrl(stored: string): Promise<{ url: string; mime: string }> {
@@ -301,18 +307,14 @@ export async function resolveAssetUrl(stored: string): Promise<{ url: string; mi
 }
 
 export async function updateRequestStatus(id: string, status: RequestStatus): Promise<InsuranceRequest> {
-  const list = getRequests();
-  const idx = list.findIndex((r) => r.id === id || r.uuid === id);
-  if (idx < 0) throw new Error("Request not found");
-  const before = list[idx].status;
-  const next = [...list];
-  next[idx] = { ...list[idx], status };
-  setRequests(next);
-  if (before !== status) {
-    logEvent({ action: "request.status_changed", entityType: "request", entityId: next[idx].id, entityLabel: next[idx].id, branch: next[idx].branch, before: { status: before }, after: { status } });
-    notifyRequestStatus(next[idx], before);
-  }
-  return next[idx];
+  const current = await dxGetRequest(id);
+  if (!current) throw new Error("Request not found");
+  const before = current.status;
+  if (before === status) return current;
+  const updated = await dxSetRequestStatus(current.id, status);
+  logEvent({ action: "request.status_changed", entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch, before: { status: before }, after: { status } });
+  notifyRequestStatus(updated, before);
+  return updated;
 }
 
 export async function submitUpload(input: {
@@ -349,24 +351,21 @@ export async function submitUpload(input: {
   );
   const inspection = input.optional?.inspection ? await fileToDataUrl(input.optional.inspection) : undefined;
 
-  const req: DemoRequest = {
+  // Stash the files locally first (Phase 3d migrates to Directus /files).
+  setRequestFiles(id, {
+    images: { registration, license, emirates, vehicleMedia, inspection, attachments },
+    quotes: [],
+  });
+  // Create the request row in Directus.
+  const req = await dxCreateRequest({
     id, uuid: id.toLowerCase(),
-    agentId: input.agentId,
-    agentName: agent?.name ?? input.agentId,
-    originAgentId: input.agentId,
-    originAgentName: agent?.name ?? input.agentId,
-    branch: agent?.branch ?? "",
-    status: "new",
-    createdAt: new Date().toISOString(),
+    agentCode: input.agentId,
+    branchCode: agent?.branch ?? "",
     customerName: input.customerName,
     customerEmail: input.customerEmail,
     customerPhone: input.customerPhone,
-    notes: [],
-    images: { registration, license, emirates, vehicleMedia, inspection, attachments },
-  };
-  setRequests([req, ...getRequests()]);
+  });
   logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
-  // Notify supervisor + admins of the new request
   notifyNewRequest(req);
   return { id };
 }
@@ -381,78 +380,58 @@ export async function addRequestNote(
 ): Promise<InsuranceRequest> {
   const me = getCurrentUser();
   if (!me) throw new Error("Not authenticated");
-  const list = getRequests();
-  const idx = list.findIndex((r) => r.id === requestId || r.uuid === requestId);
-  if (idx < 0) throw new Error("Request not found");
-  const note: DemoNote = {
-    id: crypto.randomUUID(),
-    authorId: me.id,
-    authorName: me.name,
-    authorRole: me.role,
-    text: input.text.trim(),
+  const current = await dxGetRequest(requestId);
+  if (!current) throw new Error("Request not found");
+  const updated = await dxAddNote(current.id, {
+    text: input.text,
     kind: input.kind,
-    createdAt: new Date().toISOString(),
-  };
-  const next = [...list];
-  const req = { ...list[idx], notes: [...list[idx].notes, note] };
-  if (input.kind === "missing" && req.status !== "reupload") req.status = "reupload";
-  next[idx] = req;
-  setRequests(next);
+    authorId: me.id,
+    authorRole: me.role,
+  });
   logEvent({
     action: input.kind === "missing" ? "request.reupload_requested" : "request.note_added",
-    entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
-    meta: { noteId: note.id, snippet: note.text.slice(0, 140), authorRole: me.role },
+    entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
+    meta: { snippet: input.text.slice(0, 140), authorRole: me.role },
   });
-  return req;
+  return updated;
 }
 
 export async function resolveRequestNote(requestId: string, noteId: string): Promise<InsuranceRequest> {
-  const list = getRequests();
-  const idx = list.findIndex((r) => r.id === requestId || r.uuid === requestId);
-  if (idx < 0) throw new Error("Request not found");
-  const next = [...list];
-  next[idx] = {
-    ...list[idx],
-    notes: list[idx].notes.map((n) => (n.id === noteId ? { ...n, resolvedAt: new Date().toISOString() } : n)),
-  };
-  setRequests(next);
-  return next[idx];
+  const current = await dxGetRequest(requestId);
+  if (!current) throw new Error("Request not found");
+  return dxResolveNote(current.id, noteId);
 }
 
 export async function appendAttachmentsToRequest(
   requestId: string,
   files: File[],
 ): Promise<InsuranceRequest> {
-  const list = getRequests();
-  const idx = list.findIndex((r) => r.id === requestId || r.uuid === requestId);
-  if (idx < 0) throw new Error("Request not found");
+  const current = await dxGetRequest(requestId);
+  if (!current) throw new Error("Request not found");
   const newAttachments: DemoAttachment[] = await Promise.all(
     files.filter((f) => !f.type.startsWith("video/")).map(async (f) => ({
       name: f.name, type: f.type, size: f.size, url: await fileToDataUrl(f),
     })),
   );
-  const next = [...list];
-  const req = list[idx];
-  next[idx] = {
-    ...req,
-    status: "processing",
-    notes: req.notes.map((n) => (n.kind === "missing" && !n.resolvedAt ? { ...n, resolvedAt: new Date().toISOString() } : n)),
-    images: {
-      ...req.images,
-      missingAttachments: [...(req.images.missingAttachments ?? []), ...newAttachments],
-    },
-  };
-  setRequests(next);
+  // Persist file bytes locally (Phase 3d → Directus /files).
+  appendMissingAttachmentsLocal(current.id, newAttachments);
+  // Mark any open "missing" notes resolved and flip the status to processing.
+  for (const n of current.notes) {
+    if (n.kind === "missing" && !n.resolvedAt) {
+      try { await dxResolveNote(current.id, n.id); } catch { /* tolerated */ }
+    }
+  }
+  const updated = await dxSetRequestStatus(current.id, "processing");
   logEvent({
     action: "request.document_uploaded",
-    entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
+    entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
     meta: {
       docKey: "missingAttachments",
       count: newAttachments.length,
       files: newAttachments.map((a) => ({ name: a.name, size: a.size, type: a.type })),
     },
   });
-  return next[idx];
+  return updated;
 }
 
 // ---------------------------------------------------------------------------
