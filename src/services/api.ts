@@ -7,7 +7,6 @@
  */
 
 import {
-  fileToDataUrl,
   getAgents as _dsGetAgentsLegacy,
   getAudit, setAudit,
   getBranches as _dsGetBranchesLegacy,
@@ -63,11 +62,10 @@ import {
   dxReassignRequest,
   dxAddNote,
   dxResolveNote,
-  appendMissingAttachmentsLocal,
-  appendQuotesLocal,
-  removeQuoteLocal,
-  getRequestFiles,
-  setRequestFiles,
+  dxAttachFile,
+  dxAttachFilesSequential,
+  dxAttachFilesParallel,
+  dxDeleteRequestFile,
 } from "./directusRequests";
 
 // Silence unused-import warnings; these legacy exports stay imported so other
@@ -144,9 +142,8 @@ export function setApprovalRequired(v: boolean) {
 }
 export { subscribeSettings } from "./demoStore";
 
-// Asset URL helpers — in demo mode every asset is a data URL.
-export function dxAssetUrl(s: string) { return s; }
-export function isDirectusAssetUrl(_: string) { return false; }
+// Asset URL helpers — re-export the real Directus implementations.
+export { dxAssetUrl, dxIsAssetUrl as isDirectusAssetUrl } from "./directusClient";
 export async function dxFetchAsset(_: string) { return null; }
 
 // ---------------------------------------------------------------------------
@@ -333,30 +330,7 @@ export async function submitUpload(input: {
 }): Promise<{ id: string }> {
   const agent = dsGetAgents().find((a) => a.id === input.agentId);
   const id = newRequestId();
-  const toUrls = async (files: File[]) => Promise.all(files.map((f) => fileToDataUrl(f)));
-  const registration = await toUrls(input.images.registration);
-  const license = await toUrls(input.images.license);
-  const emirates = await toUrls(input.images.emirates);
-  const vehicleMedia = await Promise.all(
-    input.images.vehicleMedia.map(async (f) =>
-      f.type.startsWith("video/")
-        ? { kind: "video" as const, name: f.name, size: f.size, type: f.type }
-        : { kind: "image" as const, url: await fileToDataUrl(f) },
-    ),
-  );
-  const attachments: DemoAttachment[] = await Promise.all(
-    (input.images.attachments ?? []).map(async (f) => ({
-      name: f.name, type: f.type, size: f.size, url: await fileToDataUrl(f),
-    })),
-  );
-  const inspection = input.optional?.inspection ? await fileToDataUrl(input.optional.inspection) : undefined;
-
-  // Stash the files locally first (Phase 3d migrates to Directus /files).
-  setRequestFiles(id, {
-    images: { registration, license, emirates, vehicleMedia, inspection, attachments },
-    quotes: [],
-  });
-  // Create the request row in Directus.
+  // Create the request row first so file rows have something to link to.
   const req = await dxCreateRequest({
     id, uuid: id.toLowerCase(),
     agentCode: input.agentId,
@@ -365,6 +339,22 @@ export async function submitUpload(input: {
     customerEmail: input.customerEmail,
     customerPhone: input.customerPhone,
   });
+  // Upload all bytes to Directus and create matching request_files rows.
+  // Ordered kinds (front/back/etc.) upload sequentially; everything else in parallel.
+  const ownerUuid = agent?.userId ?? null;
+  await dxAttachFilesSequential(id, input.images.registration, "registration", ownerUuid);
+  await dxAttachFilesSequential(id, input.images.license, "license", ownerUuid);
+  await dxAttachFilesSequential(id, input.images.emirates, "emirates", ownerUuid);
+  if (input.optional?.inspection) {
+    await dxAttachFile(id, input.optional.inspection, "inspection", ownerUuid);
+  }
+  const vehicleImages = input.images.vehicleMedia.filter((f) => !f.type.startsWith("video/"));
+  const vehicleVideos = input.images.vehicleMedia.filter((f) => f.type.startsWith("video/"));
+  await Promise.all([
+    dxAttachFilesParallel(id, vehicleImages, "vehicle_image", ownerUuid),
+    dxAttachFilesParallel(id, vehicleVideos, "vehicle_video", ownerUuid),
+    dxAttachFilesParallel(id, input.images.attachments ?? [], "attachment", ownerUuid),
+  ]);
   logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
   notifyNewRequest(req);
   return { id };
@@ -408,13 +398,10 @@ export async function appendAttachmentsToRequest(
 ): Promise<InsuranceRequest> {
   const current = await dxGetRequest(requestId);
   if (!current) throw new Error("Request not found");
-  const newAttachments: DemoAttachment[] = await Promise.all(
-    files.filter((f) => !f.type.startsWith("video/")).map(async (f) => ({
-      name: f.name, type: f.type, size: f.size, url: await fileToDataUrl(f),
-    })),
-  );
-  // Persist file bytes locally (Phase 3d → Directus /files).
-  appendMissingAttachmentsLocal(current.id, newAttachments);
+  const me = getCurrentUser();
+  const eligible = files.filter((f) => !f.type.startsWith("video/"));
+  // Upload via Directus /files and create missing_attachment rows.
+  await dxAttachFilesParallel(current.id, eligible, "missing_attachment", me?.id ?? null);
   // Mark any open "missing" notes resolved and flip the status to processing.
   for (const n of current.notes) {
     if (n.kind === "missing" && !n.resolvedAt) {
@@ -427,8 +414,8 @@ export async function appendAttachmentsToRequest(
     entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
     meta: {
       docKey: "missingAttachments",
-      count: newAttachments.length,
-      files: newAttachments.map((a) => ({ name: a.name, size: a.size, type: a.type })),
+      count: eligible.length,
+      files: eligible.map((a) => ({ name: a.name, size: a.size, type: a.type })),
     },
   });
   return updated;
@@ -803,19 +790,6 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
   const req = await dxGetRequest(requestId);
   if (!req) throw new Error("Request not found");
 
-  const newQuotes: DemoQuote[] = await Promise.all(
-    files.map(async (f) => ({
-      id: crypto.randomUUID(),
-      name: f.name,
-      type: f.type,
-      size: f.size,
-      url: await fileToDataUrl(f),
-      uploadedByUserId: me.id,
-      uploadedByName: me.name,
-      uploadedAt: new Date().toISOString(),
-    })),
-  );
-
   const agents = dsGetAgents();
   const currentOwner = agents.find((a) => a.id === req.agentId);
   const originSales = req.originAgentId && req.originAgentId !== req.agentId
@@ -824,8 +798,8 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
   const shouldReturnToSales =
     currentOwner?.staffType === "underwriter" && !!originSales;
 
-  // Persist quote files locally (Phase 3d → Directus /files).
-  appendQuotesLocal(req.id, newQuotes);
+  // Upload quote bytes to Directus and create request_files rows of kind "quote".
+  await dxAttachFilesParallel(req.id, files, "quote", me.id);
   let updated = req;
   if (shouldReturnToSales && originSales) {
     updated = await dxReassignRequest(req.id, { newAgentCode: originSales.id });
@@ -837,9 +811,9 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
     action: "request.quote_uploaded",
     entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
     meta: {
-      count: newQuotes.length,
+      count: files.length,
       returnedToSales: !!shouldReturnToSales,
-      files: newQuotes.map((q) => ({ name: q.name, size: q.size, type: q.type })),
+      files: files.map((q) => ({ name: q.name, size: q.size, type: q.type })),
     },
   });
   if (shouldReturnToSales && originSales) {
@@ -863,7 +837,7 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
     title: shouldReturnToSales && uid === originSales?.userId
       ? `Quote ready for ${req.id} — share with customer`
       : `Quote uploaded for ${req.id}`,
-    body: `${me.name} · ${newQuotes.length} file${newQuotes.length === 1 ? "" : "s"}`,
+    body: `${me.name} · ${files.length} file${files.length === 1 ? "" : "s"}`,
     kind: "request_status" as const,
     link: `/requests/${req.id}`,
   })));
@@ -879,7 +853,8 @@ export async function removeQuoteFromRequest(requestId: string, quoteId: string)
   const q = (req.quotes ?? []).find((x) => x.id === quoteId);
   if (!q) throw new Error("Quote not found");
   if (me.role !== "admin" && q.uploadedByUserId !== me.id) throw new Error("Not allowed");
-  removeQuoteLocal(req.id, quoteId);
+  // Delete the request_files row AND the underlying Directus file asset.
+  await dxDeleteRequestFile(quoteId, { deleteAsset: true });
   const updated = (await dxGetRequest(req.id)) ?? req;
   logEvent({
     action: "request.quote_removed",

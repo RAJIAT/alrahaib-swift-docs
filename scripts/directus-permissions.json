@@ -100,6 +100,26 @@
       "fields": ["*"]
     },
     {
+      "collection": "request_files",
+      "action": "delete",
+      "permissions": { "request": { "branch": { "_eq": "$CURRENT_USER.branch" } } }
+    },
+    {
+      "collection": "directus_files",
+      "action": "create",
+      "fields": ["*"]
+    },
+    {
+      "collection": "directus_files",
+      "action": "read",
+      "fields": ["*"]
+    },
+    {
+      "collection": "directus_files",
+      "action": "delete",
+      "permissions": { "uploaded_by": { "_eq": "$CURRENT_USER" } }
+    },
+    {
       "collection": "audit_log",
       "action": "read",
       "fields": ["*"],
@@ -214,6 +234,26 @@
       "fields": ["request", "file", "kind", "uploaded_by", "uploaded_at"],
       "validation": { "uploaded_by": { "_eq": "$CURRENT_USER" } },
       "_comment": "kind=quote محصور للـ underwriter عبر quote_kind_guard flow"
+    },
+    {
+      "collection": "request_files",
+      "action": "delete",
+      "permissions": { "uploaded_by": { "_eq": "$CURRENT_USER" } }
+    },
+    {
+      "collection": "directus_files",
+      "action": "create",
+      "fields": ["*"]
+    },
+    {
+      "collection": "directus_files",
+      "action": "read",
+      "fields": ["*"]
+    },
+    {
+      "collection": "directus_files",
+      "action": "delete",
+      "permissions": { "uploaded_by": { "_eq": "$CURRENT_USER" } }
     },
     {
       "collection": "notifications",
