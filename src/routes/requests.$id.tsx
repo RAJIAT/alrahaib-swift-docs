@@ -10,7 +10,7 @@ import { isPdfDataUrl } from "@/lib/imageUtils";
 import {
   getCurrentUser, refreshCurrentUser, getRequest, updateRequestStatus, resolveAssetUrl,
   addRequestNote, resolveRequestNote, subscribeRequests,
-  reassignRequest, listAgents, addQuotesToRequest, removeQuoteFromRequest,
+  reassignRequest, listAgents, getAgents, addQuotesToRequest, removeQuoteFromRequest,
   type AuthUser, type InsuranceRequest, type RequestStatus, type RequestNoteKind, type Agent,
 } from "@/services/api";
 import { isDirectusAssetUrl } from "@/services/directus";
@@ -964,7 +964,19 @@ function ReassignCard({
   const [target, setTarget] = useState<string>("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { setAgents(listAgents()); }, []);
+  useEffect(() => {
+    let alive = true;
+    const refresh = () => {
+      const cached = listAgents();
+      if (cached.length) setAgents(cached);
+      getAgents().then((rows) => { if (alive) setAgents(rows); }).catch(() => {});
+    };
+    refresh();
+    const off = typeof window !== "undefined"
+      ? (() => { window.addEventListener("aib:agents-changed", refresh); return () => window.removeEventListener("aib:agents-changed", refresh); })()
+      : () => {};
+    return () => { alive = false; off(); };
+  }, []);
 
   if (!user) return null;
   const isAdmin = user.role === "admin";

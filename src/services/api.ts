@@ -313,6 +313,15 @@ export async function createEmptyRequest(): Promise<InsuranceRequest> {
 
 export async function resolveAssetUrl(stored: string): Promise<{ url: string; mime: string }> {
   if (!stored) return { url: "", mime: "" };
+  const isDxAsset = (() => {
+    try { return stored.includes("/assets/"); } catch { return false; }
+  })();
+  if (isDxAsset) {
+    const res = await fetch(stored);
+    if (!res.ok) throw new Error("Asset not accessible");
+    const blob = await res.blob();
+    return { url: URL.createObjectURL(blob), mime: blob.type || res.headers.get("Content-Type") || "" };
+  }
   const m = stored.match(/^data:([^;]+);/);
   return { url: stored, mime: m?.[1] ?? "" };
 }
@@ -539,7 +548,6 @@ export async function updateAgent(id: string, patch: Partial<{
 
   if (me?.role === "supervisor") {
     if (before.branch !== me.branch) throw new Error("Out of your branch");
-    if (before.createdByRole === "admin") throw new Error("This user was created by Admin and cannot be modified by a supervisor");
     if (patch.branch !== undefined && patch.branch !== me.branch) throw new Error("Supervisors cannot change branch");
     if (patch.role !== undefined && patch.role !== before.role) throw new Error("Supervisors cannot change role");
   }

@@ -865,7 +865,8 @@ const flows: FlowDef[] = [
   },
 
   // ---- Reject sales reassignment to wrong UW ----
-  // Chain: read_me → condition (sales? AND agent changed AND target != my UW) → reject_exec
+  // Chain: agent_changed? → read_me → read_target → exec validate. Non-agent updates
+  // (status/buttons/customer fields) pass through without reading directus_users.
   {
     name: "lovable: enforce_sales_routing",
     icon: "policy",
@@ -877,37 +878,48 @@ const flows: FlowDef[] = [
     options: { type: "filter", scope: ["items.update"], collections: ["requests"] },
     operations: [
       {
+        key: "agent_changed",
+        name: "Agent field changed?",
+        type: "condition",
+        options: {
+          filter: { "$trigger.payload.agent": { _nnull: true } },
+        },
+        rejectKey: "passthrough",
+      },
+      {
         key: "read_me",
         name: "Read current user",
         type: "item-read",
         options: {
           collection: "directus_users",
           key: "{{$accountability.user}}",
-          query: { fields: ["id", "app_role", "staff_type", "assigned_underwriter"] },
+          query: { fields: ["id", "app_role", "staff_type", "assigned_underwriter", "assigned_underwriter_code"] },
         },
       },
       {
-        key: "is_violation",
-        name: "Sales reassigning to wrong UW?",
-        type: "condition",
+        key: "read_target",
+        name: "Read target agent",
+        type: "item-read",
         options: {
-          filter: {
-            _and: [
-              { "$last.staff_type": { _eq: "sales" } },
-              { "$last.app_role": { _eq: "agent" } },
-              { "$trigger.payload.agent": { _nnull: true } },
-            ],
-          },
+          collection: "directus_users",
+          key: "{{$trigger.payload.agent}}",
+          query: { fields: ["id", "agent_code", "staff_type"] },
         },
-        // condition resolves on match, rejects on no-match. We want to reject (=throw) only on match,
-        // so we put the throwing exec on the resolve path AND check the underwriter match inside it.
       },
       {
         key: "verify_target",
         name: "Verify target is assigned UW",
         type: "exec",
         options: {
-          code: "module.exports = async function({ $last, $trigger }) { const me = $last; const target = $trigger.payload.agent; if (target && me && me.assigned_underwriter && target !== me.assigned_underwriter) { throw new Error('Sales agents can only reassign to their assigned underwriter.'); } return {}; };",
+          code: "module.exports = async function(data) { const me = data.read_me || {}; const targetUser = data.$last || {}; const target = data.$trigger && data.$trigger.payload ? data.$trigger.payload.agent : null; if (!target) return {}; if (me.app_role !== 'agent' || me.staff_type !== 'sales') return {}; const assignedId = me.assigned_underwriter && typeof me.assigned_underwriter === 'object' ? me.assigned_underwriter.id : me.assigned_underwriter; const assignedCode = me.assigned_underwriter_code; const ok = (assignedId && target === assignedId) || (assignedCode && targetUser.agent_code === assignedCode); if (!ok) throw new Error('Sales agents can only reassign to their assigned underwriter.'); return {}; };",
+        },
+      },
+      {
+        key: "passthrough",
+        name: "Allow non-agent updates",
+        type: "exec",
+        options: {
+          code: "module.exports = async function() { return {}; };",
         },
       },
     ],
@@ -1137,11 +1149,34 @@ const flows: FlowDef[] = [
 async function ensureFlows() {
   console.log("\n⚡ Flows…");
   const existing = await api<{ data: Array<{ id: string; name: string }> }>("/flows?limit=-1");
+  const recreateIfExists = new Set(["lovable: enforce_sales_routing"]);
   for (const f of flows) {
     const found = existing.data.find((x) => x.name === f.name);
     if (found) {
+      if (recreateIfExists.has(f.name)) {
+        const ops = await api<{ data: Array<{ id: string }> }>(
+          `/operations?limit=-1&fields=id&filter[flow][_eq]=${found.id}`,
+        );
+        try {
+          await api(`/flows/${found.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ operation: null }),
+          });
+        } catch {
+          // Already unset / partially deleted; continue repair.
+        }
+        if (ops.data.length) {
+          await api(`/operations`, {
+            method: "DELETE",
+            body: JSON.stringify(ops.data.map((o) => o.id)),
+          });
+        }
+        await api(`/flows/${found.id}`, { method: "DELETE" });
+        console.log(`   ~ ${f.name} (recreating)`);
+      } else {
       console.log(`   = ${f.name} (exists)`);
       continue;
+      }
     }
     const { operations, ...flowMeta } = f;
     const created = await api<{ data: { id: string } }>("/flows", {

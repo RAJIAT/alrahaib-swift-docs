@@ -78,6 +78,9 @@ function userToAgent(u: DxUserRecord): DemoAgent | null {
         requestedAt: u.app_removal_requested_at ?? new Date().toISOString(),
       }
     : undefined;
+  const assignedUnderwriterCode = u.assigned_underwriter_code
+    ?? (typeof u.assigned_underwriter === "object" ? u.assigned_underwriter?.agent_code ?? u.assigned_underwriter?.id : undefined)
+    ?? (typeof u.assigned_underwriter === "string" ? u.assigned_underwriter : undefined);
   return {
     userId: u.id,
     id: u.agent_code ?? u.id,
@@ -88,7 +91,7 @@ function userToAgent(u: DxUserRecord): DemoAgent | null {
     role,
     staffType: u.staff_type ?? undefined,
     supervisorId: u.supervisor ?? undefined,
-    assignedUnderwriterId: u.assigned_underwriter_code ?? undefined,
+    assignedUnderwriterId: assignedUnderwriterCode,
     createdByUserId: undefined,
     createdByRole: (u.app_created_by_role as DemoAgent["createdByRole"]) ?? undefined,
     pendingApproval: u.pending_approval || undefined,
@@ -263,7 +266,12 @@ export async function dxCreateUser(input: DxCreateUserInput): Promise<DemoAgent>
   if (input.agentCode) body.agent_code = input.agentCode;
   if (input.staffType) body.staff_type = input.staffType;
   if (input.supervisorUserId) body.supervisor = input.supervisorUserId;
-  if (input.assignedUnderwriterCode !== undefined) body.assigned_underwriter_code = input.assignedUnderwriterCode;
+  if (input.assignedUnderwriterCode !== undefined) {
+    body.assigned_underwriter_code = input.assignedUnderwriterCode;
+    body.assigned_underwriter = input.assignedUnderwriterCode
+      ? getAgentsCache().find((a) => a.id === input.assignedUnderwriterCode || a.userId === input.assignedUnderwriterCode)?.userId ?? null
+      : null;
+  }
   if (input.createdByRole) body.app_created_by_role = input.createdByRole;
 
   const r = await dxRequest<{ data: DxUserRecord }>(
@@ -306,7 +314,12 @@ export async function dxUpdateUser(userId: string, patch: DxUpdateUserPatch): Pr
   if (patch.agentCode !== undefined) body.agent_code = patch.agentCode;
   if (patch.staffType !== undefined) body.staff_type = patch.staffType;
   if (patch.supervisorUserId !== undefined) body.supervisor = patch.supervisorUserId;
-  if (patch.assignedUnderwriterCode !== undefined) body.assigned_underwriter_code = patch.assignedUnderwriterCode;
+  if (patch.assignedUnderwriterCode !== undefined) {
+    body.assigned_underwriter_code = patch.assignedUnderwriterCode;
+    body.assigned_underwriter = patch.assignedUnderwriterCode
+      ? getAgentsCache().find((a) => a.id === patch.assignedUnderwriterCode || a.userId === patch.assignedUnderwriterCode)?.userId ?? null
+      : null;
+  }
   if (patch.pendingApproval !== undefined) body.pending_approval = patch.pendingApproval;
   if (patch.active !== undefined) body.app_active = patch.active;
   if (patch.removalReason !== undefined) body.app_removal_reason = patch.removalReason;
