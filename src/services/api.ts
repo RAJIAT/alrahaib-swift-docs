@@ -688,6 +688,11 @@ function logEvent(input: {
 
 export const subscribeNotifications = dxSubscribeNotifications;
 
+// Re-export so UI code can push notifications (e.g. dashboard detecting
+// new customer-submitted requests and notifying the logged-in agent).
+export { pushNotifications } from "./directusNotify";
+export type { PushNotificationInput } from "./directusNotify";
+
 // Local cache of notifications per user — fetched from Directus on demand
 // and refreshed whenever the change-event fires.
 const _notifCache = new Map<string, DemoNotification[]>();

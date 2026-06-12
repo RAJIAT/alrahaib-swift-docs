@@ -280,9 +280,24 @@ export async function dxListRequests(opts?: { agentUuid?: string; branchId?: num
 
 export async function dxGetRequest(id: string): Promise<DemoRequest | null> {
   await ensureEntitiesCached();
-  const filter = `filter[_or][0][id][_eq]=${encodeURIComponent(id)}&filter[_or][1][uuid][_eq]=${encodeURIComponent(id.toLowerCase())}`;
-  const r = await dxRequest<{ data: DxRequestRow[] }>(`/items/requests?fields=${REQ_FIELDS}&limit=1&${filter}`);
-  const row = r.data[0];
+  // Try direct lookup by primary key first (fast path for REQ-... ids).
+  let row: DxRequestRow | undefined;
+  try {
+    const direct = await dxRequest<{ data: DxRequestRow }>(
+      `/items/requests/${encodeURIComponent(id)}?fields=${REQ_FIELDS}`,
+    );
+    row = direct.data;
+  } catch {
+    // Fall back to lookup by id OR uuid (handles legacy rows w/ uuid key).
+    try {
+      const filter = `filter[_or][0][id][_eq]=${encodeURIComponent(id)}&filter[_or][1][uuid][_eq]=${encodeURIComponent(id.toLowerCase())}`;
+      const r = await dxRequest<{ data: DxRequestRow[] }>(`/items/requests?fields=${REQ_FIELDS}&limit=1&${filter}`);
+      row = r.data[0];
+    } catch (e) {
+      console.error("dxGetRequest failed", id, e);
+      return null;
+    }
+  }
   if (!row) return null;
   const [nr, fr] = await Promise.all([
     dxRequest<{ data: DxNoteRow[] }>(

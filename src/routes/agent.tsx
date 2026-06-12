@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, FileText, Inbox, Copy, Check, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/DashboardShell";
@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLang } from "@/i18n/LanguageProvider";
 import { useRequestsLive } from "@/hooks/useRequestsLive";
-import { getCurrentUser, refreshCurrentUser, listAgents, type AuthUser } from "@/services/api";
+import { getCurrentUser, refreshCurrentUser, listAgents, pushNotifications, type AuthUser } from "@/services/api";
 
 export const Route = createFileRoute("/agent")({
   component: AgentDashboard,
@@ -37,6 +37,45 @@ function AgentDashboard() {
 
   const effectiveAgentId = user?.agentId ?? user?.id;
   const { items, loading } = useRequestsLive(effectiveAgentId ? { agentId: effectiveAgentId } : undefined);
+
+  // Detect newly-arrived customer requests and push a notification to the
+  // logged-in agent so the bell + count update without requiring server-side
+  // flows. First snapshot is "baseline" (no spam on initial load).
+  const seenIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!user || loading) return;
+    const ids = new Set(items.map((r) => r.id));
+    if (seenIdsRef.current === null) {
+      seenIdsRef.current = ids;
+      return;
+    }
+    const fresh = items.filter((r) => !seenIdsRef.current!.has(r.id));
+    seenIdsRef.current = ids;
+    if (!fresh.length) return;
+    const cutoff = Date.now() - 30 * 60 * 1000;
+    const recent = fresh.filter((r) => {
+      const t = Date.parse(r.createdAt);
+      return !Number.isNaN(t) && t >= cutoff;
+    });
+    if (!recent.length) return;
+    for (const r of recent) {
+      toast.success(
+        lang === "ar"
+          ? `طلب جديد ${r.id}`
+          : `New request ${r.id}`,
+      );
+    }
+    void pushNotifications(recent.map((r) => ({
+      recipientUserId: user.id,
+      title: lang === "ar"
+        ? `وصلت مستندات جديدة للطلب ${r.id}`
+        : `New documents uploaded for request ${r.id}`,
+      body: r.customerName || r.customerPhone || r.branch || undefined,
+      kind: "request_new" as const,
+      link: `/requests/${r.id}`,
+    })));
+  }, [items, loading, user, lang]);
+
   const myStaffType = useMemo(
     () => (effectiveAgentId ? listAgents().find((a) => a.id === effectiveAgentId || a.userId === effectiveAgentId)?.staffType : undefined),
     [effectiveAgentId],
