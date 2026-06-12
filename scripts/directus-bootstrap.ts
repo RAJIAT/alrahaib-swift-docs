@@ -1025,6 +1025,7 @@ async function ensureFlows() {
 
     // Create operations in order, capturing their IDs
     const opIds: string[] = [];
+    const opKeyToId: Record<string, string> = {};
     for (let i = 0; i < operations.length; i++) {
       const op = operations[i];
       const created = await api<{ data: { id: string } }>("/operations", {
@@ -1040,14 +1041,32 @@ async function ensureFlows() {
         }),
       });
       opIds.push(created.data.id);
+      opKeyToId[op.key] = created.data.id;
     }
 
-    // Wire resolve chain: each op's resolve points to the next
-    for (let i = 0; i < opIds.length - 1; i++) {
+    // Wire each op's resolve to the next sequential op UNLESS the next op is
+    // referenced as someone's reject branch (it's a side-branch, not main path).
+    const rejectTargets = new Set(
+      operations.map((o) => o.rejectKey).filter((k): k is string => !!k),
+    );
+    for (let i = 0; i < operations.length - 1; i++) {
+      const next = operations[i + 1];
+      if (rejectTargets.has(next.key)) continue;
       await api(`/operations/${opIds[i]}`, {
         method: "PATCH",
         body: JSON.stringify({ resolve: opIds[i + 1] }),
       });
+    }
+
+    // Wire explicit reject branches
+    for (let i = 0; i < operations.length; i++) {
+      const op = operations[i];
+      if (op.rejectKey && opKeyToId[op.rejectKey]) {
+        await api(`/operations/${opIds[i]}`, {
+          method: "PATCH",
+          body: JSON.stringify({ reject: opKeyToId[op.rejectKey] }),
+        });
+      }
     }
 
     // Set flow entry point
