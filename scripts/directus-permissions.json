@@ -277,6 +277,12 @@
       "collection": "app_settings",
       "action": "read",
       "fields": ["*"]
+    },
+    {
+      "collection": "audit_log",
+      "action": "create",
+      "fields": ["*"],
+      "_comment": "Agents write audit entries (login/logout, request edits)."
     }
   ]
 }
