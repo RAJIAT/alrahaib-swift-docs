@@ -61,7 +61,7 @@ export function DashboardShell({
     if (user.role === "supervisor") {
       return [
         { to: "/admin", label: t.nav.dashboard, icon: <LayoutDashboard className="h-5 w-5" /> },
-        { to: "/agents", label: t.admin.manageAgents, icon: <Users className="h-5 w-5" /> },
+        { to: "/agents", label: t.admin.manageAgentsSupervisor, icon: <Users className="h-5 w-5" /> },
       ];
     }
     return [
