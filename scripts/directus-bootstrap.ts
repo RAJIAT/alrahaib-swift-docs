@@ -1005,6 +1005,133 @@ const flows: FlowDef[] = [
       },
     ],
   },
+
+  // ---- After a customer upload, flip parent request "new" → "processing" ----
+  // Trigger: items.create on request_files (action, non-blocking).
+  // Accountability "null" so it bypasses the public role's missing
+  // update-permission on requests.
+  {
+    name: "lovable: customer_upload_status",
+    icon: "autorenew",
+    color: "#16A085",
+    description: "When a customer uploads a file, move parent request from 'new' to 'processing'.",
+    status: "active",
+    trigger: "event",
+    accountability: "null",
+    options: { type: "action", scope: ["items.create"], collections: ["request_files"] },
+    operations: [
+      {
+        key: "is_customer_upload",
+        name: "Skip quote uploads",
+        type: "condition",
+        options: {
+          filter: { "$trigger.payload.kind": { _nin: ["quote"] } },
+        },
+      },
+      {
+        key: "read_request",
+        name: "Read parent request",
+        type: "item-read",
+        options: {
+          collection: "requests",
+          key: "{{$trigger.payload.request}}",
+          query: { fields: ["id", "status"] },
+        },
+      },
+      {
+        key: "is_new",
+        name: "Status is 'new'?",
+        type: "condition",
+        options: {
+          filter: { "$last.status": { _eq: "new" } },
+        },
+      },
+      {
+        key: "set_processing",
+        name: "Set status = processing",
+        type: "item-update",
+        options: {
+          collection: "requests",
+          key: "{{read_request.id}}",
+          payload: { status: "processing" },
+        },
+      },
+    ],
+  },
+
+  // ---- After a customer upload, notify owner agent (+ origin sales) ----
+  // Trigger: items.create on request_files (action).
+  // Accountability "null" so notifications can be created server-side
+  // even when the upload came from an unauthenticated public link.
+  {
+    name: "lovable: customer_upload_notify",
+    icon: "notifications_active",
+    color: "#2980B9",
+    description: "Create notifications for the owner agent (and origin sales agent) when a customer uploads files.",
+    status: "active",
+    trigger: "event",
+    accountability: "null",
+    options: { type: "action", scope: ["items.create"], collections: ["request_files"] },
+    operations: [
+      {
+        key: "is_customer_upload",
+        name: "Skip quote uploads",
+        type: "condition",
+        options: {
+          filter: { "$trigger.payload.kind": { _nin: ["quote"] } },
+        },
+      },
+      {
+        key: "read_request",
+        name: "Read parent request",
+        type: "item-read",
+        options: {
+          collection: "requests",
+          key: "{{$trigger.payload.request}}",
+          query: { fields: ["id", "agent", "origin_agent"] },
+        },
+      },
+      {
+        key: "build_items",
+        name: "Build notification rows",
+        type: "exec",
+        options: {
+          code:
+            "module.exports = async function({ $last }) {" +
+            " const req = $last || {};" +
+            " const seen = new Set();" +
+            " const recipients = [];" +
+            " if (req.agent) { seen.add(req.agent); recipients.push(req.agent); }" +
+            " if (req.origin_agent && !seen.has(req.origin_agent)) { recipients.push(req.origin_agent); }" +
+            " const items = recipients.map(function(uid){ return {" +
+            "   recipient: uid," +
+            "   kind: 'request_new'," +
+            "   title: 'New documents uploaded for request ' + req.id," +
+            "   read: false," +
+            " }; });" +
+            " return { items: items, has_any: items.length > 0, request_id: req.id };" +
+            "};",
+        },
+      },
+      {
+        key: "has_recipients",
+        name: "Any recipients?",
+        type: "condition",
+        options: {
+          filter: { "$last.has_any": { _eq: true } },
+        },
+      },
+      {
+        key: "create_notifications",
+        name: "Insert notification rows",
+        type: "item-create",
+        options: {
+          collection: "notifications",
+          payload: "{{$last.items}}",
+        },
+      },
+    ],
+  },
 ];
 
 async function ensureFlows() {
