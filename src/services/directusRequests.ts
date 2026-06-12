@@ -102,6 +102,7 @@ function agentCodeFromUuid(uuid: string | null | undefined): { code: string; nam
 }
 function uuidFromAgentCode(code: string | undefined): string | null {
   if (!code) return null;
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(code)) return code;
   const a = getAgentsCache().find((x) => x.id === code || x.userId === code);
   return a?.userId ?? null;
 }
