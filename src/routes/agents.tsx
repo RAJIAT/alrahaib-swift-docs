@@ -167,8 +167,16 @@ function AdminAgents() {
       ? (dialog.target?.staffType)
       : (effectiveTab === "underwriter" ? "underwriter" : effectiveTab === "sales" ? "sales" : undefined);
 
-  // Supervisors must always request removal from the admin — even for users they created.
-  const isAdminCreated = (_a: Agent) => isSupervisor;
+  // Supervisors must always request removal from the admin (delete path only).
+  // Edit/toggle remain enabled so a supervisor can manage everything except deletion.
+  const mustRequestRemoval = (_a: Agent) => isSupervisor;
+
+  // Lookup helper to render the assigned underwriter's name for sales agents.
+  const underwriterNameById = (id?: string) => {
+    if (!id) return "—";
+    const u = allAgents.find((a) => a.id === id);
+    return u?.name ?? id;
+  };
 
   return (
     <DashboardShell role={["admin", "supervisor"]} title={isSupervisor ? t.agents.titleAgentsOnly : t.agents.title}>
@@ -241,15 +249,18 @@ function AdminAgents() {
               <th className="px-5 py-3 font-semibold">{t.agents.agentId}</th>
               <th className="px-5 py-3 font-semibold">{t.agents.email}</th>
               <th className="px-5 py-3 font-semibold">{t.agents.branch}</th>
+              {effectiveTab === "sales" && (
+                <th className="px-5 py-3 font-semibold">{t.agents.assignedUnderwriter}</th>
+              )}
               <th className="px-5 py-3 font-semibold">{t.agents.status}</th>
               <th className="px-5 py-3 font-semibold" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="px-5 py-12 text-center text-muted-foreground">…</td></tr>
+              <tr><td colSpan={effectiveTab === "sales" ? 7 : 6} className="px-5 py-12 text-center text-muted-foreground">…</td></tr>
             ) : filteredAgents.length === 0 ? (
-              <tr><td colSpan={6} className="px-5 py-8">
+              <tr><td colSpan={effectiveTab === "sales" ? 7 : 6} className="px-5 py-8">
                 <EmptyState icon={<Users className="h-7 w-7" />} title={cur.emptyLabel} />
               </td></tr>
             ) : filteredAgents.map((a) => (
@@ -263,6 +274,9 @@ function AdminAgents() {
                 <td className="px-5 py-4 text-muted-foreground">{a.id}</td>
                 <td className="px-5 py-4 text-muted-foreground">{a.email ?? "—"}</td>
                 <td className="px-5 py-4 text-muted-foreground">{a.branch ?? "—"}</td>
+                {effectiveTab === "sales" && (
+                  <td className="px-5 py-4 text-muted-foreground">{underwriterNameById(a.assignedUnderwriterId)}</td>
+                )}
                 <td className="px-5 py-4">
                   <StatusPill agent={a} t={t} />
                 </td>
@@ -273,21 +287,11 @@ function AdminAgents() {
                         <Check className="h-4 w-4" />
                       </IconBtn>
                     )}
-                    {isAdminCreated(a) ? (
-                      <IconBtn disabledLook label={t.agents.noEditAdminCreated} onClick={() => toast.error(t.agents.noEditAdminCreated)}>
-                        <Pencil className="h-4 w-4" />
-                      </IconBtn>
-                    ) : (
-                      <IconBtn label={t.agents.edit} onClick={() => setDialog({ open: true, mode: "edit", target: a })}>
-                        <Pencil className="h-4 w-4" />
-                      </IconBtn>
-                    )}
+                    <IconBtn label={t.agents.edit} onClick={() => setDialog({ open: true, mode: "edit", target: a })}>
+                      <Pencil className="h-4 w-4" />
+                    </IconBtn>
                     {isSelf(a) ? (
                       <IconBtn disabledLook label={t.agents.selfNoSuspend} onClick={() => toast.error(t.agents.selfNoSuspend)}>
-                        <Power className="h-4 w-4" />
-                      </IconBtn>
-                    ) : isAdminCreated(a) ? (
-                      <IconBtn disabledLook label={t.agents.noEditAdminCreated} onClick={() => toast.error(t.agents.noEditAdminCreated)}>
                         <Power className="h-4 w-4" />
                       </IconBtn>
                     ) : (
@@ -299,7 +303,7 @@ function AdminAgents() {
                       <IconBtn danger disabledLook label={t.agents.selfNoDelete} onClick={() => toast.error(t.agents.selfNoDelete)}>
                         <Trash2 className="h-4 w-4" />
                       </IconBtn>
-                    ) : isAdminCreated(a) ? (
+                    ) : mustRequestRemoval(a) ? (
                       a.removalRequest ? (
                         <IconBtn danger disabledLook label={t.agents.removalAlreadyRequested} onClick={() => toast.message(t.agents.removalAlreadyRequested)}>
                           <Send className="h-4 w-4" />
@@ -349,12 +353,12 @@ function AdminAgents() {
               <IconBtn label={t.agents.edit} onClick={() => setDialog({ open: true, mode: "edit", target: a })}>
                 <Pencil className="h-4 w-4" />
               </IconBtn>
-              {!isSelf(a) && !isAdminCreated(a) && (
+              {!isSelf(a) && (
                 <IconBtn label={a.active ? t.agents.suspend : t.agents.activate} onClick={() => onToggle(a)}>
                   <Power className="h-4 w-4" />
                 </IconBtn>
               )}
-              {isSelf(a) ? null : isAdminCreated(a) ? (
+              {isSelf(a) ? null : mustRequestRemoval(a) ? (
                 a.removalRequest ? (
                   <IconBtn danger disabledLook label={t.agents.removalAlreadyRequested} onClick={() => toast.message(t.agents.removalAlreadyRequested)}>
                     <Send className="h-4 w-4" />
