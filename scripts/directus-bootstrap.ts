@@ -361,7 +361,7 @@ type RoleName = (typeof ROLE_NAMES)[number];
 async function ensureRoles(): Promise<Record<RoleName, string>> {
   console.log("\n🛡️  Roles…");
   const existing = await api<{ data: Array<{ id: string; name: string }> }>(
-    "/roles?limit=-1",
+    "/roles?fields=id,name&limit=-1",
   );
   const map = {} as Record<RoleName, string>;
 
@@ -387,15 +387,14 @@ async function ensureRoles(): Promise<Record<RoleName, string>> {
 
 // Directus 11 moved admin_access / app_access / permissions from roles onto
 // POLICIES. Each role needs a policy attached via the directus_access junction.
-// We create one policy per app role and attach it. Admin policy gets
-// admin_access=true which bypasses item permissions entirely (fixes the
-// 403 the admin user hits when creating branches).
+// We create one policy per app role and attach it. Admin also gets explicit
+// CRUD rows below because Directus 11 portal/API item access is policy-based.
 async function ensurePolicies(
   roleMap: Record<RoleName, string>,
 ): Promise<Record<RoleName, string>> {
   console.log("\n📜 Policies…");
   const existing = await api<{ data: Array<{ id: string; name: string }> }>(
-    "/policies?limit=-1",
+    "/policies?fields=id,name&limit=-1",
   );
   const map = {} as Record<RoleName, string>;
 
@@ -433,29 +432,70 @@ async function ensurePolicies(
     }
     map[name] = policy.id;
 
-    // Attach policy to role via directus_access junction (idempotent).
+    // Attach policy to role via directus_access junction. Do this append-only
+    // as well: querying Directus 11 internals can be field-restricted, while
+    // duplicate link creation returns 400/409-style errors we can ignore.
     try {
-      const links = await api<{ data: Array<{ id: string }> }>(
-        `/access?filter[role][_eq]=${roleMap[name]}&filter[policy][_eq]=${policy.id}&limit=1`,
-      );
-      if (!links.data.length) {
-        await api("/access", {
-          method: "POST",
-          body: JSON.stringify({ role: roleMap[name], policy: policy.id }),
-        });
-        console.log(`     ↳ linked ${name} role → policy`);
-      }
+      await api("/access", {
+        method: "POST",
+        body: JSON.stringify({ role: roleMap[name], policy: policy.id }),
+      });
+      console.log(`     ↳ linked ${name} role → policy`);
     } catch (e) {
       const msg = String((e as Error).message ?? e).split("\n")[0];
-      console.warn(`     ! link ${name} role↔policy skipped: ${msg}`);
+      if (isAppendOnlyPermissionSuccess(msg)) {
+        console.log(`     = ${name} role → policy (already linked)`);
+      } else {
+        console.warn(`     ! link ${name} role↔policy skipped: ${msg}`);
+      }
     }
   }
   return map;
 }
 
+type PermissionEntry = {
+  _comment?: string;
+  validation?: unknown;
+  permissions?: unknown;
+  fields?: string[];
+  action: string;
+  collection: string;
+};
+
+const ADMIN_PERMISSION_COLLECTIONS = [
+  "branches",
+  "requests",
+  "request_notes",
+  "request_files",
+  "notifications",
+  "audit_log",
+  "app_settings",
+  "directus_users",
+  "directus_files",
+  "directus_roles",
+] as const;
+
+const ADMIN_PERMISSION_ACTIONS = ["create", "read", "update", "delete"] as const;
+
+const adminPermissions: PermissionEntry[] = ADMIN_PERMISSION_COLLECTIONS.flatMap((collection) =>
+  ADMIN_PERMISSION_ACTIONS.map((action) => ({
+    collection,
+    action,
+    fields: ["*"],
+    permissions: {},
+    validation: {},
+    _comment: "Admin full CRUD for portal",
+  })),
+);
+
+function isAppendOnlyPermissionSuccess(message: string): boolean {
+  return /RecordNotUnique|duplicate|already exists|violates unique constraint|409|400/i.test(message);
+}
+
 async function ensurePermissions(roleMap: Record<RoleName, string>) {
-  // Resolve policy IDs (one per role). Admin policy is admin_access=true so
-  // it bypasses item permissions; we do NOT post per-collection rows for it.
+  // Resolve policy IDs (one per role). Directus 11 is policy-based, so Admin
+  // needs explicit CRUD permission rows on its policy; do not rely only on
+  // role/admin_access fields, which are often forbidden to read in 11.x.
   const policyMap = await ensurePolicies(roleMap);
 
   console.log("\n🔐 Permissions…");
@@ -465,8 +505,9 @@ async function ensurePermissions(roleMap: Record<RoleName, string>) {
   // append-only: attempt to POST every configured permission and treat any
   // "already exists" / 400 / 409 response as success.
 
-  const config = permissionsConfig as Record<string, Array<Record<string, unknown>>>;
-  const batches: Array<{ role: RoleName; entries: Array<Record<string, unknown>> }> = [
+  const config = permissionsConfig as Record<string, PermissionEntry[]>;
+  const batches: Array<{ role: RoleName; entries: PermissionEntry[] }> = [
+    { role: "Admin", entries: adminPermissions },
     { role: "Supervisor", entries: config.supervisor },
     { role: "Agent", entries: config.agent },
   ];
@@ -487,14 +528,7 @@ async function ensurePermissions(roleMap: Record<RoleName, string>) {
 
   for (const { role, entries } of batches) {
     for (const entry of entries) {
-      const { _comment, validation, permissions, fields, action, collection } = entry as {
-        _comment?: string;
-        validation?: unknown;
-        permissions?: unknown;
-        fields?: string[];
-        action: string;
-        collection: string;
-      };
+      const { _comment, validation, permissions, fields, action, collection } = entry;
       try {
         await api("/permissions", {
           method: "POST",
@@ -512,7 +546,7 @@ async function ensurePermissions(roleMap: Record<RoleName, string>) {
         // Append-only: any failure (duplicate, 400, 409, validation) is
         // logged and skipped — never abort the bootstrap.
         const msg = String((e as Error).message ?? e).split("\n")[0];
-        if (/RecordNotUnique|duplicate|already exists|409|400/i.test(msg)) {
+        if (isAppendOnlyPermissionSuccess(msg)) {
           console.log(`   = ${role} → ${collection}.${action} (already present or rejected, skipped)`);
         } else {
           console.warn(`   ! ${role} → ${collection}.${action} skipped: ${msg}`);
