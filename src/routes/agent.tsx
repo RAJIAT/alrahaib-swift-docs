@@ -35,10 +35,11 @@ function AgentDashboard() {
     });
   }, [navigate]);
 
-  const { items, loading } = useRequestsLive(user?.agentId ? { agentId: user.agentId } : undefined);
+  const effectiveAgentId = user?.agentId ?? user?.id;
+  const { items, loading } = useRequestsLive(effectiveAgentId ? { agentId: effectiveAgentId } : undefined);
   const myStaffType = useMemo(
-    () => (user?.agentId ? listAgents().find((a) => a.id === user.agentId || a.userId === user.agentId)?.staffType : undefined),
-    [user?.agentId],
+    () => (effectiveAgentId ? listAgents().find((a) => a.id === effectiveAgentId || a.userId === effectiveAgentId)?.staffType : undefined),
+    [effectiveAgentId],
   );
   const isUnderwriter = myStaffType === "underwriter";
 
@@ -95,7 +96,7 @@ function AgentDashboard() {
 
       {/* Agent's permanent personal customer-upload link — sales only. */}
       {!isUnderwriter && (
-        <ShareLinkCard agentId={user.agentId ?? ""} agentName={user.name} />
+        <ShareLinkCard agentId={effectiveAgentId ?? ""} agentName={user.name} />
       )}
       {/* Status filter tabs */}
       <div className="mb-4 -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
