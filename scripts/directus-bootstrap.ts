@@ -931,6 +931,7 @@ const flows: FlowDef[] = [
         options: {
           filter: { "$trigger.payload.kind": { _eq: "quote" } },
         },
+        rejectKey: "passthrough",
       },
       {
         key: "read_me",
@@ -948,6 +949,14 @@ const flows: FlowDef[] = [
         type: "exec",
         options: {
           code: "module.exports = async function({ $last }) { const ok = $last && ($last.app_role === 'admin' || $last.app_role === 'supervisor' || $last.staff_type === 'underwriter'); if (!ok) throw new Error('Only underwriters can upload quotes.'); return {}; };",
+        },
+      },
+      {
+        key: "passthrough",
+        name: "Allow non-quote uploads",
+        type: "exec",
+        options: {
+          code: "module.exports = async function() { return {}; };",
         },
       },
     ],
