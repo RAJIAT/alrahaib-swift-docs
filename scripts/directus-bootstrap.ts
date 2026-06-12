@@ -453,9 +453,49 @@ async function ensurePolicies(
   return map;
 }
 
+type PermissionEntry = {
+  _comment?: string;
+  validation?: unknown;
+  permissions?: unknown;
+  fields?: string[];
+  action: string;
+  collection: string;
+};
+
+const ADMIN_PERMISSION_COLLECTIONS = [
+  "branches",
+  "requests",
+  "request_notes",
+  "request_files",
+  "notifications",
+  "audit_log",
+  "app_settings",
+  "directus_users",
+  "directus_files",
+  "directus_roles",
+] as const;
+
+const ADMIN_PERMISSION_ACTIONS = ["create", "read", "update", "delete"] as const;
+
+const adminPermissions: PermissionEntry[] = ADMIN_PERMISSION_COLLECTIONS.flatMap((collection) =>
+  ADMIN_PERMISSION_ACTIONS.map((action) => ({
+    collection,
+    action,
+    fields: ["*"],
+    permissions: {},
+    validation: {},
+    _comment: "Admin full CRUD for portal",
+  })),
+);
+
+function isAppendOnlyPermissionSuccess(message: string): boolean {
+  return /RecordNotUnique|duplicate|already exists|violates unique constraint|409|400/i.test(message);
+}
+
 async function ensurePermissions(roleMap: Record<RoleName, string>) {
-  // Resolve policy IDs (one per role). Admin policy is admin_access=true so
-  // it bypasses item permissions; we do NOT post per-collection rows for it.
+  // Resolve policy IDs (one per role). Directus 11 is policy-based, so Admin
+  // needs explicit CRUD permission rows on its policy; do not rely only on
+  // role/admin_access fields, which are often forbidden to read in 11.x.
   const policyMap = await ensurePolicies(roleMap);
 
   console.log("\n🔐 Permissions…");
@@ -465,8 +505,9 @@ async function ensurePermissions(roleMap: Record<RoleName, string>) {
   // append-only: attempt to POST every configured permission and treat any
   // "already exists" / 400 / 409 response as success.
 
-  const config = permissionsConfig as Record<string, Array<Record<string, unknown>>>;
-  const batches: Array<{ role: RoleName; entries: Array<Record<string, unknown>> }> = [
+  const config = permissionsConfig as Record<string, PermissionEntry[]>;
+  const batches: Array<{ role: RoleName; entries: PermissionEntry[] }> = [
+    { role: "Admin", entries: adminPermissions },
     { role: "Supervisor", entries: config.supervisor },
     { role: "Agent", entries: config.agent },
   ];
@@ -487,14 +528,7 @@ async function ensurePermissions(roleMap: Record<RoleName, string>) {
 
   for (const { role, entries } of batches) {
     for (const entry of entries) {
-      const { _comment, validation, permissions, fields, action, collection } = entry as {
-        _comment?: string;
-        validation?: unknown;
-        permissions?: unknown;
-        fields?: string[];
-        action: string;
-        collection: string;
-      };
+      const { _comment, validation, permissions, fields, action, collection } = entry;
       try {
         await api("/permissions", {
           method: "POST",
@@ -512,7 +546,7 @@ async function ensurePermissions(roleMap: Record<RoleName, string>) {
         // Append-only: any failure (duplicate, 400, 409, validation) is
         // logged and skipped — never abort the bootstrap.
         const msg = String((e as Error).message ?? e).split("\n")[0];
-        if (/RecordNotUnique|duplicate|already exists|409|400/i.test(msg)) {
+        if (isAppendOnlyPermissionSuccess(msg)) {
           console.log(`   = ${role} → ${collection}.${action} (already present or rejected, skipped)`);
         } else {
           console.warn(`   ! ${role} → ${collection}.${action} skipped: ${msg}`);
