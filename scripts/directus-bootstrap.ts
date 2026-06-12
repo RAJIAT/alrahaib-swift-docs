@@ -432,21 +432,22 @@ async function ensurePolicies(
     }
     map[name] = policy.id;
 
-    // Attach policy to role via directus_access junction (idempotent).
+    // Attach policy to role via directus_access junction. Do this append-only
+    // as well: querying Directus 11 internals can be field-restricted, while
+    // duplicate link creation returns 400/409-style errors we can ignore.
     try {
-      const links = await api<{ data: Array<{ id: string }> }>(
-        `/access?fields=id&filter[role][_eq]=${roleMap[name]}&filter[policy][_eq]=${policy.id}&limit=1`,
-      );
-      if (!links.data.length) {
-        await api("/access", {
-          method: "POST",
-          body: JSON.stringify({ role: roleMap[name], policy: policy.id }),
-        });
-        console.log(`     ↳ linked ${name} role → policy`);
-      }
+      await api("/access", {
+        method: "POST",
+        body: JSON.stringify({ role: roleMap[name], policy: policy.id }),
+      });
+      console.log(`     ↳ linked ${name} role → policy`);
     } catch (e) {
       const msg = String((e as Error).message ?? e).split("\n")[0];
-      console.warn(`     ! link ${name} role↔policy skipped: ${msg}`);
+      if (isAppendOnlyPermissionSuccess(msg)) {
+        console.log(`     = ${name} role → policy (already linked)`);
+      } else {
+        console.warn(`     ! link ${name} role↔policy skipped: ${msg}`);
+      }
     }
   }
   return map;
