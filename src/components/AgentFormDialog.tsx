@@ -15,6 +15,20 @@ export type AgentFormValues = {
   assignedUnderwriterId?: string;
 };
 
+function generateAgentCode(role: AgentRole, staffType?: StaffType): string {
+  const prefix =
+    role === "supervisor" ? "SUP" :
+    staffType === "sales" ? "SLS" :
+    staffType === "underwriter" ? "UW" : "AG";
+  const existing = new Set(listAgents().map((a) => a.id.toUpperCase()));
+  for (let i = 0; i < 1000; i++) {
+    const n = Math.floor(1000 + Math.random() * 9000);
+    const code = `${prefix}-${n}`;
+    if (!existing.has(code)) return code;
+  }
+  return `${prefix}-${Date.now().toString().slice(-5)}`;
+}
+
 export function AgentFormDialog({
   open, mode, initial, onClose, onSubmit, lockedBranch, lockedRole, defaultRole,
   lockedStaffType, defaultStaffType,
@@ -55,14 +69,16 @@ export function AgentFormDialog({
     if (!open) return;
     setError("");
     getBranches().then(() => setBranches(listBranches())).catch(() => {});
+    const role0 = lockedRole ?? initial?.role ?? defaultRole ?? "agent";
+    const staff0 = lockedStaffType ?? initial?.staffType ?? defaultStaffType ?? "underwriter";
     setValues({
       name: initial?.name ?? "",
       email: initial?.email ?? "",
       password: "",
-      agentId: initial?.id ?? "",
+      agentId: initial?.id ?? generateAgentCode(role0, staff0),
       branch: lockedBranch ?? initial?.branch ?? (listBranches()[0] ?? ""),
-      role: lockedRole ?? initial?.role ?? defaultRole ?? "agent",
-      staffType: lockedStaffType ?? initial?.staffType ?? defaultStaffType ?? "underwriter",
+      role: role0,
+      staffType: staff0,
       supervisorId: initial?.supervisorId ?? "",
       assignedUnderwriterId: initial?.assignedUnderwriterId ?? "",
     });
