@@ -362,6 +362,7 @@ async function ensureUniqueIndexes(def: CollectionDef) {
 
 async function ensurePhysicalTable(def: CollectionDef) {
   const collection = def.collection;
+  await db().unsafe("create extension if not exists pgcrypto");
   const existsInSql = await tableExists(collection);
 
   if (!existsInSql) {
@@ -1058,7 +1059,11 @@ async function main() {
   console.log("\n✅ Done. Run scripts/directus-seed.ts next to add demo data.");
 }
 
-main().catch((err) => {
-  console.error("\n💥 Bootstrap failed:", err);
-  process.exit(1);
-});
+main()
+  .catch((err) => {
+    console.error("\n💥 Bootstrap failed:", err);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await closeDatabase();
+  });
