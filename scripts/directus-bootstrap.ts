@@ -918,6 +918,7 @@ async function ensureFlows() {
 async function main() {
   console.log(`🚀 Bootstrapping Directus at ${URL_BASE}`);
   await ensureCollections();
+  await ensureCollectionFields();
   await ensureUserFields();
   await ensureRelations();
   const roleMap = await ensureRoles();
