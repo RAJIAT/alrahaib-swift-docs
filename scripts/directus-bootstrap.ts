@@ -268,6 +268,21 @@ async function ensureCollections() {
     await api("/collections", { method: "POST", body: JSON.stringify(def) });
     console.log(`   + ${def.collection}`);
   }
+
+  // Defensive: every app collection must have meta.accountability = "all"
+  // so item permission policies are enforced (and writes don't bypass them
+  // via a null accountability path). Patch in place — idempotent.
+  for (const def of collections) {
+    try {
+      await api(`/collections/${def.collection}`, {
+        method: "PATCH",
+        body: JSON.stringify({ meta: { accountability: "all" } }),
+      });
+    } catch (e) {
+      const msg = String((e as Error).message ?? e).split("\n")[0];
+      console.warn(`   ! accountability patch ${def.collection}: ${msg}`);
+    }
+  }
 }
 
 async function ensureUserFields() {
@@ -407,8 +422,23 @@ async function ensurePolicies(
   const map = {} as Record<RoleName, string>;
 
   for (const name of ROLE_NAMES) {
-    const policyName = `${name} Policy`;
-    let policy = existing.data.find((p) => p.name === policyName);
+    const policyName = `App ${name} Policy`;
+    const legacyName = `${name} Policy`;
+    let policy =
+      existing.data.find((p) => p.name === policyName) ??
+      existing.data.find((p) => p.name === legacyName);
+    // If we found the legacy-named policy, rename it to the standardized name.
+    if (policy && policy.name === legacyName) {
+      try {
+        await api(`/policies/${policy.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ name: policyName }),
+        });
+        console.log(`   ~ renamed "${legacyName}" → "${policyName}"`);
+      } catch {
+        // ignore — name conflict means the standardized one already exists
+      }
+    }
     if (!policy) {
       const created = await api<{ data: { id: string } }>("/policies", {
         method: "POST",
@@ -455,6 +485,37 @@ async function ensurePolicies(
         } else {
           console.warn(`     ! link ${name} policy→role ${targetRoleId} skipped: ${msg}`);
         }
+      }
+    }
+
+    // Defensive: also attach the App Admin Policy directly to every user
+    // whose app_role = "admin". This guarantees the policy is in the user's
+    // resolved permission set even if their role assignment didn't pick it
+    // up (e.g. custom Admin role vs built-in Administrator role).
+    if (name === "Admin") {
+      try {
+        const adminUsers = await api<{ data: Array<{ id: string }> }>(
+          "/users?filter[app_role][_eq]=admin&fields=id&limit=-1",
+        );
+        for (const u of adminUsers.data) {
+          try {
+            await api("/access", {
+              method: "POST",
+              body: JSON.stringify({ user: u.id, policy: policy.id }),
+            });
+            console.log(`     ↳ linked Admin policy → user ${u.id}`);
+          } catch (e) {
+            const msg = String((e as Error).message ?? e).split("\n")[0];
+            if (isAppendOnlyPermissionSuccess(msg)) {
+              console.log(`     = Admin policy → user ${u.id} (already linked)`);
+            } else {
+              console.warn(`     ! link Admin policy→user ${u.id} skipped: ${msg}`);
+            }
+          }
+        }
+      } catch (e) {
+        const msg = String((e as Error).message ?? e).split("\n")[0];
+        console.warn(`     ! admin user lookup skipped: ${msg}`);
       }
     }
   }
