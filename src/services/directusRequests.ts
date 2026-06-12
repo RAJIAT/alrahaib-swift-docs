@@ -102,7 +102,7 @@ function agentCodeFromUuid(uuid: string | null | undefined): { code: string; nam
 }
 function uuidFromAgentCode(code: string | undefined): string | null {
   if (!code) return null;
-  const a = getAgentsCache().find((x) => x.id === code);
+  const a = getAgentsCache().find((x) => x.id === code || x.userId === code);
   return a?.userId ?? null;
 }
 function branchCodeFromId(id: number | null | undefined): string {
@@ -310,6 +310,7 @@ export async function dxCreateRequest(input: DxCreateRequestInput): Promise<Demo
   await ensureEntitiesCached();
   const agentUuid = uuidFromAgentCode(input.agentCode);
   const branchId = branchIdFromCode(input.branchCode);
+  if (!agentUuid) throw new Error("Agent not found");
   const body: Record<string, unknown> = {
     id: input.id,
     status: "new",
@@ -317,7 +318,8 @@ export async function dxCreateRequest(input: DxCreateRequestInput): Promise<Demo
     customer_email: input.customerEmail ?? null,
     customer_phone: input.customerPhone ?? null,
   };
-  if (agentUuid) { body.agent = agentUuid; body.origin_agent = agentUuid; }
+  body.agent = agentUuid;
+  body.origin_agent = agentUuid;
   if (branchId != null) body.branch = branchId;
   const r = await dxRequest<{ data: DxRequestRow }>(
     `/items/requests?fields=${REQ_FIELDS}`,
