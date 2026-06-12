@@ -67,6 +67,7 @@ import {
   subscribeNotifications as dxSubscribeNotifications,
   subscribeSettings as dxSubscribeSettings,
 } from "./directusNotify";
+import { safeUUID } from "@/lib/uuid";
 
 // Sync read of the Directus entity cache (warmed at login / on root mount).
 function dsGetAgents(): DemoAgent[] { return getAgentsCache(); }
@@ -624,7 +625,7 @@ function logEvent(input: {
 }) {
   const u = input.actor ?? getCurrentUser();
   const entry = {
-    id: crypto.randomUUID(),
+    id: safeUUID(),
     ts: new Date().toISOString(),
     actorId: u?.id ?? null,
     actorName: u?.name ?? null,
@@ -1019,7 +1020,7 @@ export async function bulkImportUsers(branch: string, rows: BulkImportRow[]): Pr
     const agentRole: AgentRole = role === "supervisor" ? "supervisor" : "agent";
     const staffType: StaffType | undefined = role === "supervisor" ? undefined : (role as StaffType);
     const supervisor = role === "supervisor" ? undefined : branchSupervisor();
-    const password = (row.password && row.password.length >= 6) ? row.password : `Pw-${crypto.randomUUID().slice(0, 10)}`;
+    const password = (row.password && row.password.length >= 6) ? row.password : `Pw-${safeUUID().slice(0, 10)}`;
     try {
       const created = await dxCreateUser({
         email, password, name,
