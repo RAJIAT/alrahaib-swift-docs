@@ -361,7 +361,7 @@ type RoleName = (typeof ROLE_NAMES)[number];
 async function ensureRoles(): Promise<Record<RoleName, string>> {
   console.log("\n🛡️  Roles…");
   const existing = await api<{ data: Array<{ id: string; name: string }> }>(
-    "/roles?limit=-1",
+    "/roles?fields=id,name&limit=-1",
   );
   const map = {} as Record<RoleName, string>;
 
@@ -387,15 +387,14 @@ async function ensureRoles(): Promise<Record<RoleName, string>> {
 
 // Directus 11 moved admin_access / app_access / permissions from roles onto
 // POLICIES. Each role needs a policy attached via the directus_access junction.
-// We create one policy per app role and attach it. Admin policy gets
-// admin_access=true which bypasses item permissions entirely (fixes the
-// 403 the admin user hits when creating branches).
+// We create one policy per app role and attach it. Admin also gets explicit
+// CRUD rows below because Directus 11 portal/API item access is policy-based.
 async function ensurePolicies(
   roleMap: Record<RoleName, string>,
 ): Promise<Record<RoleName, string>> {
   console.log("\n📜 Policies…");
   const existing = await api<{ data: Array<{ id: string; name: string }> }>(
-    "/policies?limit=-1",
+    "/policies?fields=id,name&limit=-1",
   );
   const map = {} as Record<RoleName, string>;
 
@@ -436,7 +435,7 @@ async function ensurePolicies(
     // Attach policy to role via directus_access junction (idempotent).
     try {
       const links = await api<{ data: Array<{ id: string }> }>(
-        `/access?filter[role][_eq]=${roleMap[name]}&filter[policy][_eq]=${policy.id}&limit=1`,
+        `/access?fields=id&filter[role][_eq]=${roleMap[name]}&filter[policy][_eq]=${policy.id}&limit=1`,
       );
       if (!links.data.length) {
         await api("/access", {
