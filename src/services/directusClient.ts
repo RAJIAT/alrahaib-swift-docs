@@ -259,7 +259,13 @@ export type UploadedFile = { id: string; name: string; type: string; size: numbe
 
 export function dxAssetUrl(fileId: string | null | undefined): string {
   if (!fileId || !URL_BASE) return "";
-  return `${URL_BASE}/assets/${fileId}`;
+  // Directus /assets requires the file to be readable by the requesting role.
+  // <img> tags don't send Authorization headers, so for authenticated users
+  // we append the access token as a query param to keep private assets viewable.
+  const tok = getTokens()?.access_token;
+  return tok
+    ? `${URL_BASE}/assets/${fileId}?access_token=${encodeURIComponent(tok)}`
+    : `${URL_BASE}/assets/${fileId}`;
 }
 
 export function dxIsAssetUrl(s: string): boolean {
