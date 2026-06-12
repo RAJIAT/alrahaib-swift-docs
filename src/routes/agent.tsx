@@ -289,6 +289,49 @@ function Chip({ label, value, tone }: { label: string; value: number; tone: "pri
   );
 }
 
+function CreateRequestCard({ onCreated }: { onCreated: (id: string) => void }) {
+  const { lang } = useLang();
+  const [busy, setBusy] = useState(false);
+
+  const onClick = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const req = await createEmptyRequest();
+      toast.success(lang === "ar" ? `تم إنشاء الطلب ${req.id}` : `Created ${req.id}`);
+      onCreated(req.id);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(msg || (lang === "ar" ? "تعذر إنشاء الطلب" : "Failed to create request"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary-soft to-card p-4 shadow-card animate-fade-in sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <div className="text-sm font-bold text-foreground">
+          {lang === "ar" ? "إنشاء طلب جديد" : "Create a new request"}
+        </div>
+        <div className="mt-0.5 text-xs text-muted-foreground">
+          {lang === "ar"
+            ? "أنشئ طلباً جديداً واحصل على رابط رفع خاص بالعميل"
+            : "Generate a customer upload link for a new request"}
+        </div>
+      </div>
+      <button
+        onClick={onClick}
+        disabled={busy}
+        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-soft transition active:scale-95 disabled:opacity-60"
+      >
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+        {lang === "ar" ? "إنشاء طلب / رابط رفع" : "Create Request / Upload Link"}
+      </button>
+    </div>
+  );
+}
+
 function ShareLinkCard({ agentId, agentName }: { agentId: string; agentName: string }) {
   const { t, lang } = useLang();
   const [copied, setCopied] = useState(false);
