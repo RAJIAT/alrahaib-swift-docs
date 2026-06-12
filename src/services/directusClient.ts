@@ -161,6 +161,7 @@ export type DxUserRecord = {
   agent_code?: string | null;
   staff_type?: "underwriter" | "sales" | null;
   supervisor?: string | null;
+  assigned_underwriter?: string | { id: string; agent_code?: string | null } | null;
   assigned_underwriter_code?: string | null;
   pending_approval?: boolean | null;
   app_active?: boolean | null;
@@ -176,7 +177,7 @@ export const USER_FIELDS = [
   "id", "email", "first_name", "last_name", "role", "status",
   "app_role", "agent_code", "staff_type",
   "branch.id", "branch.code",
-  "supervisor", "assigned_underwriter_code",
+  "supervisor", "assigned_underwriter", "assigned_underwriter_code",
   "pending_approval", "app_active", "app_created_by_role",
   "app_removal_reason", "app_removal_requested_by", "app_removal_requested_at",
 ].join(",");
