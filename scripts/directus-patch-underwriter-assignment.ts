@@ -177,9 +177,16 @@ async function deleteFlowIfExists(name: string): Promise<void> {
     const ops = await api<{ data: Array<{ id: string }> }>(
       `/operations?limit=-1&fields=id&filter[flow][_eq]=${f.id}`,
     );
-    try { await api(`/flows/${f.id}`, { method: "PATCH", body: JSON.stringify({ operation: null }) }); } catch {}
+    try {
+      await api(`/flows/${f.id}`, { method: "PATCH", body: JSON.stringify({ operation: null }) });
+    } catch {
+      // Already unset or flow is partially deleted.
+    }
     if (ops.data.length) {
-      await api(`/operations`, { method: "DELETE", body: JSON.stringify(ops.data.map((o) => o.id)) });
+      await api(`/operations`, {
+        method: "DELETE",
+        body: JSON.stringify(ops.data.map((o) => o.id)),
+      });
     }
     await api(`/flows/${f.id}`, { method: "DELETE" });
     console.log(`   - removed existing "${name}"`);
@@ -203,7 +210,9 @@ async function recreateSalesRoutingFlow() {
       options: {
         collection: "directus_users",
         key: "{{$accountability.user}}",
-        query: { fields: ["id", "app_role", "staff_type", "assigned_underwriter", "assigned_underwriter_code"] },
+        query: {
+          fields: ["id", "app_role", "staff_type", "assigned_underwriter", "assigned_underwriter_code"],
+        },
       },
     },
     {
@@ -253,7 +262,15 @@ async function recreateSalesRoutingFlow() {
     const op = operations[i];
     const r = await api<{ data: { id: string } }>("/operations", {
       method: "POST",
-      body: JSON.stringify({ flow: flowId, key: op.key, name: op.name, type: op.type, options: op.options, position_x: 20 + i * 220, position_y: 20 }),
+      body: JSON.stringify({
+        flow: flowId,
+        key: op.key,
+        name: op.name,
+        type: op.type,
+        options: op.options,
+        position_x: 20 + i * 220,
+        position_y: 20,
+      }),
     });
     opIds.push(r.data.id);
     opKeyToId[op.key] = r.data.id;
@@ -261,12 +278,18 @@ async function recreateSalesRoutingFlow() {
   const rejectTargets = new Set(operations.map((o) => o.rejectKey).filter((k): k is string => !!k));
   for (let i = 0; i < operations.length - 1; i++) {
     if (rejectTargets.has(operations[i + 1].key)) continue;
-    await api(`/operations/${opIds[i]}`, { method: "PATCH", body: JSON.stringify({ resolve: opIds[i + 1] }) });
+    await api(`/operations/${opIds[i]}`, {
+      method: "PATCH",
+      body: JSON.stringify({ resolve: opIds[i + 1] }),
+    });
   }
   for (let i = 0; i < operations.length; i++) {
     const op = operations[i];
     if (op.rejectKey && opKeyToId[op.rejectKey]) {
-      await api(`/operations/${opIds[i]}`, { method: "PATCH", body: JSON.stringify({ reject: opKeyToId[op.rejectKey] }) });
+      await api(`/operations/${opIds[i]}`, {
+        method: "PATCH",
+        body: JSON.stringify({ reject: opKeyToId[op.rejectKey] }),
+      });
     }
   }
   await api(`/flows/${flowId}`, { method: "PATCH", body: JSON.stringify({ operation: opIds[0] }) });
@@ -277,7 +300,9 @@ async function main() {
   console.log(`🔧 Patching underwriter assignment on ${URL_BASE}`);
   await patchPermissions();
   await recreateSalesRoutingFlow();
-  console.log("\n✅ Done. Status buttons and assigned-underwriter management should work after users refresh/re-login.");
+  console.log(
+    "\n✅ Done. Status buttons and assigned-underwriter management should work after users refresh/re-login.",
+  );
 }
 
 main().catch((e) => {
