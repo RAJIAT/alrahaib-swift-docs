@@ -40,8 +40,20 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 type Policy = { id: string; name: string };
-type Permission = { id: number | string; policy: string; collection: string; action: string; fields?: string[] | null };
-type OpDef = { key: string; name: string; type: string; options: Record<string, unknown>; rejectKey?: string };
+type Permission = {
+  id: number | string;
+  policy: string;
+  collection: string;
+  action: string;
+  fields?: string[] | null;
+};
+type OpDef = {
+  key: string;
+  name: string;
+  type: string;
+  options: Record<string, unknown>;
+  rejectKey?: string;
+};
 
 async function findPolicyId(roleName: "Supervisor" | "Agent"): Promise<string> {
   const names = [`App ${roleName} Policy`, `${roleName} Policy`];
@@ -53,7 +65,12 @@ async function findPolicyId(roleName: "Supervisor" | "Agent"): Promise<string> {
   return found.id;
 }
 
-async function upsertPermission(policy: string, collection: string, action: string, patch: Partial<Permission> & { permissions?: unknown; validation?: unknown }) {
+async function upsertPermission(
+  policy: string,
+  collection: string,
+  action: string,
+  patch: Partial<Permission> & { permissions?: unknown; validation?: unknown },
+) {
   const rows = await api<{ data: Permission[] }>(
     `/permissions?fields=id,policy,collection,action,fields&limit=-1&filter[policy][_eq]=${encodeURIComponent(policy)}&filter[collection][_eq]=${encodeURIComponent(collection)}&filter[action][_eq]=${encodeURIComponent(action)}`,
   ).catch(() => ({ data: [] as Permission[] }));
@@ -67,7 +84,15 @@ async function upsertPermission(policy: string, collection: string, action: stri
 
   await api(`/permissions`, {
     method: "POST",
-    body: JSON.stringify({ policy, collection, action, fields: ["*"], permissions: {}, validation: {}, ...patch }),
+    body: JSON.stringify({
+      policy,
+      collection,
+      action,
+      fields: ["*"],
+      permissions: {},
+      validation: {},
+      ...patch,
+    }),
   });
   return "created";
 }
