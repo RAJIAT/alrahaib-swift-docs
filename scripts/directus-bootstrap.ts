@@ -500,7 +500,7 @@ function isAppendOnlyPermissionSuccess(message: string): boolean {
   return /RecordNotUnique|duplicate|already exists|violates unique constraint|409|400/i.test(message);
 }
 
-async function ensurePermissions(roleMap: Record<RoleName, string>) {
+async function ensurePermissions(roleMap: RoleMap) {
   // Resolve policy IDs (one per role). Directus 11 is policy-based, so Admin
   // needs explicit CRUD permission rows on its policy; do not rely only on
   // role/admin_access fields, which are often forbidden to read in 11.x.
