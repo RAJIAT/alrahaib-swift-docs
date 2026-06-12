@@ -160,36 +160,13 @@ function AgentDashboard() {
                   </td>
                   <td className="px-5 py-4"><StatusBadge status={r.status} /></td>
                   <td className="px-5 py-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        to="/requests/$id"
-                        params={{ id: r.id }}
-                        className="inline-flex items-center gap-1 rounded-lg bg-primary-soft px-3 py-1.5 text-sm font-semibold text-primary transition hover:bg-primary-soft/70 active:scale-95"
-                      >
-                        {t.table.view} <Chevron className="h-4 w-4" />
-                      </Link>
-                      {!isUnderwriter && (
-                        <>
-                          <button
-                            onClick={() => copyLink(r.id)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-semibold text-foreground transition hover:bg-muted"
-                            title={lang === "ar" ? "نسخ رابط الرفع" : "Copy upload link"}
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                            {lang === "ar" ? "نسخ الرابط" : "Copy link"}
-                          </button>
-                          <a
-                            href={uploadUrl(r.id)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-semibold text-foreground transition hover:bg-muted"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            {lang === "ar" ? "فتح" : "Open"}
-                          </a>
-                        </>
-                      )}
-                    </div>
+                    <Link
+                      to="/requests/$id"
+                      params={{ id: r.id }}
+                      className="inline-flex items-center gap-1 rounded-lg bg-primary-soft px-3 py-1.5 text-sm font-semibold text-primary transition hover:bg-primary-soft/70 active:scale-95"
+                    >
+                      {t.table.view} <Chevron className="h-4 w-4" />
+                    </Link>
                   </td>
                 </tr>
               ))
@@ -235,26 +212,6 @@ function AgentDashboard() {
                 </div>
                 <Chevron className="h-5 w-5 text-muted-foreground" />
               </Link>
-              {!isUnderwriter && (
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => copyLink(r.id)}
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary-soft px-3 py-2 text-xs font-semibold text-primary"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                    {lang === "ar" ? "نسخ الرابط" : "Copy link"}
-                  </button>
-                  <a
-                    href={uploadUrl(r.id)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    {lang === "ar" ? "فتح" : "Open"}
-                  </a>
-                </div>
-              )}
             </div>
           ))
         )}
@@ -274,49 +231,6 @@ function Chip({ label, value, tone }: { label: string; value: number; tone: "pri
       <span className="opacity-80">{label}</span>
       <span className="font-bold">{value}</span>
     </span>
-  );
-}
-
-function CreateRequestCard({ onCreated }: { onCreated: (id: string) => void }) {
-  const { lang } = useLang();
-  const [busy, setBusy] = useState(false);
-
-  const onClick = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const req = await createEmptyRequest();
-      toast.success(lang === "ar" ? `تم إنشاء الطلب ${req.id}` : `Created ${req.id}`);
-      onCreated(req.id);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error(msg || (lang === "ar" ? "تعذر إنشاء الطلب" : "Failed to create request"));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary-soft to-card p-4 shadow-card animate-fade-in sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <div className="text-sm font-bold text-foreground">
-          {lang === "ar" ? "إنشاء طلب جديد" : "Create a new request"}
-        </div>
-        <div className="mt-0.5 text-xs text-muted-foreground">
-          {lang === "ar"
-            ? "أنشئ طلباً جديداً واحصل على رابط رفع خاص بالعميل"
-            : "Generate a customer upload link for a new request"}
-        </div>
-      </div>
-      <button
-        onClick={onClick}
-        disabled={busy}
-        className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-primary-foreground shadow-soft transition active:scale-95 disabled:opacity-60"
-      >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-        {lang === "ar" ? "إنشاء طلب / رابط رفع" : "Create Request / Upload Link"}
-      </button>
-    </div>
   );
 }
 
