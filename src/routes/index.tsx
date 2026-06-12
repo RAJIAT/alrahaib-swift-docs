@@ -130,7 +130,10 @@ function UploadPage() {
         optional: { inspection },
       });
       setDone(true);
-      setTimeout(() => navigate({ to: "/success", search: { id } }), 600);
+      setTimeout(
+        () => navigate({ to: "/success", search: { id, ...(agent ? { agent } : {}) } }),
+        600,
+      );
     } catch (err) {
       console.error("Upload failed:", err);
       const raw = err instanceof Error ? err.message : String(err);
