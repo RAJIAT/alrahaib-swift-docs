@@ -94,8 +94,8 @@ function AgentDashboard() {
       </div>
 
       {/* Agent's permanent personal customer-upload link — sales only. */}
-      {!isUnderwriter && user.agentId && (
-        <ShareLinkCard agentId={user.agentId} agentName={user.name} />
+      {!isUnderwriter && (
+        <ShareLinkCard agentId={user.agentId ?? ""} agentName={user.name} />
       )}
       {/* Status filter tabs */}
       <div className="mb-4 -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
