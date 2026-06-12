@@ -244,9 +244,28 @@ function ShareLinkCard({ agentId, agentName }: { agentId: string; agentName: str
     return `${window.location.origin}/?agent=${encodeURIComponent(agentId)}`;
   }, [agentId]);
 
+  const writeToClipboard = async (text: string) => {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    textarea.style.top = "0";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    if (!ok) throw new Error("Copy failed");
+  };
+
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(link);
+      await writeToClipboard(link);
       setCopied(true);
       toast.success(lang === "ar" ? "تم نسخ الرابط" : "Link copied");
       setTimeout(() => setCopied(false), 1800);
