@@ -173,9 +173,11 @@ function RequestDetails() {
       const updated = await updateRequestStatus(req.id, s);
       setReq(updated);
       toast.success(t.common.statusUpdatedSuccess);
-    } catch {
+    } catch (err) {
       setReq({ ...req, status: previous });
-      toast.error(t.common.statusUpdateFailed);
+      const raw = err instanceof Error ? err.message : String(err);
+      console.error("updateRequestStatus failed", err);
+      toast.error(`${t.common.statusUpdateFailed}: ${raw}`);
     } finally {
       setSavingAction(null);
     }
