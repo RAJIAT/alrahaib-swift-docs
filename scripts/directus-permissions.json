@@ -126,6 +126,12 @@
       "permissions": { "actor_branch": { "_eq": "$CURRENT_USER.branch.code" } }
     },
     {
+      "collection": "audit_log",
+      "action": "create",
+      "fields": ["*"],
+      "_comment": "Supervisors must be able to write their own audit rows so admin sees actor_role=supervisor, not just admin."
+    },
+    {
       "collection": "notifications",
       "action": "read",
       "fields": ["*"],
@@ -271,6 +277,12 @@
       "collection": "app_settings",
       "action": "read",
       "fields": ["*"]
+    },
+    {
+      "collection": "audit_log",
+      "action": "create",
+      "fields": ["*"],
+      "_comment": "Agents write audit entries (login/logout, request edits)."
     }
   ]
 }
