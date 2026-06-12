@@ -37,7 +37,7 @@ function AgentDashboard() {
 
   const { items, loading } = useRequestsLive(user?.agentId ? { agentId: user.agentId } : undefined);
   const myStaffType = useMemo(
-    () => (user?.agentId ? listAgents().find((a) => a.id === user.agentId)?.staffType : undefined),
+    () => (user?.agentId ? listAgents().find((a) => a.id === user.agentId || a.userId === user.agentId)?.staffType : undefined),
     [user?.agentId],
   );
   const isUnderwriter = myStaffType === "underwriter";
@@ -270,20 +270,7 @@ function ShareLinkCard({ agentId, agentName }: { agentId: string; agentName: str
     }
   };
 
-  if (!agentId) {
-    return (
-      <div className="mb-5 rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning-foreground shadow-card animate-fade-in">
-        <div className="font-bold">
-          {lang === "ar" ? "لا يوجد كود وكيل (agent code) لحسابك" : "No agent code on your account"}
-        </div>
-        <div className="mt-1 text-xs text-muted-foreground">
-          {lang === "ar"
-            ? "اطلب من المسؤول تعيين Agent Code لحسابك حتى يظهر رابطك الخاص للعملاء."
-            : "Ask an admin to set an Agent Code on your account so your customer upload link can appear."}
-        </div>
-      </div>
-    );
-  }
+  if (!agentId) return null;
 
   return (
     <div className="mb-5 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary-soft to-card p-4 shadow-card animate-fade-in">
