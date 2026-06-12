@@ -288,6 +288,29 @@ export async function getRequest(id: string): Promise<InsuranceRequest | null> {
   return dxGetRequest(id);
 }
 
+/**
+ * Create an empty request owned by the current sales/underwriter agent.
+ * Used by the Sales Agent dashboard to mint a customer upload link
+ * (`/r/:requestId`) without collecting any documents up-front.
+ */
+export async function createEmptyRequest(): Promise<InsuranceRequest> {
+  const me = getCurrentUser();
+  if (!me || me.role !== "agent" || !me.agentId) {
+    throw new Error("Not authenticated as agent");
+  }
+  const agent = dsGetAgents().find((a) => a.id === me.agentId);
+  const id = `REQ-${Date.now()}`;
+  const req = await dxCreateRequest({
+    id,
+    uuid: id.toLowerCase(),
+    agentCode: me.agentId,
+    branchCode: agent?.branch ?? me.branch ?? "",
+  });
+  logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
+  notifyNewRequest(req);
+  return req;
+}
+
 export async function resolveAssetUrl(stored: string): Promise<{ url: string; mime: string }> {
   if (!stored) return { url: "", mime: "" };
   const m = stored.match(/^data:([^;]+);/);
