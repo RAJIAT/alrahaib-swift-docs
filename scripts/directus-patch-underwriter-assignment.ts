@@ -103,26 +103,70 @@ async function patchPermissions() {
   const agentPolicy = await findPolicyId("Agent");
 
   const supervisorReadFields = [
-    "id", "first_name", "last_name", "email", "app_role", "staff_type", "branch", "agent_code",
-    "supervisor", "assigned_underwriter", "assigned_underwriter_code",
-    "pending_approval", "app_active", "app_created_by_role",
-    "app_removal_reason", "app_removal_requested_by", "app_removal_requested_at",
+    "id",
+    "first_name",
+    "last_name",
+    "email",
+    "app_role",
+    "staff_type",
+    "branch",
+    "agent_code",
+    "supervisor",
+    "assigned_underwriter",
+    "assigned_underwriter_code",
+    "pending_approval",
+    "app_active",
+    "app_created_by_role",
+    "app_removal_reason",
+    "app_removal_requested_by",
+    "app_removal_requested_at",
   ];
   const supervisorWriteFields = [
-    "first_name", "last_name", "email", "password", "role", "status", "app_role", "staff_type", "branch", "agent_code",
-    "supervisor", "assigned_underwriter", "assigned_underwriter_code",
-    "pending_approval", "app_active", "app_created_by_role",
-    "app_removal_reason", "app_removal_requested_by", "app_removal_requested_at",
+    "first_name",
+    "last_name",
+    "email",
+    "password",
+    "role",
+    "status",
+    "app_role",
+    "staff_type",
+    "branch",
+    "agent_code",
+    "supervisor",
+    "assigned_underwriter",
+    "assigned_underwriter_code",
+    "pending_approval",
+    "app_active",
+    "app_created_by_role",
+    "app_removal_reason",
+    "app_removal_requested_by",
+    "app_removal_requested_at",
   ];
   const agentReadFields = [
-    "id", "first_name", "last_name", "agent_code", "app_role", "staff_type", "branch",
-    "assigned_underwriter", "assigned_underwriter_code", "app_active",
+    "id",
+    "first_name",
+    "last_name",
+    "agent_code",
+    "app_role",
+    "staff_type",
+    "branch",
+    "assigned_underwriter",
+    "assigned_underwriter_code",
+    "app_active",
   ];
 
-  console.log(`   ${await upsertPermission(supervisorPolicy, "directus_users", "read", { fields: supervisorReadFields })} Supervisor → directus_users.read`);
-  console.log(`   ${await upsertPermission(supervisorPolicy, "directus_users", "create", { fields: supervisorWriteFields })} Supervisor → directus_users.create`);
-  console.log(`   ${await upsertPermission(supervisorPolicy, "directus_users", "update", { fields: supervisorWriteFields })} Supervisor → directus_users.update`);
-  console.log(`   ${await upsertPermission(agentPolicy, "directus_users", "read", { fields: agentReadFields })} Agent → directus_users.read`);
+  console.log(
+    `   ${await upsertPermission(supervisorPolicy, "directus_users", "read", { fields: supervisorReadFields })} Supervisor → directus_users.read`,
+  );
+  console.log(
+    `   ${await upsertPermission(supervisorPolicy, "directus_users", "create", { fields: supervisorWriteFields })} Supervisor → directus_users.create`,
+  );
+  console.log(
+    `   ${await upsertPermission(supervisorPolicy, "directus_users", "update", { fields: supervisorWriteFields })} Supervisor → directus_users.update`,
+  );
+  console.log(
+    `   ${await upsertPermission(agentPolicy, "directus_users", "read", { fields: agentReadFields })} Agent → directus_users.read`,
+  );
 }
 
 async function deleteFlowIfExists(name: string): Promise<void> {
