@@ -111,6 +111,10 @@ const collections: CollectionDef[] = [
       { field: "address", type: "text", meta: { interface: "input-multiline" } },
       { field: "phone", type: "string", meta: { interface: "input" } },
       { field: "is_active", type: "boolean", meta: { interface: "boolean" }, schema: { default_value: true } },
+      { field: "date_created", type: "timestamp", meta: { special: ["date-created"], interface: "datetime", readonly: true, hidden: true } },
+      { field: "date_updated", type: "timestamp", meta: { special: ["date-updated"], interface: "datetime", readonly: true, hidden: true } },
+      { field: "user_created", type: "uuid", meta: { special: ["user-created"], interface: "select-dropdown-m2o", readonly: true, hidden: true } },
+      { field: "user_updated", type: "uuid", meta: { special: ["user-updated"], interface: "select-dropdown-m2o", readonly: true, hidden: true } },
     ],
   },
   {
@@ -146,6 +150,8 @@ const collections: CollectionDef[] = [
       { field: "assigned_at", type: "timestamp", meta: { interface: "datetime" } },
       { field: "date_created", type: "timestamp", meta: { special: ["date-created"], interface: "datetime", readonly: true, hidden: true } },
       { field: "date_updated", type: "timestamp", meta: { special: ["date-updated"], interface: "datetime", readonly: true, hidden: true } },
+      { field: "user_created", type: "uuid", meta: { special: ["user-created"], interface: "select-dropdown-m2o", readonly: true, hidden: true } },
+      { field: "user_updated", type: "uuid", meta: { special: ["user-updated"], interface: "select-dropdown-m2o", readonly: true, hidden: true } },
     ],
   },
   {
