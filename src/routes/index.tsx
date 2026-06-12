@@ -164,29 +164,6 @@ function UploadPage() {
                 {t.nav?.login ?? "Login"}
               </Link>
             )}
-            <button
-              type="button"
-              onClick={async () => {
-                setCustomerName("Demo Customer");
-                setCustomerEmail("customer@example.com");
-                setCustomerPhone("+971501234567");
-                const placeholder = (label: string) => {
-                  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 380'><rect width='600' height='380' fill='#e0e7ff'/><text x='300' y='200' font-family='sans-serif' font-size='28' font-weight='bold' text-anchor='middle' fill='#4338ca'>${label}</text></svg>`;
-                  const blob = new Blob([svg], { type: "image/svg+xml" });
-                  return new File([blob], `${label.toLowerCase().replace(/\s+/g, "-")}.svg`, { type: "image/svg+xml" });
-                };
-                setRegistration([placeholder("Registration")]);
-                setEmirates([placeholder("Emirates ID")]);
-                setLicense([placeholder("License")]);
-                if (!agent && typeof window !== "undefined") {
-                  // Jump to demo agent's link so submit succeeds.
-                  navigate({ to: "/", search: { agent: "A001" } });
-                }
-              }}
-              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-amber-300 bg-amber-100 px-3 text-xs font-semibold text-amber-900 hover:bg-amber-200"
-            >
-              Fill demo data
-            </button>
           </div>
         </div>
       </header>
