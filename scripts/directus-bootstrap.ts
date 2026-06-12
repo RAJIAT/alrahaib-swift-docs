@@ -297,6 +297,51 @@ async function ensureUserFields() {
   }
 }
 
+// Ensure every field listed on each app collection actually has a
+// directus_fields row. Critical: if the collection table was created
+// outside of Directus (raw SQL / restored dump), the API will list the
+// collection but `directus_fields` stays empty — every read/write then
+// 403s because the permission engine has no field metadata to authorize
+// against. POST /fields/<collection> is idempotent on Directus 11: it
+// registers the metadata when the column already exists, and creates the
+// column when it doesn't.
+async function ensureCollectionFields() {
+  console.log("\n🧱 Collection fields…");
+  for (const def of collections) {
+    for (const f of def.fields) {
+      if (await exists(`/fields/${def.collection}/${f.field}`)) {
+        continue;
+      }
+      try {
+        await api(`/fields/${def.collection}`, {
+          method: "POST",
+          body: JSON.stringify(f),
+        });
+        console.log(`   + ${def.collection}.${f.field}`);
+      } catch (e) {
+        const msg = String((e as Error).message ?? e).split("\n")[0];
+        if (/already exists|RecordNotUnique|duplicate/i.test(msg)) {
+          console.log(`   = ${def.collection}.${f.field} (already present)`);
+          continue;
+        }
+        // Retry as metadata-only (no schema) — covers the case where the
+        // column already exists in the DB but Directus tries to ALTER it.
+        try {
+          const metaOnly = { field: f.field, type: f.type, meta: f.meta ?? {} };
+          await api(`/fields/${def.collection}`, {
+            method: "POST",
+            body: JSON.stringify(metaOnly),
+          });
+          console.log(`   + ${def.collection}.${f.field} (meta-only)`);
+        } catch (e2) {
+          const msg2 = String((e2 as Error).message ?? e2).split("\n")[0];
+          console.warn(`   ! ${def.collection}.${f.field}: ${msg2}`);
+        }
+      }
+    }
+  }
+}
+
 async function ensureRelations() {
   console.log("\n🔗 Relations…");
   // Pull all existing relations once so we can skip any (collection, field)
@@ -873,6 +918,7 @@ async function ensureFlows() {
 async function main() {
   console.log(`🚀 Bootstrapping Directus at ${URL_BASE}`);
   await ensureCollections();
+  await ensureCollectionFields();
   await ensureUserFields();
   await ensureRelations();
   const roleMap = await ensureRoles();
