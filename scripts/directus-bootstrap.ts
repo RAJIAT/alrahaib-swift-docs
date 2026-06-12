@@ -3,7 +3,7 @@
  *
  * ينشئ كل البنية: collections, fields, relations, roles, policies, permissions, flows.
  * تشغيل:
- *   DIRECTUS_URL=https://… DIRECTUS_ADMIN_TOKEN=… bun run scripts/directus-bootstrap.ts
+ *   DIRECTUS_URL=https://… DIRECTUS_ADMIN_TOKEN=… DATABASE_URL=postgres://… bun run scripts/directus-bootstrap.ts
  *
  * كل خطوة بتتأكد قبل الإنشاء (idempotent). تقدر تشغّله أكثر من مرة.
  */
@@ -45,6 +45,42 @@ async function exists(path: string): Promise<boolean> {
     headers: { Authorization: `Bearer ${TOKEN}` },
   });
   return res.ok;
+}
+
+type SqlRow = Record<string, unknown>;
+type SqlClient = {
+  unsafe<T extends SqlRow = SqlRow>(query: string, params?: unknown[]): Promise<T[]>;
+  end?: () => Promise<void>;
+};
+
+declare const Bun: { SQL: new (url: string) => SqlClient };
+
+let dbClient: SqlClient | null = null;
+
+function getDatabaseUrl(): string {
+  const databaseUrl = process.env.DATABASE_URL ?? process.env.DIRECTUS_DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error(
+      "DATABASE_URL (or DIRECTUS_DATABASE_URL) is required so bootstrap can verify and repair physical Directus SQL tables.",
+    );
+  }
+  return databaseUrl;
+}
+
+function db(): SqlClient {
+  if (!dbClient) dbClient = new Bun.SQL(getDatabaseUrl());
+  return dbClient;
+}
+
+async function closeDatabase() {
+  await dbClient?.end?.();
+}
+
+function quoteIdent(identifier: string): string {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(identifier)) {
+    throw new Error(`Unsafe SQL identifier: ${identifier}`);
+  }
+  return `"${identifier}"`;
 }
 
 // ----------------- 1. Collections -----------------
