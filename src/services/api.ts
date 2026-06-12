@@ -271,7 +271,7 @@ export async function listRequests(opts?: { agentId?: string; branch?: string })
   // server-side. If the agent/branch is unknown to the cache, fall back to a
   // client-side filter on the returned list.
   const agentUuid = opts?.agentId
-    ? getAgentsCache().find((a) => a.id === opts.agentId)?.userId
+    ? getAgentsCache().find((a) => a.id === opts.agentId || a.userId === opts.agentId)?.userId
     : undefined;
   const branchId = opts?.branch
     ? getBranchesCache().find((b) => b.code === opts.branch)?.id
@@ -298,7 +298,7 @@ export async function createEmptyRequest(): Promise<InsuranceRequest> {
   if (!me || me.role !== "agent" || !me.agentId) {
     throw new Error("Not authenticated as agent");
   }
-  const agent = dsGetAgents().find((a) => a.id === me.agentId);
+  const agent = dsGetAgents().find((a) => a.id === me.agentId || a.userId === me.agentId);
   const id = `REQ-${Date.now()}`;
   const req = await dxCreateRequest({
     id,
@@ -342,7 +342,7 @@ export async function submitUpload(input: {
   };
   optional?: { inspection?: File | null };
 }): Promise<{ id: string }> {
-  const agent = dsGetAgents().find((a) => a.id === input.agentId);
+  const agent = dsGetAgents().find((a) => a.id === input.agentId || a.userId === input.agentId);
   const id = `REQ-${Date.now()}`;
   // Create the request row first so file rows have something to link to.
   const req = await dxCreateRequest({

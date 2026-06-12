@@ -35,10 +35,11 @@ function AgentDashboard() {
     });
   }, [navigate]);
 
-  const { items, loading } = useRequestsLive(user?.agentId ? { agentId: user.agentId } : undefined);
+  const effectiveAgentId = user?.agentId ?? user?.id;
+  const { items, loading } = useRequestsLive(effectiveAgentId ? { agentId: effectiveAgentId } : undefined);
   const myStaffType = useMemo(
-    () => (user?.agentId ? listAgents().find((a) => a.id === user.agentId)?.staffType : undefined),
-    [user?.agentId],
+    () => (effectiveAgentId ? listAgents().find((a) => a.id === effectiveAgentId || a.userId === effectiveAgentId)?.staffType : undefined),
+    [effectiveAgentId],
   );
   const isUnderwriter = myStaffType === "underwriter";
 
@@ -95,7 +96,7 @@ function AgentDashboard() {
 
       {/* Agent's permanent personal customer-upload link — sales only. */}
       {!isUnderwriter && (
-        <ShareLinkCard agentId={user.agentId ?? ""} agentName={user.name} />
+        <ShareLinkCard agentId={effectiveAgentId ?? ""} agentName={user.name} />
       )}
       {/* Status filter tabs */}
       <div className="mb-4 -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
@@ -270,20 +271,7 @@ function ShareLinkCard({ agentId, agentName }: { agentId: string; agentName: str
     }
   };
 
-  if (!agentId) {
-    return (
-      <div className="mb-5 rounded-2xl border border-warning/30 bg-warning/10 p-4 text-sm text-warning-foreground shadow-card animate-fade-in">
-        <div className="font-bold">
-          {lang === "ar" ? "لا يوجد كود وكيل (agent code) لحسابك" : "No agent code on your account"}
-        </div>
-        <div className="mt-1 text-xs text-muted-foreground">
-          {lang === "ar"
-            ? "اطلب من المسؤول تعيين Agent Code لحسابك حتى يظهر رابطك الخاص للعملاء."
-            : "Ask an admin to set an Agent Code on your account so your customer upload link can appear."}
-        </div>
-      </div>
-    );
-  }
+  if (!agentId) return null;
 
   return (
     <div className="mb-5 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary-soft to-card p-4 shadow-card animate-fade-in">
