@@ -1149,11 +1149,34 @@ const flows: FlowDef[] = [
 async function ensureFlows() {
   console.log("\n⚡ Flows…");
   const existing = await api<{ data: Array<{ id: string; name: string }> }>("/flows?limit=-1");
+  const recreateIfExists = new Set(["lovable: enforce_sales_routing"]);
   for (const f of flows) {
     const found = existing.data.find((x) => x.name === f.name);
     if (found) {
+      if (recreateIfExists.has(f.name)) {
+        const ops = await api<{ data: Array<{ id: string }> }>(
+          `/operations?limit=-1&fields=id&filter[flow][_eq]=${found.id}`,
+        );
+        try {
+          await api(`/flows/${found.id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ operation: null }),
+          });
+        } catch {
+          // Already unset / partially deleted; continue repair.
+        }
+        if (ops.data.length) {
+          await api(`/operations`, {
+            method: "DELETE",
+            body: JSON.stringify(ops.data.map((o) => o.id)),
+          });
+        }
+        await api(`/flows/${found.id}`, { method: "DELETE" });
+        console.log(`   ~ ${f.name} (recreating)`);
+      } else {
       console.log(`   = ${f.name} (exists)`);
       continue;
+      }
     }
     const { operations, ...flowMeta } = f;
     const created = await api<{ data: { id: string } }>("/flows", {
