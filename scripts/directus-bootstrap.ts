@@ -376,8 +376,6 @@ async function ensureRoles(): Promise<Record<RoleName, string>> {
       method: "POST",
       body: JSON.stringify({
         name,
-        admin_access: name === "Admin",
-        app_access: true,
         description: `App role: ${name}`,
       }),
     });
@@ -387,7 +385,79 @@ async function ensureRoles(): Promise<Record<RoleName, string>> {
   return map;
 }
 
+// Directus 11 moved admin_access / app_access / permissions from roles onto
+// POLICIES. Each role needs a policy attached via the directus_access junction.
+// We create one policy per app role and attach it. Admin policy gets
+// admin_access=true which bypasses item permissions entirely (fixes the
+// 403 the admin user hits when creating branches).
+async function ensurePolicies(
+  roleMap: Record<RoleName, string>,
+): Promise<Record<RoleName, string>> {
+  console.log("\n📜 Policies…");
+  const existing = await api<{ data: Array<{ id: string; name: string }> }>(
+    "/policies?limit=-1",
+  );
+  const map = {} as Record<RoleName, string>;
+
+  for (const name of ROLE_NAMES) {
+    const policyName = `${name} Policy`;
+    let policy = existing.data.find((p) => p.name === policyName);
+    if (!policy) {
+      const created = await api<{ data: { id: string } }>("/policies", {
+        method: "POST",
+        body: JSON.stringify({
+          name: policyName,
+          icon: "policy",
+          description: `App policy for ${name}`,
+          admin_access: name === "Admin",
+          app_access: true,
+        }),
+      });
+      policy = { id: created.data.id, name: policyName };
+      console.log(`   + ${policyName}`);
+    } else {
+      // Ensure admin_access flag is correct on the Admin policy (in case it
+      // was created earlier without it).
+      try {
+        await api(`/policies/${policy.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            admin_access: name === "Admin",
+            app_access: true,
+          }),
+        });
+      } catch {
+        // ignore
+      }
+      console.log(`   = ${policyName}`);
+    }
+    map[name] = policy.id;
+
+    // Attach policy to role via directus_access junction (idempotent).
+    try {
+      const links = await api<{ data: Array<{ id: string }> }>(
+        `/access?filter[role][_eq]=${roleMap[name]}&filter[policy][_eq]=${policy.id}&limit=1`,
+      );
+      if (!links.data.length) {
+        await api("/access", {
+          method: "POST",
+          body: JSON.stringify({ role: roleMap[name], policy: policy.id }),
+        });
+        console.log(`     ↳ linked ${name} role → policy`);
+      }
+    } catch (e) {
+      const msg = String((e as Error).message ?? e).split("\n")[0];
+      console.warn(`     ! link ${name} role↔policy skipped: ${msg}`);
+    }
+  }
+  return map;
+}
+
 async function ensurePermissions(roleMap: Record<RoleName, string>) {
+  // Resolve policy IDs (one per role). Admin policy is admin_access=true so
+  // it bypasses item permissions; we do NOT post per-collection rows for it.
+  const policyMap = await ensurePolicies(roleMap);
+
   console.log("\n🔐 Permissions…");
   // Directus 11.3.5 restricts reads on directus_permissions (the `role`
   // field is not introspectable via the items API, and `comment` no longer
@@ -429,7 +499,7 @@ async function ensurePermissions(roleMap: Record<RoleName, string>) {
         await api("/permissions", {
           method: "POST",
           body: JSON.stringify({
-            role: roleMap[role],
+            policy: policyMap[role],
             collection,
             action,
             fields: fields ?? ["*"],
