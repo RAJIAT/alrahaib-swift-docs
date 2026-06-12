@@ -357,13 +357,14 @@ async function ensureRelations() {
 
 const ROLE_NAMES = ["Admin", "Supervisor", "Agent"] as const;
 type RoleName = (typeof ROLE_NAMES)[number];
+type RoleMap = Record<RoleName, string> & { adminTargetRoleIds: string[] };
 
-async function ensureRoles(): Promise<Record<RoleName, string>> {
+async function ensureRoles(): Promise<RoleMap> {
   console.log("\n🛡️  Roles…");
   const existing = await api<{ data: Array<{ id: string; name: string }> }>(
     "/roles?fields=id,name&limit=-1",
   );
-  const map = {} as Record<RoleName, string>;
+  const map = {} as RoleMap;
 
   for (const name of ROLE_NAMES) {
     const found = existing.data.find((r) => r.name === name);
@@ -382,6 +383,13 @@ async function ensureRoles(): Promise<Record<RoleName, string>> {
     map[name] = created.data.id;
     console.log(`   + ${name}`);
   }
+
+  const administratorRole = existing.data.find((r) => r.name === "Administrator");
+  map.adminTargetRoleIds = Array.from(new Set([
+    map.Admin,
+    ...(administratorRole ? [administratorRole.id] : []),
+  ]));
+  if (administratorRole) console.log("   = Administrator (will receive Admin policy)");
   return map;
 }
 
@@ -390,7 +398,7 @@ async function ensureRoles(): Promise<Record<RoleName, string>> {
 // We create one policy per app role and attach it. Admin also gets explicit
 // CRUD rows below because Directus 11 portal/API item access is policy-based.
 async function ensurePolicies(
-  roleMap: Record<RoleName, string>,
+  roleMap: RoleMap,
 ): Promise<Record<RoleName, string>> {
   console.log("\n📜 Policies…");
   const existing = await api<{ data: Array<{ id: string; name: string }> }>(
@@ -432,21 +440,21 @@ async function ensurePolicies(
     }
     map[name] = policy.id;
 
-    // Attach policy to role via directus_access junction. Do this append-only
-    // as well: querying Directus 11 internals can be field-restricted, while
-    // duplicate link creation returns 400/409-style errors we can ignore.
-    try {
-      await api("/access", {
-        method: "POST",
-        body: JSON.stringify({ role: roleMap[name], policy: policy.id }),
-      });
-      console.log(`     ↳ linked ${name} role → policy`);
-    } catch (e) {
-      const msg = String((e as Error).message ?? e).split("\n")[0];
-      if (isAppendOnlyPermissionSuccess(msg)) {
-        console.log(`     = ${name} role → policy (already linked)`);
-      } else {
-        console.warn(`     ! link ${name} role↔policy skipped: ${msg}`);
+    const targetRoleIds = name === "Admin" ? roleMap.adminTargetRoleIds : [roleMap[name]];
+    for (const targetRoleId of targetRoleIds) {
+      try {
+        await api("/access", {
+          method: "POST",
+          body: JSON.stringify({ role: targetRoleId, policy: policy.id }),
+        });
+        console.log(`     ↳ linked ${name} policy → role ${targetRoleId}`);
+      } catch (e) {
+        const msg = String((e as Error).message ?? e).split("\n")[0];
+        if (isAppendOnlyPermissionSuccess(msg)) {
+          console.log(`     = ${name} policy → role ${targetRoleId} (already linked)`);
+        } else {
+          console.warn(`     ! link ${name} policy→role ${targetRoleId} skipped: ${msg}`);
+        }
       }
     }
   }
