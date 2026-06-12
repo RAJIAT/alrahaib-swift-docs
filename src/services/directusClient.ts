@@ -30,7 +30,7 @@ export type ProfileSnapshot = {
   name: string;
   role: "admin" | "supervisor" | "agent";
   branch?: string;
-  agentId?: string;  // agent_code (e.g. UW-001)
+  agentId?: string;  // agent_code, or user id for older agents without a code
 };
 
 // ---------- token + profile storage ----------
@@ -202,7 +202,7 @@ export function userRecordToProfile(u: DxUserRecord): ProfileSnapshot {
     name: fullName(u),
     role: (u.app_role ?? "agent"),
     branch: userBranchCode(u),
-    agentId: u.agent_code ?? undefined,
+    agentId: u.app_role === "agent" ? (u.agent_code || u.id) : (u.agent_code ?? undefined),
   };
 }
 
