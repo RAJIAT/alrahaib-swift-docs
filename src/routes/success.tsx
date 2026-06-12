@@ -4,11 +4,12 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
 import { useLang } from "@/i18n/LanguageProvider";
 
-type Search = { id?: string };
+type Search = { id?: string; agent?: string };
 
 export const Route = createFileRoute("/success")({
   validateSearch: (s: Record<string, unknown>): Search => ({
     id: typeof s.id === "string" ? s.id : undefined,
+    agent: typeof s.agent === "string" ? s.agent : undefined,
   }),
   head: () => ({
     meta: [
@@ -21,7 +22,7 @@ export const Route = createFileRoute("/success")({
 
 function SuccessPage() {
   const { t } = useLang();
-  const { id } = Route.useSearch();
+  const { id, agent } = Route.useSearch();
 
   return (
     <div className="min-h-screen bg-background animate-fade-in">
@@ -48,6 +49,7 @@ function SuccessPage() {
         <div className="mt-10 flex justify-center">
           <Link
             to="/"
+            search={agent ? { agent } : {}}
             className="inline-flex h-12 items-center justify-center rounded-2xl bg-primary px-8 text-sm font-semibold text-primary-foreground shadow-soft transition hover:bg-primary/90 active:scale-[0.98]"
           >
             {t.success.back}
