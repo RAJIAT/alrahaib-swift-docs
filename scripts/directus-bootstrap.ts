@@ -9,6 +9,7 @@
  */
 
 import permissionsConfig from "./directus-permissions.json" with { type: "json" };
+import postgres from "postgres";
 
 const URL_BASE = process.env.DIRECTUS_URL?.replace(/\/$/, "");
 const TOKEN = process.env.DIRECTUS_ADMIN_TOKEN;
@@ -53,8 +54,6 @@ type SqlClient = {
   end?: () => Promise<void>;
 };
 
-declare const Bun: { SQL: new (url: string) => SqlClient };
-
 let dbClient: SqlClient | null = null;
 
 function getDatabaseUrl(): string {
@@ -68,7 +67,14 @@ function getDatabaseUrl(): string {
 }
 
 function db(): SqlClient {
-  if (!dbClient) dbClient = new Bun.SQL(getDatabaseUrl());
+  if (!dbClient) {
+    const sql = postgres(getDatabaseUrl(), { max: 4, prepare: false });
+    dbClient = {
+      unsafe: <T extends SqlRow = SqlRow>(query: string, params?: unknown[]) =>
+        sql.unsafe(query, (params ?? []) as never[]) as unknown as Promise<T[]>,
+      end: () => sql.end({ timeout: 5 }),
+    };
+  }
   return dbClient;
 }
 
