@@ -36,8 +36,14 @@ function LoginPage() {
     try {
       const u = await login(finalEmail, finalPassword);
       navigate({ to: u.role === "admin" || u.role === "supervisor" ? "/admin" : "/agent" });
-    } catch {
-      setError(t.auth.invalid);
+    } catch (err) {
+      const e = err as { status?: number; message?: string };
+      console.error("[login] failed", e);
+      if (e?.status === 401 || e?.status === 403) {
+        setError(t.auth.invalid);
+      } else {
+        setError(e?.message || t.auth.invalid);
+      }
     } finally {
       setLoading(false);
     }
