@@ -32,7 +32,7 @@
       "fields": [
         "first_name", "last_name", "email", "password", "role", "status",
         "app_role", "staff_type", "branch", "agent_code",
-        "supervisor", "assigned_underwriter_code",
+        "supervisor", "assigned_underwriter", "assigned_underwriter_code",
         "pending_approval", "app_active", "app_created_by_role"
       ],
       "validation": {
@@ -48,7 +48,7 @@
       "action": "update",
       "fields": [
         "first_name", "last_name", "password",
-        "staff_type", "supervisor", "assigned_underwriter_code", "agent_code",
+        "staff_type", "supervisor", "assigned_underwriter", "assigned_underwriter_code", "agent_code",
         "pending_approval", "app_active",
         "app_removal_reason", "app_removal_requested_by", "app_removal_requested_at"
       ],
@@ -158,7 +158,7 @@
     {
       "collection": "directus_users",
       "action": "read",
-      "fields": ["id", "first_name", "last_name", "agent_code", "app_role", "staff_type", "branch", "app_active"],
+      "fields": ["id", "first_name", "last_name", "agent_code", "app_role", "staff_type", "branch", "assigned_underwriter", "assigned_underwriter_code", "app_active"],
       "permissions": { "branch": { "_eq": "$CURRENT_USER.branch" } }
     },
     {
