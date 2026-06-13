@@ -473,20 +473,46 @@ export async function dxCreateRequest(input: DxCreateRequestInput): Promise<Demo
 }
 
 export async function dxPatchRequest(id: string, patch: Record<string, unknown>): Promise<DemoRequest> {
-  const r = await dxRequest<{ data: DxRequestRow }>(
+  const r = await dxRequest<{ data: DxRequestRow } | undefined>(
     `/items/requests/${encodeURIComponent(id)}?fields=${REQ_FIELDS}`,
     { method: "PATCH", body: JSON.stringify(patch) },
   );
-  const [nr, fr] = await Promise.all([
-    dxRequest<{ data: DxNoteRow[] }>(
-      `/items/request_notes?fields=${NOTE_FIELDS}&limit=-1&sort=date_created&filter[request][_eq]=${encodeURIComponent(id)}`,
-    ),
-    dxRequest<{ data: DxRequestFileRow[] }>(
-      `/items/request_files?fields=${FILE_FIELDS}&limit=-1&sort=uploaded_at&filter[request][_eq]=${encodeURIComponent(id)}`,
-    ),
-  ]);
   emit();
-  return requestFromRow(r.data, nr.data, fr.data);
+  // After a PATCH that hands a row to someone else (e.g. underwriter reassigns
+  // back to sales), the caller may lose READ access. Directus then returns
+  // an empty body. Treat that as success and return a minimal stub so the
+  // caller doesn't crash on `r.data` being undefined.
+  if (!r?.data) {
+    return {
+      id,
+      uuid: id.toLowerCase(),
+      agentId: "",
+      agentName: "",
+      branch: "",
+      status: "new" as DemoStatus,
+      createdAt: new Date().toISOString(),
+      notes: [],
+      images: { registration: [], license: [], emirates: [], vehicleMedia: [], attachments: [] },
+      quotes: [],
+    };
+  }
+  let notes: DxNoteRow[] = [];
+  let files: DxRequestFileRow[] = [];
+  try {
+    const [nr, fr] = await Promise.all([
+      dxRequest<{ data: DxNoteRow[] }>(
+        `/items/request_notes?fields=${NOTE_FIELDS}&limit=-1&sort=date_created&filter[request][_eq]=${encodeURIComponent(id)}`,
+      ),
+      dxRequest<{ data: DxRequestFileRow[] }>(
+        `/items/request_files?fields=${FILE_FIELDS}&limit=-1&sort=uploaded_at&filter[request][_eq]=${encodeURIComponent(id)}`,
+      ),
+    ]);
+    notes = nr?.data ?? [];
+    files = fr?.data ?? [];
+  } catch (e) {
+    console.warn("[dxPatchRequest] related rows fetch failed (likely read-access lost after handoff)", e);
+  }
+  return requestFromRow(r.data, notes, files);
 }
 
 export async function dxSetRequestStatus(id: string, status: DemoStatus): Promise<DemoRequest> {
