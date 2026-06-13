@@ -419,7 +419,9 @@ export type DxCreateRequestInput = {
   id: string;
   uuid: string;
   agentCode: string;
+  agentUserId?: string;
   branchCode: string;
+  branchId?: number | null;
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
@@ -427,8 +429,8 @@ export type DxCreateRequestInput = {
 
 export async function dxCreateRequest(input: DxCreateRequestInput): Promise<DemoRequest> {
   await ensureEntitiesCached();
-  const agentUuid = uuidFromAgentCode(input.agentCode);
-  const branchId = branchIdFromCode(input.branchCode);
+  const agentUuid = input.agentUserId ?? uuidFromAgentCode(input.agentCode);
+  const branchId = input.branchId ?? branchIdFromCode(input.branchCode);
   if (!agentUuid) throw new Error("Agent not found");
   const body: Record<string, unknown> = {
     id: input.id,
@@ -440,6 +442,14 @@ export async function dxCreateRequest(input: DxCreateRequestInput): Promise<Demo
   body.agent = agentUuid;
   body.origin_agent = agentUuid;
   if (branchId != null) body.branch = branchId;
+  console.info("[upload debug] dxCreateRequest body", {
+    createdRequestId: input.id,
+    createdRequestAgent: body.agent,
+    createdRequestOriginAgent: body.origin_agent,
+    createdRequestBranch: body.branch ?? null,
+    agentCodeInput: input.agentCode,
+    branchCodeInput: input.branchCode,
+  });
   const r = await dxRequest<{ data: DxRequestRow }>(
     `/items/requests?fields=${REQ_FIELDS}`,
     { method: "POST", body: JSON.stringify(body) },
