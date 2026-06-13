@@ -1165,7 +1165,11 @@ const flows: FlowDef[] = [
 async function ensureFlows() {
   console.log("\n⚡ Flows…");
   const existing = await api<{ data: Array<{ id: string; name: string }> }>("/flows?limit=-1");
-  const recreateIfExists = new Set(["lovable: enforce_sales_routing"]);
+  const recreateIfExists = new Set([
+    "lovable: enforce_sales_routing",
+    "lovable: customer_upload_status",
+    "lovable: customer_upload_notify",
+  ]);
   for (const f of flows) {
     const found = existing.data.find((x) => x.name === f.name);
     if (found) {
