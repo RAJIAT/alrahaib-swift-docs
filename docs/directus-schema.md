@@ -7,8 +7,8 @@
 ```bash
 export DIRECTUS_URL="https://directus.your-domain.ae"
 export DIRECTUS_ADMIN_TOKEN="********"
-bun run scripts/directus-bootstrap.ts          # collections + roles + permissions + flows
-bun run scripts/directus-seed.ts               # users + branches + sample requests
+npx tsx scripts/directus-bootstrap.ts          # collections + roles + permissions + flows
+npx tsx scripts/directus-seed.ts               # users + branches + sample requests
 ```
 
 السكربتات **idempotent** — تقدر تشغّلها مرات متعددة بدون تكرار.
