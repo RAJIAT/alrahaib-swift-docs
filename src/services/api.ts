@@ -384,20 +384,37 @@ export async function submitUpload(input: {
   };
   optional?: { inspection?: File | null };
 }): Promise<{ id: string }> {
-  const agent = dsGetAgents().find((a) => a.id === input.agentId || a.userId === input.agentId);
+  console.info("[upload debug] URL agent parameter", { agentParameterFromUrl: input.agentId });
+  const agent = await dxResolveUploadAgent(input.agentId);
+  console.info("[upload debug] resolved sales agent", {
+    agentParameterFromUrl: input.agentId,
+    resolvedSalesAgentUserId: agent.userId,
+    resolvedSalesAgentCode: agent.agentCode,
+    resolvedSalesAgentBranch: agent.branchCode,
+    resolvedSalesAgentBranchId: agent.branchId,
+    resolvedFrom: agent.source,
+  });
   const id = `REQ-${Date.now()}`;
   // Create the request row first so file rows have something to link to.
   const req = await dxCreateRequest({
     id, uuid: id.toLowerCase(),
-    agentCode: input.agentId,
-    branchCode: agent?.branch ?? "",
+    agentCode: agent.agentCode,
+    agentUserId: agent.userId,
+    branchCode: agent.branchCode,
+    branchId: agent.branchId,
     customerName: input.customerName,
     customerEmail: input.customerEmail,
     customerPhone: input.customerPhone,
   });
+  console.info("[upload debug] created request", {
+    createdRequestId: req.id,
+    createdRequestAgent: req.agentId,
+    createdRequestOriginAgent: req.originAgentId,
+    createdRequestBranch: req.branch,
+  });
   // Upload all bytes to Directus and create matching request_files rows.
   // Ordered kinds (front/back/etc.) upload sequentially; everything else in parallel.
-  const ownerUuid = agent?.userId ?? null;
+  const ownerUuid = agent.userId;
   await dxAttachFilesSequential(id, input.images.registration, "registration", ownerUuid);
   await dxAttachFilesSequential(id, input.images.license, "license", ownerUuid);
   await dxAttachFilesSequential(id, input.images.emirates, "emirates", ownerUuid);
