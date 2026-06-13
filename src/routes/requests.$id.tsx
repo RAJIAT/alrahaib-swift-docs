@@ -1445,10 +1445,18 @@ function QuotesCard({
                 ? (ar ? "بانتظار رفع عرض السعر من الأندررايتر." : "Waiting for the underwriter to upload the quote.")
                 : (ar ? "لم يتم رفع أي عرض سعر بعد." : "No quotes uploaded yet.")}
           </p>
-          {import.meta.env.DEV && isSales && !canSendToUW && (
-            <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning-foreground">
-              {ar ? "سبب إخفاء زر الأندررايتر: " : "Send-to-underwriter hidden: "}{sendToUWDebugReason}
-            </p>
+          {isSales && !canSendToUW && (
+            <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning-foreground space-y-0.5 font-mono">
+              <div className="font-sans font-semibold">
+                {ar ? "سبب إخفاء زر الأندررايتر:" : "Send-to-underwriter hidden:"} {sendToUWDebugReason}
+              </div>
+              <div>currentUser.id = {user.id}</div>
+              <div>currentUser.staff_type = {String(myType ?? "(unknown)")}</div>
+              <div>currentUser.assigned_underwriter = {String(meAgent?.assignedUnderwriterId ?? "(none)")}</div>
+              <div>request.agent (uuid) = {String(req.agentUserId ?? "(none)")}</div>
+              <div>request.origin_agent (uuid) = {String(req.originAgentUserId ?? "(none)")}</div>
+              <div>request.branch = {String(req.branch ?? "(none)")}</div>
+            </div>
           )}
           {canSendToUW && (
             <button
