@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { listRequestsWithDebug, subscribeRequests, type InsuranceRequest, type RequestsQueryDebug } from "@/services/api";
+import { listRequests, subscribeRequests, type InsuranceRequest } from "@/services/api";
 
 // Poll frequently so newly submitted customer requests show up almost
 // immediately on agent / supervisor / admin dashboards without manual refresh.
@@ -22,7 +22,6 @@ export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
   const [items, setItems] = useState<InsuranceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [debug, setDebug] = useState<RequestsQueryDebug | null>(null);
   const sigRef = useRef<string>("");
 
   const agentId = opts?.agentId;
@@ -44,17 +43,10 @@ export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
       const filter: { agentId?: string; branch?: string } = {};
       if (agentId) filter.agentId = agentId;
       if (branch) filter.branch = branch;
-      console.info("[agent dashboard debug] useRequestsLive filter", filter);
-      listRequestsWithDebug(Object.keys(filter).length ? filter : undefined)
-        .then(({ items: rs, debug: queryDebug }) => {
+      listRequests(Object.keys(filter).length ? filter : undefined)
+        .then((rs) => {
           if (!alive) return;
-          console.info("[agent dashboard debug] useRequestsLive result", {
-            dashboardQueryFilter: filter,
-            count: rs.length,
-            requests: rs.map((r) => ({ id: r.id, agent: r.agentId, origin_agent: r.originAgentId, branch: r.branch })),
-          });
           setError(null);
-          setDebug(queryDebug);
           // Include file/note counts too, so customer uploads update open dashboards without refresh.
           const sig = `${rs.length}|` + rs.map(requestSig).join(",");
           if (sig !== sigRef.current) {
@@ -108,5 +100,5 @@ export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
     };
   }, [agentId, branch, wantsScoped]);
 
-  return { items, loading, error, debug };
+  return { items, loading, error };
 }

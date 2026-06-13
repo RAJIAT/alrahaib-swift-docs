@@ -250,22 +250,6 @@ function AdminAgents() {
         )}
       </div>
 
-      {/* Desktop table */}
-      {!loading && filteredAgents.length === 0 && (
-        <div className="mb-3 rounded-xl border border-warning/30 bg-warning/10 p-3 text-[11px] text-warning-foreground space-y-0.5 font-mono">
-          <div className="font-sans font-semibold">
-            {effectiveTab === "sales" ? "Sales tab empty — debug" : effectiveTab === "underwriter" ? "Underwriters tab empty — debug" : "Tab empty — debug"}
-          </div>
-          <div>currentUser.id = {String(user?.id ?? "(none)")}</div>
-          <div>currentUser.role = {String(user?.role ?? "(none)")}</div>
-          <div>currentUser.branch = {String(user?.branch ?? "(none)")}</div>
-          <div>raw users returned = {rawCount}</div>
-          <div>sales filtered count = {allAgents.filter((a) => (a.role ?? "agent") === "agent" && (a.staffType ?? "underwriter") === "sales").length}</div>
-          <div>underwriter filtered count = {allAgents.filter((a) => (a.role ?? "agent") === "agent" && (a.staffType ?? "underwriter") === "underwriter").length}</div>
-          <div>active tab = {effectiveTab}</div>
-          <div>filter = app_role=agent · staff_type={effectiveTab === "supervisor" ? "(n/a)" : effectiveTab} · branch={isSupervisor ? String(user?.branch ?? "(none)") : (branchFilter || "(any)")}</div>
-        </div>
-      )}
       <div className="hidden overflow-hidden rounded-2xl border border-border bg-card shadow-card md:block">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-muted-foreground">
