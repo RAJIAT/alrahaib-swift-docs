@@ -119,7 +119,7 @@ function roleLabel(role: string | null | undefined, ar: boolean): string {
   return role;
 }
 
-export function RequestHistoryTimeline({ requestId }: { requestId: string }) {
+export function RequestHistoryTimeline({ requestId, showAdvanced = false }: { requestId: string; showAdvanced?: boolean }) {
   const { lang, dir } = useLang();
   const ar = lang === "ar";
   const [items, setItems] = useState<AuditEntry[]>([]);
@@ -236,7 +236,7 @@ export function RequestHistoryTimeline({ requestId }: { requestId: string }) {
                     {e.actorBranch ? ` · ${e.actorBranch}` : ""}
                   </p>
 
-                  {hasDetails && (
+                  {hasDetails && showAdvanced && (
                     <button
                       type="button"
                       onClick={() => setExpanded((p) => ({ ...p, [e.id]: !open }))}
@@ -249,7 +249,7 @@ export function RequestHistoryTimeline({ requestId }: { requestId: string }) {
                     </button>
                   )}
 
-                  {open && hasDetails && (
+                  {open && hasDetails && showAdvanced && (
                     <pre
                       dir="ltr"
                       className="mt-2 max-h-60 overflow-auto rounded-lg bg-muted p-2 text-[10px] leading-relaxed text-foreground"
