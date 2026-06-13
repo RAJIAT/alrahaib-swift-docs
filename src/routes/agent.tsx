@@ -38,7 +38,7 @@ function AgentDashboard() {
   // Always scope the dashboard by the logged-in Directus user id. Do not rely
   // on agent_code or a warmed agents cache for Sales Agent visibility.
   const effectiveAgentId = user?.id;
-  const { items, loading, debug } = useRequestsLive(effectiveAgentId ? { agentId: effectiveAgentId } : undefined);
+  const { items, loading, debug } = useRequestsLive({ agentId: effectiveAgentId });
 
   // Detect newly-arrived customer requests and push a notification to the
   // logged-in agent so the bell + count update without requiring server-side

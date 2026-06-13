@@ -167,6 +167,17 @@ async function patchPermissions() {
   console.log(
     `   ${await upsertPermission(agentPolicy, "directus_users", "read", { fields: agentReadFields })} Agent → directus_users.read`,
   );
+  console.log(
+    `   ${await upsertPermission(agentPolicy, "requests", "read", {
+      fields: ["*"],
+      permissions: {
+        _or: [
+          { agent: { _eq: "$CURRENT_USER" } },
+          { origin_agent: { _eq: "$CURRENT_USER" } },
+        ],
+      },
+    })} Agent → requests.read`,
+  );
 }
 
 async function deleteFlowIfExists(name: string): Promise<void> {
