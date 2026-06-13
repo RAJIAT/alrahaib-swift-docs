@@ -891,7 +891,7 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
     const meAgent = agents.find((a) => a.userId === me.id || a.id === me.agentId);
     const meStaff = meAgent?.staffType ?? me.staffType;
     if (meStaff === "sales" && target.staffType === "underwriter") {
-      if (!meAgent.assignedUnderwriterId) {
+      if (!meAgent?.assignedUnderwriterId) {
         throw new Error("You don't have an assigned underwriter — contact your supervisor");
       }
       const assignedId = meAgent?.assignedUnderwriterId;
