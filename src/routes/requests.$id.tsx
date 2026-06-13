@@ -1439,6 +1439,11 @@ function QuotesCard({
                 ? (ar ? "بانتظار رفع عرض السعر من الأندررايتر." : "Waiting for the underwriter to upload the quote.")
                 : (ar ? "لم يتم رفع أي عرض سعر بعد." : "No quotes uploaded yet.")}
           </p>
+          {import.meta.env.DEV && isSales && !canSendToUW && (
+            <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning-foreground">
+              {ar ? "سبب إخفاء زر الأندررايتر: " : "Send-to-underwriter hidden: "}{sendToUWDebugReason}
+            </p>
+          )}
           {canSendToUW && (
             <button
               type="button"
