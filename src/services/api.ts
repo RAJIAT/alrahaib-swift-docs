@@ -972,12 +972,23 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
     currentOwner?.staffType === "underwriter" && !!originSales;
 
   // Upload quote bytes to Directus and create request_files rows of kind "quote".
-  await dxAttachFilesParallel(req.id, files, "quote", me.id);
+  try {
+    await dxAttachFilesParallel(req.id, files, "quote", me.id);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Quote upload failed";
+    throw new Error(`Quote upload failed: ${msg}`);
+  }
   let updated = req;
   if (shouldReturnToSales && originSales) {
-    updated = await dxReassignRequest(req.id, { newAgentCode: originSales.id });
+    try {
+      updated = await dxReassignRequest(req.id, { newAgentCode: originSales.id });
+    } catch (e) {
+      console.warn("[addQuotesToRequest] reassign-to-sales failed", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`Quote uploaded but reassign to sales failed: ${msg}`);
+    }
   } else {
-    updated = (await dxGetRequest(req.id)) ?? req;
+    try { updated = (await dxGetRequest(req.id)) ?? req; } catch { updated = req; }
   }
 
   logEvent({
