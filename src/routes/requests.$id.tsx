@@ -111,10 +111,13 @@ function RequestDetails() {
   }, [user?.agentId]);
   const isUnderwriter = myStaffType === "underwriter";
   const isSalesAgent = myStaffType === "sales";
-  // Sales agents only get: view docs, download, notes, send to underwriter.
-  // They must NOT see quote/sold/payment/reupload actions or change status.
-  const canChangeStatus = role === "admin" || role === "supervisor" || isUnderwriter;
-  const canRunFinalActions = role === "admin" || role === "supervisor" || isUnderwriter;
+  // Sales agents track the request lifecycle too (Sold / Payment link sent /
+  // Quote created / Reupload). Only the actual quote-file upload stays
+  // underwriter-only (gated inside QuotesCard).
+  const canChangeStatus =
+    role === "admin" || role === "supervisor" || isUnderwriter || isSalesAgent;
+  const canRunFinalActions =
+    role === "admin" || role === "supervisor" || isUnderwriter || isSalesAgent;
   void isSalesAgent;
 
   useEffect(() => {
