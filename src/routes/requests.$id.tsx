@@ -110,6 +110,12 @@ function RequestDetails() {
     return listAgents().find((a) => a.id === user.agentId)?.staffType;
   }, [user?.agentId]);
   const isUnderwriter = myStaffType === "underwriter";
+  const isSalesAgent = myStaffType === "sales";
+  // Sales agents only get: view docs, download, notes, send to underwriter.
+  // They must NOT see quote/sold/payment/reupload actions or change status.
+  const canChangeStatus = role === "admin" || role === "supervisor" || isUnderwriter;
+  const canRunFinalActions = role === "admin" || role === "supervisor" || isUnderwriter;
+  void isSalesAgent;
 
   useEffect(() => {
     if (!user) { navigate({ to: "/login" }); return; }
@@ -325,6 +331,7 @@ function RequestDetails() {
                   </div>
                 </div>
               </div>
+              {canChangeStatus && (
               <label className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-muted-foreground">{t.details.changeStatus}</span>
                 <span className="relative">
@@ -343,6 +350,7 @@ function RequestDetails() {
                   )}
                 </span>
               </label>
+              )}
             </div>
           </div>
 
@@ -508,8 +516,9 @@ function RequestDetails() {
           {/* Quotes (underwriter uploads, sales shares with customer) */}
           <QuotesCard req={req} user={user} onUpdated={(r: InsuranceRequest) => setReq(r)} />
 
-          {/* Actions — sales/admin/supervisor only. Underwriters only view info + add notes. */}
-          {!isUnderwriter && (
+          {/* Actions — admin/supervisor/underwriter only. Sales agents only
+              view docs, add notes, and send-to-underwriter. */}
+          {canRunFinalActions && (
             <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <button
                 onClick={() => setStatus("linkSent", "linkSent")}
@@ -548,10 +557,10 @@ function RequestDetails() {
         </div>
       )}
 
-      {/* Audit timeline — admin & supervisor only */}
-      {(role === "admin" || role === "supervisor") && req && (
+      {/* Audit timeline — visible to everyone, raw JSON only for admins */}
+      {req && (
         <div className="mt-4">
-          <RequestHistoryTimeline requestId={req.id} />
+          <RequestHistoryTimeline requestId={req.id} showAdvanced={role === "admin"} />
         </div>
       )}
 
