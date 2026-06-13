@@ -155,8 +155,8 @@ curl -I http://10.8.0.21:8080/server/info
 
 ```bash
 # محلياً
-bun run build
-rsync -avz --delete .output public package.json bun.lockb \
+npm run build
+rsync -avz --delete .output public package.json package-lock.json \
   user@server:/home/user/apps/aldiplomacy-portal/
 
 # على السيرفر

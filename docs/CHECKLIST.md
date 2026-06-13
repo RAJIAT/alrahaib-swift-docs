@@ -7,7 +7,7 @@
 ## ✅ تم في الكود (Done)
 
 - [x] إزالة `wrangler.jsonc` وتحويل البناء من Cloudflare Workers إلى **Node.js target** (`cloudflare: false` في `vite.config.ts`).
-- [x] إضافة `npm script` للتشغيل: `bun run start` → `node .output/server/index.mjs`.
+- [x] إضافة `npm script` للتشغيل: `npm run start` → `node .output/server/index.mjs`.
 - [x] إعداد PM2 جاهز: `ecosystem.config.cjs`.
 - [x] قالب Apache reverse proxy: `deploy/.htaccess`.
 - [x] تحديث `.env.example` بكل متغيرات الفرونت والـ Node runtime (مع توضيح أن `DATABASE_URL` و`SMTP_*` تخص Directus).
@@ -35,7 +35,7 @@
 
 - [ ] إنشاء SSH user و SFTP credentials في DirectAdmin.
 - [ ] تثبيت Node 20 LTS عبر **Node.js Selector** في DirectAdmin.
-- [ ] تثبيت `bun` و `pm2` عالمياً (`npm i -g pm2`).
+- [ ] تثبيت `pm2` عالمياً (`npm i -g pm2`).
 - [ ] تفعيل Apache modules: `mod_proxy`, `mod_proxy_http`, `mod_headers`, `mod_rewrite` (Custom HTTPD Configurations).
 - [ ] تثبيت Postgres + Directus (راجع `DIRECTUS_SETUP.md`).
 - [ ] ضبط DNS:
@@ -52,10 +52,10 @@
 
 ```bash
 # 1) محلياً
-bun install
-bun run build
+npm ci
+npm run build
 rsync -avz --delete \
-  .output public package.json bun.lockb ecosystem.config.cjs scripts deploy \
+  .output public package.json package-lock.json ecosystem.config.cjs scripts deploy \
   user@server:/home/user/apps/aldiplomacy-portal/
 
 # 2) على السيرفر
