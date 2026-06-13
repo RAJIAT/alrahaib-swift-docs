@@ -7,6 +7,8 @@ import {
 } from "@/services/api";
 import { useLang } from "@/i18n/LanguageProvider";
 
+const NOTIFICATIONS_POLL_MS = 5_000;
+
 export function NotificationBell() {
   const { t, dir } = useLang();
   const [open, setOpen] = useState(false);
@@ -22,7 +24,17 @@ export function NotificationBell() {
   useEffect(() => {
     refresh();
     const off = subscribeNotifications(refresh);
-    return () => off();
+    const intervalId = window.setInterval(() => {
+      if (document.hidden) return;
+      refresh();
+    }, NOTIFICATIONS_POLL_MS);
+    const onVisibility = () => { if (!document.hidden) refresh(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      off();
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, []);
 
   useEffect(() => {
