@@ -642,3 +642,87 @@ export async function dxDeleteRequestFile(rowId: string, opts?: { deleteAsset?: 
     catch { /* ignore — orphan file is harmless */ }
   }
 }
+
+// ---------------- public quote view (no auth) ----------------
+
+export type PublicQuoteView = {
+  id: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  createdAt: string;
+  quotes: DemoQuote[];
+};
+
+/**
+ * Fetch a request + its quote files WITHOUT sending an Authorization header.
+ * Used by the public `/q/:requestId` page. Requires Directus Public policy
+ * to grant READ on `requests` (limited fields) and `request_files` filtered
+ * by `kind = quote`, and READ on `directus_files`/`/assets/:id`.
+ */
+export async function dxPublicGetQuote(requestId: string): Promise<PublicQuoteView | null> {
+  const base = (import.meta.env.VITE_DIRECTUS_URL as string | undefined)?.replace(/\/$/, "");
+  if (!base) throw new Error("VITE_DIRECTUS_URL is not configured.");
+  const reqFields = "id,customer_name,customer_email,customer_phone,date_created";
+  const fileFields = "id,request,kind,uploaded_at,file.id,file.filename_download,file.type,file.filesize";
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  // Try direct row first.
+  let row: DxRequestRow | undefined;
+  try {
+    const r = await fetch(`${base}/items/requests/${encodeURIComponent(requestId)}?fields=${reqFields}`, { headers });
+    if (r.status === 403 || r.status === 401) throw new Error("Public read not allowed on requests. Run scripts/directus-patch-public-quote.ts");
+    if (r.ok) {
+      const j = await r.json().catch(() => null) as { data?: DxRequestRow } | null;
+      row = j?.data ?? undefined;
+    }
+  } catch (e) {
+    if (e instanceof Error && /Public read/.test(e.message)) throw e;
+  }
+  if (!row) {
+    // Fallback by id OR uuid
+    const filter = `filter[_or][0][id][_eq]=${encodeURIComponent(requestId)}&filter[_or][1][uuid][_eq]=${encodeURIComponent(requestId.toLowerCase())}`;
+    const r = await fetch(`${base}/items/requests?fields=${reqFields}&limit=1&${filter}`, { headers });
+    if (!r.ok) return null;
+    const j = await r.json().catch(() => null) as { data?: DxRequestRow[] } | null;
+    row = j?.data?.[0];
+  }
+  if (!row) return null;
+  const fr = await fetch(
+    `${base}/items/request_files?fields=${fileFields}&limit=-1&sort=uploaded_at&filter[request][_eq]=${encodeURIComponent(row.id)}&filter[kind][_eq]=quote`,
+    { headers },
+  );
+  if (!fr.ok) {
+    return {
+      id: row.id,
+      customerName: row.customer_name ?? undefined,
+      customerEmail: row.customer_email ?? undefined,
+      customerPhone: row.customer_phone ?? undefined,
+      createdAt: row.date_created ?? new Date().toISOString(),
+      quotes: [],
+    };
+  }
+  const fj = await fr.json().catch(() => null) as { data?: DxRequestFileRow[] } | null;
+  const files = fj?.data ?? [];
+  const quotes: DemoQuote[] = files.map((rowf) => {
+    const f = fileObj(rowf);
+    return {
+      id: rowf.id,
+      name: f?.filename_download ?? "quote",
+      type: f?.type ?? "",
+      size: f?.filesize ?? 0,
+      // Asset URL is public (no token needed when not logged in).
+      url: f?.id ? `${base}/assets/${f.id}` : "",
+      uploadedByUserId: rowf.uploaded_by ?? "",
+      uploadedByName: "",
+      uploadedAt: rowf.uploaded_at ?? new Date().toISOString(),
+    };
+  });
+  return {
+    id: row.id,
+    customerName: row.customer_name ?? undefined,
+    customerEmail: row.customer_email ?? undefined,
+    customerPhone: row.customer_phone ?? undefined,
+    createdAt: row.date_created ?? new Date().toISOString(),
+    quotes,
+  };
+}
