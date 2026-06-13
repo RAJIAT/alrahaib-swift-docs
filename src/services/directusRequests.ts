@@ -552,12 +552,44 @@ export async function dxAddNote(
   });
   // If "missing", flip status to reupload in the same logical operation.
   if (input.kind === "missing") {
-    try { await dxSetRequestStatus(requestId, "reupload"); } catch { /* tolerated */ }
+    try {
+      await dxSetRequestStatus(requestId, "reupload");
+    } catch (e) {
+      // Note row is saved; status flip is best-effort.
+      console.warn("[dxAddNote] status flip to 'reupload' failed (tolerated):", e);
+    }
   }
-  const req = await dxGetRequest(requestId);
-  if (!req) throw new Error("Request not found after note add");
   emit();
-  return req;
+  // The actor may have lost read access mid-flow (e.g. underwriter who
+  // already reassigned the request). Don't throw — return a minimal
+  // representation so the UI can surface the new note without crashing.
+  try {
+    const req = await dxGetRequest(requestId);
+    if (req) return req;
+  } catch (e) {
+    console.warn("[dxAddNote] post-write refetch failed (likely read access lost):", e);
+  }
+  return {
+    id: requestId,
+    uuid: requestId.toLowerCase(),
+    agentId: "",
+    agentName: "",
+    branch: "",
+    status: (input.kind === "missing" ? "reupload" : "new") as DemoStatus,
+    createdAt: new Date().toISOString(),
+    notes: [
+      {
+        id: `local-${Date.now()}`,
+        text: input.text.trim(),
+        kind: input.kind,
+        authorId: input.authorId,
+        authorRole: input.authorRole,
+        createdAt: new Date().toISOString(),
+      } as unknown as DemoNote,
+    ],
+    images: { registration: [], license: [], emirates: [], vehicleMedia: [], attachments: [] },
+    quotes: [],
+  };
 }
 
 export async function dxResolveNote(requestId: string, noteId: string): Promise<DemoRequest> {
