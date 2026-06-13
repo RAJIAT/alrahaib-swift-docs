@@ -1089,22 +1089,6 @@ function ReassignCard({
           {lang === "ar" ? "تحويل الطلب للأندررايتر" : "Send to underwriter"}
         </h3>
         <p className="text-xs text-destructive">{reason}</p>
-        {import.meta.env.DEV && (
-          <pre className="mt-3 max-h-48 overflow-auto rounded-lg bg-card p-2 text-[10px] text-muted-foreground">
-{JSON.stringify({
-  me: { id: user.id, agentId: user.agentId, branch: user.branch, role: user.role },
-  meAgent: meAgent && {
-    id: meAgent.id, userId: meAgent.userId, branch: meAgent.branch,
-    staffType: meAgent.staffType, active: meAgent.active,
-    assignedUnderwriterId: meAgent.assignedUnderwriterId,
-  },
-  request: { id: req.id, agentId: req.agentId, originAgentId: req.originAgentId, branch: req.branch, status: req.status },
-  underwritersInBranch: agents
-    .filter((a) => a.role === "agent" && a.staffType === "underwriter" && a.branch === req.branch)
-    .map((a) => ({ id: a.id, name: a.name, active: a.active })),
-}, null, 2)}
-          </pre>
-        )}
       </section>
     );
   }
@@ -1346,20 +1330,6 @@ function QuotesCard({
               ? "request is already assigned to this underwriter"
               : "visible";
 
-  if (import.meta.env.DEV && isSales) {
-    console.info("[Al Diplomacy request routing]", {
-      currentUserId: user.id,
-      currentAgentId: user.agentId,
-      currentStaffType: myType,
-      currentBranch: user.branch,
-      assignedUnderwriter: meAgent?.assignedUnderwriterId,
-      requestId: req.id,
-      requestAgent: req.agentId,
-      requestOriginAgent: req.originAgentId,
-      requestBranch: req.branch,
-      sendToUnderwriterButton: sendToUWDebugReason,
-    });
-  }
 
   const sendToUW = async () => {
     if (!assignedUW || sendingToUW) return;
@@ -1493,19 +1463,6 @@ function QuotesCard({
                 ? (ar ? "بانتظار رفع عرض السعر من الأندررايتر." : "Waiting for the underwriter to upload the quote.")
                 : (ar ? "لم يتم رفع أي عرض سعر بعد." : "No quotes uploaded yet.")}
           </p>
-          {isSales && !canSendToUW && (
-            <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning-foreground space-y-0.5 font-mono">
-              <div className="font-sans font-semibold">
-                {ar ? "سبب إخفاء زر الأندررايتر:" : "Send-to-underwriter hidden:"} {sendToUWDebugReason}
-              </div>
-              <div>currentUser.id = {user.id}</div>
-              <div>currentUser.staff_type = {String(myType ?? "(unknown)")}</div>
-              <div>currentUser.assigned_underwriter = {String(meAgent?.assignedUnderwriterId ?? "(none)")}</div>
-              <div>request.agent (uuid) = {String(req.agentUserId ?? "(none)")}</div>
-              <div>request.origin_agent (uuid) = {String(req.originAgentUserId ?? "(none)")}</div>
-              <div>request.branch = {String(req.branch ?? "(none)")}</div>
-            </div>
-          )}
           {canSendToUW && (
             <button
               type="button"
