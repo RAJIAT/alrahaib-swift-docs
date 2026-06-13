@@ -45,6 +45,7 @@ import {
   dxListRequests,
   dxGetRequest,
   dxCreateRequest,
+  dxResolveUploadAgent,
   dxSetRequestStatus,
   dxReassignRequest,
   dxAddNote,
@@ -275,11 +276,12 @@ export async function listRequests(opts?: { agentId?: string; branch?: string })
   const me = getCurrentUser();
   let agentUuid: string | undefined;
   if (opts?.agentId) {
-    const cached = getAgentsCache().find((a) => a.id === opts.agentId || a.userId === opts.agentId);
-    agentUuid = cached?.userId;
-    if (!agentUuid && me && (opts.agentId === me.agentId || opts.agentId === me.id)) {
-      agentUuid = me.id;
-    }
+    // Agent dashboards must not depend on the agents cache. The logged-in
+    // Directus user id is the canonical owner id for agent/origin_agent.
+    if (me?.role === "agent") agentUuid = me.id;
+    const cached = !agentUuid ? getAgentsCache().find((a) => a.id === opts.agentId || a.userId === opts.agentId) : undefined;
+    if (!agentUuid) agentUuid = cached?.userId;
+    if (!agentUuid && me && (opts.agentId === me.agentId || opts.agentId === me.id)) agentUuid = me.id;
     // Accept a raw uuid passed in directly.
     if (!agentUuid && /^[0-9a-f-]{36}$/i.test(opts.agentId)) {
       agentUuid = opts.agentId;
@@ -289,6 +291,13 @@ export async function listRequests(opts?: { agentId?: string; branch?: string })
     ? getBranchesCache().find((b) => b.code === opts.branch)?.id
     : undefined;
   const rows = await dxListRequests({ agentUuid, branchId });
+  console.info("[agent dashboard debug] listRequests", {
+    currentLoggedInAgentUserId: me?.id ?? null,
+    currentLoggedInAgentCode: me?.agentId ?? null,
+    dashboardQueryFilter: { inputAgentId: opts?.agentId ?? null, agentUuid: agentUuid ?? null, branch: opts?.branch ?? null, branchId: branchId ?? null },
+    returnedRows: rows.length,
+    returnedRequestOwners: rows.map((r) => ({ id: r.id, agent: r.agentId, origin_agent: r.originAgentId, branch: r.branch })),
+  });
   // Belt-and-braces client filter for unmapped cases. Accept matches on
   // agent_code OR user uuid so a partially-mapped cache never hides the
   // sales agent's own requests.
