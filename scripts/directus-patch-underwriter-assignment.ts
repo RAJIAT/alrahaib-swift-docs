@@ -2,6 +2,8 @@
  * One-off patch for underwriter assignment + request status failures.
  *
  * Fixes:
+ * - Agent requests.read permission must allow agent = $CURRENT_USER OR
+ *   origin_agent = $CURRENT_USER, with no branch-only filter hiding rows.
  * - Agent status buttons failing with: no permission to access
  *   directus_users.assigned_underwriter.
  * - Supervisor unable to view/change a sales agent's assigned underwriter.
