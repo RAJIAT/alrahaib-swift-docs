@@ -4,7 +4,7 @@ import { Loader2, AlertTriangle, FileText, Download, ExternalLink, ShieldCheck }
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
 import { useLang } from "@/i18n/LanguageProvider";
-import { getRequest, type InsuranceRequest } from "@/services/api";
+import { dxPublicGetQuote, type PublicQuoteView } from "@/services/directusRequests";
 
 export const Route = createFileRoute("/q/$requestId")({
   component: QuoteSharePage,
@@ -13,16 +13,21 @@ export const Route = createFileRoute("/q/$requestId")({
 function QuoteSharePage() {
   const { dir, lang } = useLang();
   const { requestId } = Route.useParams();
-  const [req, setReq] = useState<InsuranceRequest | null>(null);
+  const [req, setReq] = useState<PublicQuoteView | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
-    getRequest(requestId).then((r) => {
-      if (!alive) return;
-      setReq(r);
-      setLoading(false);
-    });
+    setLoading(true);
+    setError(null);
+    dxPublicGetQuote(requestId)
+      .then((r) => { if (alive) { setReq(r); setLoading(false); } })
+      .catch((e: unknown) => {
+        if (!alive) return;
+        setError(e instanceof Error ? e.message : "Failed to load quote");
+        setLoading(false);
+      });
     return () => { alive = false; };
   }, [requestId]);
 
@@ -36,7 +41,7 @@ function QuoteSharePage() {
     );
   }
 
-  if (!req) {
+  if (error || !req) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-6 text-center" dir={dir}>
         <div className="max-w-sm">
@@ -44,9 +49,10 @@ function QuoteSharePage() {
             <AlertTriangle className="h-6 w-6" />
           </div>
           <h1 className="text-xl font-bold text-foreground">
-            {ar ? "الطلب غير موجود" : "Request not found"}
+            {error ? (ar ? "تعذّر تحميل عرض السعر" : "Could not load quote") : (ar ? "الطلب غير موجود" : "Request not found")}
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">#{requestId}</p>
+          {error && <p className="mt-1 text-xs text-muted-foreground break-words">{error}</p>}
         </div>
       </div>
     );
@@ -107,7 +113,6 @@ function QuoteSharePage() {
               <div dir="ltr" className="truncate"><span className="font-medium text-foreground">{ar ? "الهاتف" : "Phone"}:</span> {req.customerPhone}</div>
             )}
             <div><span className="font-medium text-foreground">{ar ? "رقم الطلب" : "Request"}:</span> {req.id}</div>
-            <div><span className="font-medium text-foreground">{ar ? "الفرع" : "Branch"}:</span> {req.branch}</div>
             <div><span className="font-medium text-foreground">{ar ? "التاريخ" : "Date"}:</span> {fmt(req.createdAt)}</div>
           </div>
         </section>
@@ -165,7 +170,7 @@ function QuoteSharePage() {
         </section>
 
         <p className="mt-6 text-center text-[11px] text-muted-foreground">
-          {ar ? `وكيلك: ${req.agentName}` : `Your agent: ${req.agentName}`}
+          {ar ? "شكراً لاختياركم الدبلوماسية للتأمين" : "Thank you for choosing Al Diplomacy Insurance"}
         </p>
       </main>
     </div>
