@@ -88,6 +88,23 @@ type DxRequestFileRow = {
   file?: DxFileObj | string | null;
 };
 
+type DxAgentLookupRow = {
+  id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  agent_code?: string | null;
+  app_role?: "admin" | "supervisor" | "agent" | null;
+  staff_type?: "underwriter" | "sales" | null;
+  branch?: { id: number; code: string } | number | null;
+  app_active?: boolean | null;
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | undefined | null): value is string {
+  return !!value && UUID_RE.test(value);
+}
+
 function fileObj(row: DxRequestFileRow): DxFileObj | null {
   const f = row.file;
   if (!f) return null;
@@ -102,9 +119,24 @@ function agentCodeFromUuid(uuid: string | null | undefined): { code: string; nam
 }
 function uuidFromAgentCode(code: string | undefined): string | null {
   if (!code) return null;
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(code)) return code;
+  if (isUuid(code)) return code;
   const a = getAgentsCache().find((x) => x.id === code || x.userId === code);
   return a?.userId ?? null;
+}
+function agentLookupName(u: DxAgentLookupRow): string {
+  const joined = `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim();
+  return joined || u.agent_code || u.id;
+}
+function agentLookupBranchCode(u: DxAgentLookupRow): string {
+  const b = u.branch;
+  if (b && typeof b === "object" && "code" in b) return b.code ?? "";
+  return "";
+}
+function agentLookupBranchId(u: DxAgentLookupRow): number | null {
+  const b = u.branch;
+  if (typeof b === "number") return b;
+  if (b && typeof b === "object" && "id" in b) return b.id ?? null;
+  return null;
 }
 function branchCodeFromId(id: number | null | undefined): string {
   if (id == null) return "";
@@ -113,6 +145,77 @@ function branchCodeFromId(id: number | null | undefined): string {
 function branchIdFromCode(code: string | undefined | null): number | null {
   if (!code) return null;
   return getBranchesCache().find((b) => b.code === code)?.id ?? null;
+}
+
+export type ResolvedUploadAgent = {
+  userId: string;
+  agentCode: string;
+  name: string;
+  branchCode: string;
+  branchId: number | null;
+  staffType?: "underwriter" | "sales";
+  source: "cache" | "direct-user-id" | "direct-agent-code" | "raw-uuid";
+};
+
+export async function dxResolveUploadAgent(identifier: string): Promise<ResolvedUploadAgent> {
+  await ensureEntitiesCached();
+  const key = identifier.trim();
+  const cached = getAgentsCache().find((a) => a.id === key || a.userId === key);
+  if (cached) {
+    return {
+      userId: cached.userId,
+      agentCode: cached.id,
+      name: cached.name,
+      branchCode: cached.branch ?? "",
+      branchId: branchIdFromCode(cached.branch),
+      staffType: cached.staffType,
+      source: "cache",
+    };
+  }
+
+  const fields = "id,first_name,last_name,agent_code,app_role,staff_type,branch.id,branch.code,app_active";
+  let row: DxAgentLookupRow | undefined;
+  let source: ResolvedUploadAgent["source"] = "direct-agent-code";
+  if (isUuid(key)) {
+    try {
+      const r = await dxRequest<{ data: DxAgentLookupRow }>(`/users/${encodeURIComponent(key)}?fields=${fields}`);
+      row = r.data;
+      source = "direct-user-id";
+    } catch (e) {
+      console.warn("[upload debug] direct user-id agent lookup failed", { agentParam: key, error: e });
+    }
+  }
+  if (!row) {
+    try {
+      const r = await dxRequest<{ data: DxAgentLookupRow[] }>(
+        `/users?fields=${fields}&limit=1&filter[_or][0][id][_eq]=${encodeURIComponent(key)}&filter[_or][1][agent_code][_eq]=${encodeURIComponent(key)}`,
+      );
+      row = r.data[0];
+      source = row?.id === key ? "direct-user-id" : "direct-agent-code";
+    } catch (e) {
+      console.warn("[upload debug] agent-code lookup failed", { agentParam: key, error: e });
+    }
+  }
+
+  if (row) {
+    if (row.app_role && row.app_role !== "agent") throw new Error("Upload link does not point to an agent user");
+    if (row.app_active === false) throw new Error("Upload link points to an inactive agent user");
+    const branchCode = agentLookupBranchCode(row);
+    return {
+      userId: row.id,
+      agentCode: row.agent_code || row.id,
+      name: agentLookupName(row),
+      branchCode,
+      branchId: agentLookupBranchId(row) ?? branchIdFromCode(branchCode),
+      staffType: row.staff_type ?? undefined,
+      source,
+    };
+  }
+
+  if (isUuid(key)) {
+    return { userId: key, agentCode: key, name: key, branchCode: "", branchId: null, source: "raw-uuid" };
+  }
+  throw new Error("Sales Agent not found for this upload link");
 }
 
 function noteFromRow(n: DxNoteRow): DemoNote {
@@ -316,7 +419,9 @@ export type DxCreateRequestInput = {
   id: string;
   uuid: string;
   agentCode: string;
+  agentUserId?: string;
   branchCode: string;
+  branchId?: number | null;
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
@@ -324,8 +429,8 @@ export type DxCreateRequestInput = {
 
 export async function dxCreateRequest(input: DxCreateRequestInput): Promise<DemoRequest> {
   await ensureEntitiesCached();
-  const agentUuid = uuidFromAgentCode(input.agentCode);
-  const branchId = branchIdFromCode(input.branchCode);
+  const agentUuid = input.agentUserId ?? uuidFromAgentCode(input.agentCode);
+  const branchId = input.branchId ?? branchIdFromCode(input.branchCode);
   if (!agentUuid) throw new Error("Agent not found");
   const body: Record<string, unknown> = {
     id: input.id,
@@ -337,6 +442,14 @@ export async function dxCreateRequest(input: DxCreateRequestInput): Promise<Demo
   body.agent = agentUuid;
   body.origin_agent = agentUuid;
   if (branchId != null) body.branch = branchId;
+  console.info("[upload debug] dxCreateRequest body", {
+    createdRequestId: input.id,
+    createdRequestAgent: body.agent,
+    createdRequestOriginAgent: body.origin_agent,
+    createdRequestBranch: body.branch ?? null,
+    agentCodeInput: input.agentCode,
+    branchCodeInput: input.branchCode,
+  });
   const r = await dxRequest<{ data: DxRequestRow }>(
     `/items/requests?fields=${REQ_FIELDS}`,
     { method: "POST", body: JSON.stringify(body) },

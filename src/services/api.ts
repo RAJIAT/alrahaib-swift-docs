@@ -45,6 +45,7 @@ import {
   dxListRequests,
   dxGetRequest,
   dxCreateRequest,
+  dxResolveUploadAgent,
   dxSetRequestStatus,
   dxReassignRequest,
   dxAddNote,
@@ -275,11 +276,12 @@ export async function listRequests(opts?: { agentId?: string; branch?: string })
   const me = getCurrentUser();
   let agentUuid: string | undefined;
   if (opts?.agentId) {
-    const cached = getAgentsCache().find((a) => a.id === opts.agentId || a.userId === opts.agentId);
-    agentUuid = cached?.userId;
-    if (!agentUuid && me && (opts.agentId === me.agentId || opts.agentId === me.id)) {
-      agentUuid = me.id;
-    }
+    // Agent dashboards must not depend on the agents cache. The logged-in
+    // Directus user id is the canonical owner id for agent/origin_agent.
+    if (me?.role === "agent") agentUuid = me.id;
+    const cached = !agentUuid ? getAgentsCache().find((a) => a.id === opts.agentId || a.userId === opts.agentId) : undefined;
+    if (!agentUuid) agentUuid = cached?.userId;
+    if (!agentUuid && me && (opts.agentId === me.agentId || opts.agentId === me.id)) agentUuid = me.id;
     // Accept a raw uuid passed in directly.
     if (!agentUuid && /^[0-9a-f-]{36}$/i.test(opts.agentId)) {
       agentUuid = opts.agentId;
@@ -289,6 +291,13 @@ export async function listRequests(opts?: { agentId?: string; branch?: string })
     ? getBranchesCache().find((b) => b.code === opts.branch)?.id
     : undefined;
   const rows = await dxListRequests({ agentUuid, branchId });
+  console.info("[agent dashboard debug] listRequests", {
+    currentLoggedInAgentUserId: me?.id ?? null,
+    currentLoggedInAgentCode: me?.agentId ?? null,
+    dashboardQueryFilter: { inputAgentId: opts?.agentId ?? null, agentUuid: agentUuid ?? null, branch: opts?.branch ?? null, branchId: branchId ?? null },
+    returnedRows: rows.length,
+    returnedRequestOwners: rows.map((r) => ({ id: r.id, agent: r.agentId, origin_agent: r.originAgentId, branch: r.branch })),
+  });
   // Belt-and-braces client filter for unmapped cases. Accept matches on
   // agent_code OR user uuid so a partially-mapped cache never hides the
   // sales agent's own requests.
@@ -319,16 +328,17 @@ export async function getRequest(id: string): Promise<InsuranceRequest | null> {
  */
 export async function createEmptyRequest(): Promise<InsuranceRequest> {
   const me = getCurrentUser();
-  if (!me || me.role !== "agent" || !me.agentId) {
+  if (!me || me.role !== "agent") {
     throw new Error("Not authenticated as agent");
   }
-  const agent = dsGetAgents().find((a) => a.id === me.agentId || a.userId === me.agentId);
+  const agent = dsGetAgents().find((a) => a.userId === me.id || a.id === me.agentId);
   const id = `REQ-${Date.now()}`;
   const req = await dxCreateRequest({
     id,
     uuid: id.toLowerCase(),
-    agentCode: me.agentId,
-    branchCode: agent?.branch ?? me.branch ?? "",
+    agentCode: agent?.id ?? me.agentId ?? me.id,
+    agentUserId: me.id,
+    branchCode: me.branch ?? agent?.branch ?? "",
   });
   logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
   notifyNewRequest(req);
@@ -375,20 +385,37 @@ export async function submitUpload(input: {
   };
   optional?: { inspection?: File | null };
 }): Promise<{ id: string }> {
-  const agent = dsGetAgents().find((a) => a.id === input.agentId || a.userId === input.agentId);
+  console.info("[upload debug] URL agent parameter", { agentParameterFromUrl: input.agentId });
+  const agent = await dxResolveUploadAgent(input.agentId);
+  console.info("[upload debug] resolved sales agent", {
+    agentParameterFromUrl: input.agentId,
+    resolvedSalesAgentUserId: agent.userId,
+    resolvedSalesAgentCode: agent.agentCode,
+    resolvedSalesAgentBranch: agent.branchCode,
+    resolvedSalesAgentBranchId: agent.branchId,
+    resolvedFrom: agent.source,
+  });
   const id = `REQ-${Date.now()}`;
   // Create the request row first so file rows have something to link to.
   const req = await dxCreateRequest({
     id, uuid: id.toLowerCase(),
-    agentCode: input.agentId,
-    branchCode: agent?.branch ?? "",
+    agentCode: agent.agentCode,
+    agentUserId: agent.userId,
+    branchCode: agent.branchCode,
+    branchId: agent.branchId,
     customerName: input.customerName,
     customerEmail: input.customerEmail,
     customerPhone: input.customerPhone,
   });
+  console.info("[upload debug] created request", {
+    createdRequestId: req.id,
+    createdRequestAgent: req.agentId,
+    createdRequestOriginAgent: req.originAgentId,
+    createdRequestBranch: req.branch,
+  });
   // Upload all bytes to Directus and create matching request_files rows.
   // Ordered kinds (front/back/etc.) upload sequentially; everything else in parallel.
-  const ownerUuid = agent?.userId ?? null;
+  const ownerUuid = agent.userId;
   await dxAttachFilesSequential(id, input.images.registration, "registration", ownerUuid);
   await dxAttachFilesSequential(id, input.images.license, "license", ownerUuid);
   await dxAttachFilesSequential(id, input.images.emirates, "emirates", ownerUuid);

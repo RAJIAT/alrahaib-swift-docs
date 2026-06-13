@@ -43,9 +43,15 @@ export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
       const filter: { agentId?: string; branch?: string } = {};
       if (agentId) filter.agentId = agentId;
       if (branch) filter.branch = branch;
+      console.info("[agent dashboard debug] useRequestsLive filter", filter);
       listRequests(Object.keys(filter).length ? filter : undefined)
         .then((rs) => {
           if (!alive) return;
+          console.info("[agent dashboard debug] useRequestsLive result", {
+            dashboardQueryFilter: filter,
+            count: rs.length,
+            requests: rs.map((r) => ({ id: r.id, agent: r.agentId, origin_agent: r.originAgentId, branch: r.branch })),
+          });
           setError(null);
           // Include file/note counts too, so customer uploads update open dashboards without refresh.
           const sig = `${rs.length}|` + rs.map(requestSig).join(",");
