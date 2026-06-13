@@ -328,16 +328,17 @@ export async function getRequest(id: string): Promise<InsuranceRequest | null> {
  */
 export async function createEmptyRequest(): Promise<InsuranceRequest> {
   const me = getCurrentUser();
-  if (!me || me.role !== "agent" || !me.agentId) {
+  if (!me || me.role !== "agent") {
     throw new Error("Not authenticated as agent");
   }
-  const agent = dsGetAgents().find((a) => a.id === me.agentId || a.userId === me.agentId);
+  const agent = dsGetAgents().find((a) => a.userId === me.id || a.id === me.agentId);
   const id = `REQ-${Date.now()}`;
   const req = await dxCreateRequest({
     id,
     uuid: id.toLowerCase(),
-    agentCode: me.agentId,
-    branchCode: agent?.branch ?? me.branch ?? "",
+    agentCode: agent?.id ?? me.agentId ?? me.id,
+    agentUserId: me.id,
+    branchCode: me.branch ?? agent?.branch ?? "",
   });
   logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
   notifyNewRequest(req);
