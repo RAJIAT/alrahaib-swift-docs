@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLang } from "@/i18n/LanguageProvider";
 import { useRequestsLive } from "@/hooks/useRequestsLive";
-import { getCurrentUser, refreshCurrentUser, listAgents, pushNotifications, type AuthUser } from "@/services/api";
+import { getCurrentUser, refreshCurrentUser, listAgents, type AuthUser } from "@/services/api";
 
 export const Route = createFileRoute("/agent")({
   component: AgentDashboard,
@@ -65,15 +65,6 @@ function AgentDashboard() {
           : `New request ${r.id}`,
       );
     }
-    void pushNotifications(recent.map((r) => ({
-      recipientUserId: user.id,
-      title: lang === "ar"
-        ? `وصلت مستندات جديدة للطلب ${r.id}`
-        : `New documents uploaded for request ${r.id}`,
-      body: r.customerName || r.customerPhone || r.branch || undefined,
-      kind: "request_new" as const,
-      link: `/requests/${r.id}`,
-    })));
   }, [items, loading, user, lang]);
 
   const myStaffType = useMemo(

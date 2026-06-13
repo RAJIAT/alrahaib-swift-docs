@@ -22,10 +22,15 @@ import { RequestHistoryTimeline } from "@/components/RequestHistoryTimeline";
 function reqSignature(r: InsuranceRequest | null): string {
   if (!r) return "";
   const notes = r.notes?.length ?? 0;
+  const registration = r.images.registration?.length ?? 0;
+  const license = r.images.license?.length ?? 0;
+  const emirates = r.images.emirates?.length ?? 0;
   const missing = r.images.missingAttachments?.length ?? 0;
   const atts = r.images.attachments?.length ?? 0;
   const veh = r.images.vehicleMedia?.length ?? 0;
-  return `${r.status}|n${notes}|m${missing}|a${atts}|v${veh}`;
+  const quotes = r.quotes?.length ?? 0;
+  const inspection = r.images.inspection ? 1 : 0;
+  return `${r.status}|n${notes}|r${registration}|l${license}|e${emirates}|m${missing}|a${atts}|v${veh}|i${inspection}|q${quotes}`;
 }
 
 // Download a Directus asset using the bearer token, then trigger a save dialog.

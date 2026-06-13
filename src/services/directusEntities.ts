@@ -142,6 +142,11 @@ export async function refreshAgents(): Promise<void> {
     }
     list.push(a);
   }
+  for (const a of list) {
+    if (!a.assignedUnderwriterId) continue;
+    const assigned = list.find((x) => x.id === a.assignedUnderwriterId || x.userId === a.assignedUnderwriterId);
+    if (assigned) a.assignedUnderwriterId = assigned.id;
+  }
   agentsCache = list;
   emit(AGT_EVT);
 }

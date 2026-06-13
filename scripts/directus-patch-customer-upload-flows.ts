@@ -4,11 +4,12 @@
  *
  *   1. lovable: customer_upload_status
  *      Trigger: items.create on request_files (action)
- *      Effect:  parent request status "new" → "processing"
+ *      Effect:  parent request status "new"/"reupload" → "processing"
  *
  *   2. lovable: customer_upload_notify
  *      Trigger: items.create on request_files (action)
- *      Effect:  inserts notifications for owner agent (+ origin sales agent)
+ *      Effect:  inserts notifications for owner agent, origin sales agent,
+ *               and the owner's assigned underwriter when configured
  *               with title "New documents uploaded for request REQ-xxxx".
  *
  * Both flows ignore kind="quote" (those are underwriter uploads).
@@ -71,7 +72,7 @@ const FLOWS: FlowDef[] = [
     name: "lovable: customer_upload_status",
     icon: "autorenew",
     color: "#16A085",
-    description: "When a customer uploads a file, move parent request from 'new' to 'processing'.",
+    description: "When a customer uploads a file, move parent request from 'new'/'reupload' to 'processing'.",
     status: "active",
     trigger: "event",
     accountability: "null",
@@ -95,9 +96,9 @@ const FLOWS: FlowDef[] = [
       },
       {
         key: "is_new",
-        name: "Status is 'new'?",
+        name: "Status is 'new' or 'reupload'?",
         type: "condition",
-        options: { filter: { "$last.status": { _eq: "new" } } },
+        options: { filter: { "$last.status": { _in: ["new", "reupload"] } } },
       },
       {
         key: "set_processing",
@@ -116,7 +117,7 @@ const FLOWS: FlowDef[] = [
     name: "lovable: customer_upload_notify",
     icon: "notifications_active",
     color: "#2980B9",
-    description: "Create notifications for the owner agent (and origin sales agent) when a customer uploads files.",
+    description: "Create notifications for owner/origin agents and assigned underwriter when a customer uploads files.",
     status: "active",
     trigger: "event",
     accountability: "null",
@@ -139,21 +140,37 @@ const FLOWS: FlowDef[] = [
         },
       },
       {
+        key: "read_agent",
+        name: "Read owner agent routing",
+        type: "item-read",
+        options: {
+          collection: "directus_users",
+          key: "{{read_request.agent}}",
+          query: { fields: ["id", "assigned_underwriter"] },
+        },
+      },
+      {
         key: "build_items",
         name: "Build notification rows",
         type: "exec",
         options: {
           code:
-            "module.exports = async function({ $last }) {" +
-            " const req = $last || {};" +
+            "module.exports = async function(data) {" +
+            " const req = data.read_request || {};" +
+            " const owner = data.read_agent || {};" +
             " const seen = new Set();" +
             " const recipients = [];" +
-            " if (req.agent) { seen.add(req.agent); recipients.push(req.agent); }" +
-            " if (req.origin_agent && !seen.has(req.origin_agent)) { recipients.push(req.origin_agent); }" +
+            " function add(uid) { if (uid && !seen.has(uid)) { seen.add(uid); recipients.push(uid); } }" +
+            " add(req.agent);" +
+            " add(req.origin_agent);" +
+            " const assigned = owner.assigned_underwriter && typeof owner.assigned_underwriter === 'object' ? owner.assigned_underwriter.id : owner.assigned_underwriter;" +
+            " add(assigned);" +
             " const items = recipients.map(function(uid){ return {" +
             "   recipient: uid," +
             "   kind: 'request_new'," +
             "   title: 'New documents uploaded for request ' + req.id," +
+            "   body: 'New documents uploaded for request ' + req.id," +
+            "   link: '/requests/' + req.id," +
             "   read: false," +
             " }; });" +
             " return { items: items, has_any: items.length > 0, request_id: req.id };" +
