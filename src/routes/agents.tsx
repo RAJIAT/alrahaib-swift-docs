@@ -174,7 +174,7 @@ function AdminAgents() {
   // Lookup helper to render the assigned underwriter's name for sales agents.
   const underwriterNameById = (id?: string) => {
     if (!id) return "—";
-    const u = allAgents.find((a) => a.id === id);
+    const u = allAgents.find((a) => a.id === id || a.userId === id);
     return u?.name ?? id;
   };
 
