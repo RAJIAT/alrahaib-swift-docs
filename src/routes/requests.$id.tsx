@@ -1406,6 +1406,7 @@ function QuotesCard({
   };
 
   const shareLink = `${typeof window !== "undefined" ? window.location.origin : ""}/q/${encodeURIComponent(req.id)}`;
+  const [shareOpen, setShareOpen] = useState(false);
   const markLinkSentBestEffort = async () => {
     // Only flip status forward; never overwrite a sold/rejected terminal state.
     if (req.status === "sold" || req.status === "rejected" || req.status === "linkSent") return;
@@ -1426,19 +1427,39 @@ function QuotesCard({
     await markLinkSentBestEffort();
   };
   const emailShareLink = async () => {
-    if (!req.customerEmail) return copyShareLink();
+    if (!req.customerEmail) {
+      toast.error(ar ? "لا يوجد بريد للعميل" : "No customer email on file");
+      return;
+    }
     const subject = encodeURIComponent(ar ? `عرض السعر — ${req.id}` : `Insurance quote — ${req.id}`);
     const body = encodeURIComponent(
       (ar
         ? `مرحباً ${req.customerName ?? ""}،\n\nيمكنك الاطلاع على عرض السعر من الرابط التالي:\n${shareLink}`
         : `Hello ${req.customerName ?? ""},\n\nYou can view your quote here:\n${shareLink}`),
     );
-    // Open mail client first, then record status change in the background.
+    // Open the user's mail client. We do NOT claim "sent" — no SMTP is wired.
     window.open(
       `mailto:${encodeURIComponent(req.customerEmail)}?subject=${subject}&body=${body}`,
       "_self",
     );
-    toast.success(ar ? "تم إرسال الرابط للعميل" : "Quote link sent to customer");
+    toast.message(ar ? "تم فتح بريدك — أكمل الإرسال يدوياً" : "Opened your email client — send manually to finish");
+    await markLinkSentBestEffort();
+  };
+  const whatsappShareLink = async () => {
+    const raw = (req.customerPhone ?? "").replace(/[^\d+]/g, "");
+    const digits = raw.replace(/^\+/, "");
+    if (!digits) {
+      toast.error(ar ? "لا يوجد رقم هاتف للعميل" : "No customer phone on file");
+      return;
+    }
+    const msg = ar
+      ? `مرحباً ${req.customerName ?? ""}، عرض السعر جاهز. يمكنك الاطلاع عليه هنا: ${shareLink}`
+      : `Hello ${req.customerName ?? ""}, your insurance quote is ready. You can view it here: ${shareLink}`;
+    window.open(`https://wa.me/${digits}?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
+    await markLinkSentBestEffort();
+  };
+  const openShareLink = async () => {
+    window.open(shareLink, "_blank", "noopener");
     await markLinkSentBestEffort();
   };
 
@@ -1599,27 +1620,85 @@ function QuotesCard({
       )}
 
       {quotes.length > 0 && (isSales || isAdmin || isSup) && (
-        <div className="mt-4 flex flex-col gap-2 rounded-xl border border-border bg-muted/30 p-3 sm:flex-row sm:items-center">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold text-foreground">
-              {ar ? "مشاركة عرض السعر مع العميل" : "Share quote with customer"}
-            </p>
-            <p dir="ltr" className="mt-0.5 truncate text-[11px] text-muted-foreground" title={shareLink}>{shareLink}</p>
+        <div className="mt-4 rounded-xl border border-border bg-muted/30 p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-foreground">
+                {ar ? "مشاركة عرض السعر مع العميل" : "Share Quote with Customer"}
+              </p>
+              <p dir="ltr" className="mt-0.5 truncate text-[11px] text-muted-foreground" title={shareLink}>{shareLink}</p>
+            </div>
+            <button
+              onClick={() => setShareOpen(true)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-soft transition active:scale-95"
+            >
+              <Send className="h-3.5 w-3.5" />
+              {ar ? "مشاركة عرض السعر مع العميل" : "Share Quote with Customer"}
+            </button>
           </div>
-          <button
-            onClick={copyShareLink}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-foreground shadow-soft transition hover:bg-muted active:scale-95"
-          >
-            <Copy className="h-3.5 w-3.5" />
-            {ar ? "نسخ الرابط" : "Copy link"}
-          </button>
-          <button
-            onClick={emailShareLink}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-soft transition active:scale-95"
-          >
-            <Mail className="h-3.5 w-3.5" />
-            {ar ? "إرسال للعميل" : "Email customer"}
-          </button>
+          {shareOpen && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+              onClick={() => setShareOpen(false)}
+            >
+              <div
+                className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-card"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-foreground">
+                    {ar ? "مشاركة عرض السعر مع العميل" : "Share Quote with Customer"}
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setShareOpen(false)}
+                    aria-label="close"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <p dir="ltr" className="mb-3 truncate rounded-lg border border-border bg-surface px-2 py-1.5 text-[11px] text-muted-foreground" title={shareLink}>{shareLink}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => { setShareOpen(false); whatsappShareLink(); }}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#25D366] px-3 text-xs font-semibold text-white shadow-soft transition active:scale-95"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    {ar ? "واتساب" : "WhatsApp"}
+                  </button>
+                  <button
+                    onClick={() => { setShareOpen(false); emailShareLink(); }}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-soft transition active:scale-95"
+                  >
+                    <Mail className="h-4 w-4" />
+                    {ar ? "بريد إلكتروني" : "Email"}
+                  </button>
+                  <button
+                    onClick={() => { setShareOpen(false); copyShareLink(); }}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-foreground transition hover:bg-muted active:scale-95"
+                  >
+                    <Copy className="h-4 w-4" />
+                    {ar ? "نسخ الرابط" : "Copy link"}
+                  </button>
+                  <button
+                    onClick={() => { setShareOpen(false); openShareLink(); }}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-foreground transition hover:bg-muted active:scale-95"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    {ar ? "فتح الرابط" : "Open link"}
+                  </button>
+                </div>
+                <p className="mt-3 text-[10px] text-muted-foreground">
+                  {ar
+                    ? "اختر طريقة المشاركة لإرسال الرابط للعميل. لن نُحدِّث الحالة كـ«تم الإرسال» إلا بعد اختيارك."
+                    : "Pick a channel to share the link with the customer. Status flips to “link sent” only after you act."}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </section>

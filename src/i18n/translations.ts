@@ -680,7 +680,7 @@ export const translations = {
       tabUnderwriters: "Underwriters",
       tabSales: "Sales",
       addUnderwriter: "Add Underwriter",
-      addSales: "Add Sales Staff",
+      addSales: "Add Sales Agent",
       assignedUnderwriter: "Assigned Underwriter",
       assignedUnderwriterHint: "All requests this sales agent raises will be routed to this underwriter only.",
       unassigned: "— Unassigned —",
