@@ -1157,6 +1157,46 @@ function ReassignCard({
     return a.name.localeCompare(b.name);
   });
 
+  // Dedicated, prominent "Send to Assigned Underwriter" card for sales owner.
+  // This is the primary routing action for sales agents and must be visually
+  // separate from the generic status/transfer controls.
+  const salesSendCard =
+    isOwner && myType === "sales" && underwriters.length === 1 ? (
+      <section className="mt-6 rounded-2xl border-2 border-primary/40 bg-primary/5 p-5 shadow-card">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-base font-bold text-foreground">
+              {lang === "ar" ? "إرسال الطلب للأندررايتر المعيّن" : "Send to Assigned Underwriter"}
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {lang === "ar"
+                ? `سيتم تحويل الطلب إلى ${underwriters[0].name} لتجهيز عرض السعر. سيبقى الطلب مرتبطاً بك كـ origin_agent.`
+                : `Routes this request to ${underwriters[0].name} to prepare a quote. You remain the origin_agent.`}
+            </p>
+          </div>
+          <button
+            onClick={() =>
+              doReassign(
+                underwriters[0].id,
+                lang === "ar" ? "تم إرسال الطلب للأندررايتر" : "Request sent to underwriter",
+              )
+            }
+            disabled={busy}
+            className="inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-95 disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            {lang === "ar" ? "إرسال للأندررايتر" : "Send to Underwriter"}
+          </button>
+        </div>
+      </section>
+    ) : null;
+
+  // For the sales-owner happy path, render ONLY the dedicated card to avoid
+  // duplicating the same action in a generic transfer panel below.
+  if (salesSendCard && isOwner && myType === "sales") {
+    return salesSendCard;
+  }
+
   return (
     <section className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-card">
       <h3 className="mb-1 text-sm font-bold text-foreground">
