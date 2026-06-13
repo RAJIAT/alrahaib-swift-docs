@@ -133,11 +133,16 @@ function AgentDashboard() {
       <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] leading-relaxed text-warning-foreground">
         <div className="font-bold">Agent dashboard debug</div>
         <div>currentUser.id: <span dir="ltr">{debug?.currentUserId ?? user.id}</span></div>
+        <div>currentUser.email: <span dir="ltr">{user.email}</span></div>
         <div>currentUser.staff_type: {debug?.currentUserStaffType ?? user.staffType ?? "—"}</div>
         <div>currentUser.branch: {debug?.currentUserBranch ?? user.branchId ?? user.branch ?? "—"}</div>
+        <div>Directus base URL: <span dir="ltr">{debug?.directusBaseUrl ?? "—"}</span></div>
         <div>request query filter: <span dir="ltr">{JSON.stringify(debug?.queryFilter ?? { agentId: effectiveAgentId ?? null })}</span></div>
         <div>raw fetched request count before filtering: {debug?.rawFetchedCount ?? "—"}</div>
+        <div>raw request ids returned: <span dir="ltr">{debug?.rawOwners?.map((o) => o.id).join(", ") || "—"}</span></div>
+        <div>raw owners: <span dir="ltr">{JSON.stringify(debug?.rawOwners ?? [])}</span></div>
         <div>filtered request count after client-side filtering: {debug?.filteredCount ?? items.length}</div>
+        <div>filter dropped reasons: <span dir="ltr">{debug?.filterDroppedReasons?.join(" | ") || "—"}</span></div>
         <div>request query error: {error ?? "—"}</div>
       </div>
       {/* Status filter tabs */}
