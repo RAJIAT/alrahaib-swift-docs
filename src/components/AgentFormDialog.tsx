@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Lock, Loader2, X } from "lucide-react";
 import { useLang } from "@/i18n/LanguageProvider";
-import { getBranches, listAgents, listBranches, type Agent, type AgentRole, type StaffType } from "@/services/api";
+import { getAgents, getBranches, listAgents, listBranches, type Agent, type AgentRole, type StaffType } from "@/services/api";
 
 export type AgentFormValues = {
   name: string;
@@ -60,8 +60,8 @@ export function AgentFormDialog({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const supervisors = useMemo(() => listAgents().filter((a) => a.role === "supervisor"), [open]);
-  const allAgents = useMemo(() => listAgents(), [open]);
+  const [allAgents, setAllAgents] = useState<Agent[]>(() => listAgents());
+  const supervisors = useMemo(() => allAgents.filter((a) => a.role === "supervisor"), [allAgents]);
 
   const [branches, setBranches] = useState<string[]>(() => listBranches());
 
@@ -69,6 +69,9 @@ export function AgentFormDialog({
     if (!open) return;
     setError("");
     getBranches().then(() => setBranches(listBranches())).catch(() => {});
+    const cachedAgents = listAgents();
+    if (cachedAgents.length) setAllAgents(cachedAgents);
+    getAgents().then(setAllAgents).catch(() => {});
     const role0 = lockedRole ?? initial?.role ?? defaultRole ?? "agent";
     const staff0 = lockedStaffType ?? initial?.staffType ?? defaultStaffType ?? "underwriter";
     setValues({
@@ -248,7 +251,9 @@ export function AgentFormDialog({
                   ))}
               </select>
               <p className="mt-1 text-xs text-muted-foreground">
-                {t.agents.assignedUnderwriterHint ?? "Sales requests will be routed to this underwriter only."}
+                {allAgents.some((a) => a.role === "agent" && a.staffType === "underwriter" && a.active && a.branch === values.branch)
+                  ? (t.agents.assignedUnderwriterHint ?? "Sales requests will be routed to this underwriter only.")
+                  : (dir === "rtl" ? "لا يوجد أندررايتر فعّال في نفس الفرع." : "No active underwriter exists in this branch.")}
               </p>
             </Field>
           )}
