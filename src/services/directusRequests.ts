@@ -316,8 +316,10 @@ function requestFromRow(
     id: r.id,
     uuid: r.uuid ?? r.id.toLowerCase(),
     agentId: agent.code,
+    agentUserId: r.agent ?? undefined,
     agentName: agent.name,
     originAgentId: origin?.code,
+    originAgentUserId: r.origin_agent ?? undefined,
     originAgentName: origin?.name,
     assignedAt: r.assigned_at ?? undefined,
     branch: branchCodeFromId(r.branch),
@@ -367,12 +369,16 @@ export async function dxListRequests(opts?: { agentUuid?: string; branchId?: num
   let files: DxRequestFileRow[] = [];
   if (ids.length) {
     const idsParam = ids.map(encodeURIComponent).join(",");
-    const [nr, fr] = await Promise.all([
-      dxRequest<{ data: DxNoteRow[] }>(`/items/request_notes?fields=${NOTE_FIELDS}&limit=-1&filter[request][_in]=${idsParam}`),
-      dxRequest<{ data: DxRequestFileRow[] }>(`/items/request_files?fields=${FILE_FIELDS}&limit=-1&filter[request][_in]=${idsParam}`),
-    ]);
-    notes = nr.data;
-    files = fr.data;
+    try {
+      const [nr, fr] = await Promise.all([
+        dxRequest<{ data: DxNoteRow[] }>(`/items/request_notes?fields=${NOTE_FIELDS}&limit=-1&filter[request][_in]=${idsParam}`),
+        dxRequest<{ data: DxRequestFileRow[] }>(`/items/request_files?fields=${FILE_FIELDS}&limit=-1&filter[request][_in]=${idsParam}`),
+      ]);
+      notes = nr.data;
+      files = fr.data;
+    } catch (e) {
+      console.warn("[agent dashboard debug] request related rows failed; showing request rows only", e);
+    }
   }
   const list = r.data.map((row) => requestFromRow(row, notes, files));
   // Newest-first using max(createdAt, assignedAt) for reassignments

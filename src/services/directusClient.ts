@@ -30,7 +30,9 @@ export type ProfileSnapshot = {
   name: string;
   role: "admin" | "supervisor" | "agent";
   branch?: string;
+  branchId?: number;
   agentId?: string;  // agent_code, or user id for older agents without a code
+  staffType?: "underwriter" | "sales";
 };
 
 // ---------- token + profile storage ----------
@@ -196,6 +198,14 @@ export function userBranchCode(u: DxUserRecord): string | undefined {
   return undefined;
 }
 
+export function userBranchId(u: DxUserRecord): number | undefined {
+  const b = u.branch;
+  if (!b) return undefined;
+  if (typeof b === "number") return b;
+  if (typeof b === "object" && "id" in b) return b.id ?? undefined;
+  return undefined;
+}
+
 export function userRecordToProfile(u: DxUserRecord): ProfileSnapshot {
   return {
     id: u.id,
@@ -203,7 +213,9 @@ export function userRecordToProfile(u: DxUserRecord): ProfileSnapshot {
     name: fullName(u),
     role: (u.app_role ?? "agent"),
     branch: userBranchCode(u),
+    branchId: userBranchId(u),
     agentId: u.app_role === "agent" ? (u.agent_code || u.id) : (u.agent_code ?? undefined),
+    staffType: u.staff_type ?? undefined,
   };
 }
 

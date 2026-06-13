@@ -2,6 +2,8 @@
  * One-off patch for underwriter assignment + request status failures.
  *
  * Fixes:
+ * - Agent requests.read permission must allow agent = $CURRENT_USER OR
+ *   origin_agent = $CURRENT_USER, with no branch-only filter hiding rows.
  * - Agent status buttons failing with: no permission to access
  *   directus_users.assigned_underwriter.
  * - Supervisor unable to view/change a sales agent's assigned underwriter.
@@ -166,6 +168,17 @@ async function patchPermissions() {
   );
   console.log(
     `   ${await upsertPermission(agentPolicy, "directus_users", "read", { fields: agentReadFields })} Agent → directus_users.read`,
+  );
+  console.log(
+    `   ${await upsertPermission(agentPolicy, "requests", "read", {
+      fields: ["*"],
+      permissions: {
+        _or: [
+          { agent: { _eq: "$CURRENT_USER" } },
+          { origin_agent: { _eq: "$CURRENT_USER" } },
+        ],
+      },
+    })} Agent → requests.read`,
   );
 }
 

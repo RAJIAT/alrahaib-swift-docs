@@ -38,7 +38,7 @@ function AgentDashboard() {
   // Always scope the dashboard by the logged-in Directus user id. Do not rely
   // on agent_code or a warmed agents cache for Sales Agent visibility.
   const effectiveAgentId = user?.id;
-  const { items, loading } = useRequestsLive(effectiveAgentId ? { agentId: effectiveAgentId } : undefined);
+  const { items, loading, error, debug } = useRequestsLive({ agentId: effectiveAgentId });
 
   // Detect newly-arrived customer requests and push a notification to the
   // logged-in agent so the bell + count update without requiring server-side
@@ -70,8 +70,8 @@ function AgentDashboard() {
   }, [items, loading, user, lang]);
 
   const myStaffType = useMemo(
-    () => (effectiveAgentId ? listAgents().find((a) => a.id === effectiveAgentId || a.userId === effectiveAgentId)?.staffType : undefined),
-    [effectiveAgentId],
+    () => user?.staffType ?? (effectiveAgentId ? listAgents().find((a) => a.id === effectiveAgentId || a.userId === effectiveAgentId)?.staffType : undefined),
+    [effectiveAgentId, user?.staffType],
   );
   const isUnderwriter = myStaffType === "underwriter";
 
@@ -130,11 +130,16 @@ function AgentDashboard() {
       {!isUnderwriter && (
         <ShareLinkCard agentId={effectiveAgentId ?? ""} agentName={user.name} />
       )}
-      {import.meta.env.DEV && (
-        <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning-foreground">
-          Dashboard debug: current logged-in agent user id = {user.id} · agent_code = {user.agentId ?? "—"} · query agentId = {effectiveAgentId ?? "—"} · loaded = {items.length}
-        </div>
-      )}
+      <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] leading-relaxed text-warning-foreground">
+        <div className="font-bold">Agent dashboard debug</div>
+        <div>currentUser.id: <span dir="ltr">{debug?.currentUserId ?? user.id}</span></div>
+        <div>currentUser.staff_type: {debug?.currentUserStaffType ?? user.staffType ?? "—"}</div>
+        <div>currentUser.branch: {debug?.currentUserBranch ?? user.branchId ?? user.branch ?? "—"}</div>
+        <div>request query filter: <span dir="ltr">{JSON.stringify(debug?.queryFilter ?? { agentId: effectiveAgentId ?? null })}</span></div>
+        <div>raw fetched request count before filtering: {debug?.rawFetchedCount ?? "—"}</div>
+        <div>filtered request count after client-side filtering: {debug?.filteredCount ?? items.length}</div>
+        <div>request query error: {error ?? "—"}</div>
+      </div>
       {/* Status filter tabs */}
       <div className="mb-4 -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
         <div className="flex w-max gap-2 sm:w-auto sm:flex-wrap">
