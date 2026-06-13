@@ -1030,7 +1030,63 @@ function ReassignCard({
   // For underwriter owner, "return to sales" is always available if originSales exists,
   // even when there are no other underwriters in the branch.
   const canReturnToSales = isOwner && myType === "underwriter" && !!originSales;
-  if (candidates.length === 0 && !canReturnToSales) return null;
+
+  // Sales owner with NO valid candidate → still render the section with a
+  // clear diagnostic so the user understands why the action is unavailable
+  // and what to do (ask supervisor to assign an underwriter, etc.).
+  const salesOwnerBlocked = isOwner && myType === "sales" && candidates.length === 0;
+  if (candidates.length === 0 && !canReturnToSales && !salesOwnerBlocked) return null;
+
+  if (salesOwnerBlocked) {
+    const assigned = meAgent?.assignedUnderwriterId
+      ? agents.find((a) => a.id === meAgent.assignedUnderwriterId)
+      : undefined;
+    const reason = !meAgent
+      ? (lang === "ar"
+          ? "تعذّر تحميل بيانات حسابك. أعد تحميل الصفحة."
+          : "Could not load your account data. Please refresh.")
+      : !meAgent.assignedUnderwriterId
+        ? (lang === "ar"
+            ? "لا يوجد أندررايتر معيّن لك. يرجى التواصل مع المشرف لتعيين أندررايتر."
+            : "You don't have an assigned underwriter yet. Ask your supervisor to assign one.")
+        : !assigned
+          ? (lang === "ar"
+              ? `الأندررايتر المعيّن (${meAgent.assignedUnderwriterId}) غير موجود في قائمة موظفي الفرع. تواصل مع المشرف.`
+              : `Your assigned underwriter (${meAgent.assignedUnderwriterId}) is not visible in this branch. Contact your supervisor.`)
+          : !assigned.active
+            ? (lang === "ar"
+                ? `الأندررايتر المعيّن (${assigned.name}) موقوف حالياً. اطلب من المشرف تفعيله أو تعيين أندررايتر آخر.`
+                : `Your assigned underwriter (${assigned.name}) is suspended. Ask your supervisor to reactivate them or assign a different one.`)
+            : assigned.branch !== req.branch
+              ? (lang === "ar"
+                  ? `الأندررايتر المعيّن في فرع مختلف (${assigned.branch}) عن فرع الطلب (${req.branch}).`
+                  : `Your assigned underwriter is in a different branch (${assigned.branch}) than the request (${req.branch}).`)
+              : (lang === "ar" ? "تعذّر تجهيز خيار التحويل." : "Could not prepare a transfer target.");
+    return (
+      <section className="mt-6 rounded-2xl border border-destructive/30 bg-destructive/5 p-5 shadow-card">
+        <h3 className="mb-1 text-sm font-bold text-foreground">
+          {lang === "ar" ? "تحويل الطلب للأندررايتر" : "Send to underwriter"}
+        </h3>
+        <p className="text-xs text-destructive">{reason}</p>
+        {import.meta.env.DEV && (
+          <pre className="mt-3 max-h-48 overflow-auto rounded-lg bg-card p-2 text-[10px] text-muted-foreground">
+{JSON.stringify({
+  me: { id: user.id, agentId: user.agentId, branch: user.branch, role: user.role },
+  meAgent: meAgent && {
+    id: meAgent.id, userId: meAgent.userId, branch: meAgent.branch,
+    staffType: meAgent.staffType, active: meAgent.active,
+    assignedUnderwriterId: meAgent.assignedUnderwriterId,
+  },
+  request: { id: req.id, agentId: req.agentId, originAgentId: req.originAgentId, branch: req.branch, status: req.status },
+  underwritersInBranch: agents
+    .filter((a) => a.role === "agent" && a.staffType === "underwriter" && a.branch === req.branch)
+    .map((a) => ({ id: a.id, name: a.name, active: a.active })),
+}, null, 2)}
+          </pre>
+        )}
+      </section>
+    );
+  }
 
   const doReassign = async (targetId: string, label: string) => {
     if (!targetId || busy) return;
