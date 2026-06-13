@@ -31,7 +31,6 @@ Directus + Postgres (نفس السيرفر، :8055)
 | المتطلب | الإصدار | ملاحظات |
 |---|---|---|
 | Node.js | 20.x LTS | عبر **Node.js Selector** في DirectAdmin |
-| bun | ≥ 1.1 | `curl -fsSL https://bun.sh/install \| bash` |
 | PM2 | latest | `npm i -g pm2` |
 | Apache | مع mod_proxy + mod_proxy_http + mod_headers + mod_rewrite | فعّل من DirectAdmin |
 | Directus | latest | راجع `DIRECTUS_SETUP.md` |
@@ -46,10 +45,10 @@ Directus + Postgres (نفس السيرفر، :8055)
 
 ```bash
 # 1. ثبّت الـ deps
-bun install
+npm ci
 
 # 2. ابنِ نسخة الإنتاج (target = Node)
-bun run build
+npm run build
 
 # الناتج:
 #   .output/         ← السيرفر (SSR + assets)
@@ -64,7 +63,7 @@ bun run build
 .output/
 public/
 package.json
-bun.lockb
+package-lock.json
 ecosystem.config.cjs
 .env                ← انسخه من .env.example واملأ القيم
 scripts/            ← للـ bootstrap (اختياري)
@@ -74,7 +73,7 @@ scripts/            ← للـ bootstrap (اختياري)
 
 ```bash
 rsync -avz --delete \
-  .output public package.json bun.lockb ecosystem.config.cjs scripts \
+  .output public package.json package-lock.json ecosystem.config.cjs scripts \
   user@server:/home/user/apps/aldiplomacy-portal/
 ```
 
@@ -93,7 +92,7 @@ chmod 755 uploads
 ### 3.4 تثبيت runtime deps (إن لزم)
 
 ```bash
-bun install --production
+npm ci --omit=dev
 ```
 
 > الـ `.output/` يحوي bundle مكتمل، لكن بعض الـ native deps قد تحتاج install على السيرفر.
@@ -156,8 +155,8 @@ curl -I http://10.8.0.21:8080/server/info
 
 ```bash
 # محلياً
-bun run build
-rsync -avz --delete .output public package.json bun.lockb \
+npm run build
+rsync -avz --delete .output public package.json package-lock.json \
   user@server:/home/user/apps/aldiplomacy-portal/
 
 # على السيرفر

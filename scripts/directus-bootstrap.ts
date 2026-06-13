@@ -3,7 +3,7 @@
  *
  * ينشئ كل البنية: collections, fields, relations, roles, policies, permissions, flows.
  * تشغيل:
- *   DIRECTUS_URL=https://… DIRECTUS_ADMIN_TOKEN=… DATABASE_URL=postgres://… bun run scripts/directus-bootstrap.ts
+ *   DIRECTUS_URL=http://127.0.0.1:8055 DIRECTUS_ADMIN_TOKEN= DATABASE_URL=postgres://… npx tsx scripts/directus-bootstrap.ts
  *
  * كل خطوة بتتأكد قبل الإنشاء (idempotent). تقدر تشغّله أكثر من مرة.
  */

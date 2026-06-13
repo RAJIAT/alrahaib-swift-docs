@@ -1275,10 +1275,24 @@ function QuotesCard({
   const [busy, setBusy] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [sendingToUW, setSendingToUW] = useState(false);
+  const [agents, setAgents] = useState<Agent[]>(() => listAgents());
+
+  useEffect(() => {
+    let alive = true;
+    const refresh = () => {
+      const cached = listAgents();
+      if (cached.length) setAgents(cached);
+      getAgents().then((rows) => { if (alive) setAgents(rows); }).catch(() => {});
+    };
+    refresh();
+    const off = typeof window !== "undefined"
+      ? (() => { window.addEventListener("aib:agents-changed", refresh); return () => window.removeEventListener("aib:agents-changed", refresh); })()
+      : () => {};
+    return () => { alive = false; off(); };
+  }, []);
 
   if (!user) return null;
 
-  const agents = listAgents();
   const meAgent = agents.find((a: Agent) => a.id === user.agentId);
   const myType = meAgent?.staffType;
   const isUW = myType === "underwriter";
@@ -1288,16 +1302,49 @@ function QuotesCard({
 
   // Sales owner shortcut: when no quote exists yet, surface a direct
   // "Send to assigned underwriter" button right here in the Quotes card.
-  const isSalesOwner = isSales && user.agentId === req.agentId;
+  const isSalesOwner = isSales && (user.agentId === req.agentId || user.agentId === req.originAgentId);
   const assignedUW = meAgent?.assignedUnderwriterId
-    ? agents.find((a: Agent) => a.id === meAgent.assignedUnderwriterId)
+    ? agents.find((a: Agent) => a.id === meAgent.assignedUnderwriterId || a.userId === meAgent.assignedUnderwriterId)
     : undefined;
+  const requestAlreadyAtAssignedUW = !!assignedUW && (req.agentId === assignedUW.id || req.agentId === assignedUW.userId);
   const canSendToUW =
     isSalesOwner &&
     !!assignedUW &&
     assignedUW.active &&
     assignedUW.branch === req.branch &&
-    req.agentId !== assignedUW.id;
+    !requestAlreadyAtAssignedUW;
+  const sendToUWDebugReason = !isSales
+    ? "current user is not sales"
+    : !isSalesOwner
+      ? "current sales user is not request agent/origin_agent"
+      : !meAgent
+        ? "current agent row not loaded"
+        : !meAgent.assignedUnderwriterId
+          ? "sales user has no assigned_underwriter"
+          : !assignedUW
+            ? "assigned underwriter row not loaded or not visible"
+            : !assignedUW.active
+              ? "assigned underwriter is inactive"
+              : assignedUW.branch !== req.branch
+                ? "assigned underwriter branch does not match request branch"
+                : requestAlreadyAtAssignedUW
+                  ? "request is already assigned to this underwriter"
+                  : "visible";
+
+  if (import.meta.env.DEV && isSales) {
+    console.info("[Al Diplomacy request routing]", {
+      currentUserId: user.id,
+      currentAgentId: user.agentId,
+      currentStaffType: myType,
+      currentBranch: user.branch,
+      assignedUnderwriter: meAgent?.assignedUnderwriterId,
+      requestId: req.id,
+      requestAgent: req.agentId,
+      requestOriginAgent: req.originAgentId,
+      requestBranch: req.branch,
+      sendToUnderwriterButton: sendToUWDebugReason,
+    });
+  }
 
   const sendToUW = async () => {
     if (!assignedUW || sendingToUW) return;
@@ -1392,6 +1439,11 @@ function QuotesCard({
                 ? (ar ? "بانتظار رفع عرض السعر من الأندررايتر." : "Waiting for the underwriter to upload the quote.")
                 : (ar ? "لم يتم رفع أي عرض سعر بعد." : "No quotes uploaded yet.")}
           </p>
+          {import.meta.env.DEV && isSales && !canSendToUW && (
+            <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning-foreground">
+              {ar ? "سبب إخفاء زر الأندررايتر: " : "Send-to-underwriter hidden: "}{sendToUWDebugReason}
+            </p>
+          )}
           {canSendToUW && (
             <button
               type="button"
