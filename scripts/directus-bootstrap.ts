@@ -1018,7 +1018,7 @@ const flows: FlowDef[] = [
     ],
   },
 
-  // ---- After a customer upload, flip parent request "new" → "processing" ----
+  // ---- After a customer upload, flip parent request "new"/"reupload" → "processing" ----
   // Trigger: items.create on request_files (action, non-blocking).
   // Accountability "null" so it bypasses the public role's missing
   // update-permission on requests.
@@ -1026,7 +1026,7 @@ const flows: FlowDef[] = [
     name: "lovable: customer_upload_status",
     icon: "autorenew",
     color: "#16A085",
-    description: "When a customer uploads a file, move parent request from 'new' to 'processing'.",
+    description: "When a customer uploads a file, move parent request from 'new'/'reupload' to 'processing'.",
     status: "active",
     trigger: "event",
     accountability: "null",
@@ -1052,10 +1052,10 @@ const flows: FlowDef[] = [
       },
       {
         key: "is_new",
-        name: "Status is 'new'?",
+        name: "Status is 'new' or 'reupload'?",
         type: "condition",
         options: {
-          filter: { "$last.status": { _eq: "new" } },
+          filter: { "$last.status": { _in: ["new", "reupload"] } },
         },
       },
       {
@@ -1071,7 +1071,7 @@ const flows: FlowDef[] = [
     ],
   },
 
-  // ---- After a customer upload, notify owner agent (+ origin sales) ----
+  // ---- After a customer upload, notify owner/origin agents + assigned UW ----
   // Trigger: items.create on request_files (action).
   // Accountability "null" so notifications can be created server-side
   // even when the upload came from an unauthenticated public link.
@@ -1079,7 +1079,7 @@ const flows: FlowDef[] = [
     name: "lovable: customer_upload_notify",
     icon: "notifications_active",
     color: "#2980B9",
-    description: "Create notifications for the owner agent (and origin sales agent) when a customer uploads files.",
+    description: "Create notifications for owner/origin agents and assigned underwriter when a customer uploads files.",
     status: "active",
     trigger: "event",
     accountability: "null",
