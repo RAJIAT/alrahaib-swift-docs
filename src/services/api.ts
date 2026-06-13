@@ -867,20 +867,36 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
   if (target.role !== "agent") throw new Error("Can only assign to underwriter/sales");
   if (target.branch !== req.branch) throw new Error("Target agent is in a different branch");
 
-  // Permission: admin OR supervisor of the branch OR current owner agent
+  // Permission: admin OR supervisor of the branch OR current owner agent.
+  // Compare by canonical Directus user UUIDs first; fall back to agent codes
+  // only when UUIDs are missing on the request or profile (cold caches).
   const isAdmin = me.role === "admin";
   const isBranchSup = me.role === "supervisor" && me.branch === req.branch;
-  const isOwner = me.role === "agent" && me.agentId === req.agentId;
-  if (!isAdmin && !isBranchSup && !isOwner) throw new Error("Not allowed");
+  const isOwnerByUuid = !!req.agentUserId && req.agentUserId === me.id;
+  const isOriginByUuid = !!req.originAgentUserId && req.originAgentUserId === me.id;
+  const isOwnerByCode = !!me.agentId && me.agentId === req.agentId;
+  const isOriginByCode = !!me.agentId && !!req.originAgentId && me.agentId === req.originAgentId;
+  const isOwner = me.role === "agent" && (isOwnerByUuid || isOriginByUuid || isOwnerByCode || isOriginByCode);
+  if (!isAdmin && !isBranchSup && !isOwner) {
+    console.warn("[reassign] permission check failed", {
+      meId: me.id, meAgentId: me.agentId, meRole: me.role,
+      reqId: req.id, reqAgent: req.agentId, reqAgentUserId: req.agentUserId,
+      reqOrigin: req.originAgentId, reqOriginUserId: req.originAgentUserId,
+    });
+    throw new Error("Not allowed");
+  }
 
   // Sales agents can only send their requests to their own assigned underwriter.
   if (isOwner && me.role === "agent") {
-    const meAgent = agents.find((a) => a.id === me.agentId);
-    if (meAgent?.staffType === "sales" && target.staffType === "underwriter") {
+    const meAgent = agents.find((a) => a.userId === me.id || a.id === me.agentId);
+    const meStaff = meAgent?.staffType ?? me.staffType;
+    if (meStaff === "sales" && target.staffType === "underwriter") {
       if (!meAgent.assignedUnderwriterId) {
         throw new Error("You don't have an assigned underwriter — contact your supervisor");
       }
-      if (target.id !== meAgent.assignedUnderwriterId) {
+      const assignedId = meAgent?.assignedUnderwriterId;
+      const okTarget = !!assignedId && (target.id === assignedId || target.userId === assignedId);
+      if (!okTarget) {
         throw new Error("You can only send requests to your assigned underwriter");
       }
     }
