@@ -35,7 +35,9 @@ function AgentDashboard() {
     });
   }, [navigate]);
 
-  const effectiveAgentId = user?.agentId ?? user?.id;
+  // Always scope the dashboard by the logged-in Directus user id. Do not rely
+  // on agent_code or a warmed agents cache for Sales Agent visibility.
+  const effectiveAgentId = user?.id;
   const { items, loading } = useRequestsLive(effectiveAgentId ? { agentId: effectiveAgentId } : undefined);
 
   // Detect newly-arrived customer requests and push a notification to the
@@ -127,6 +129,11 @@ function AgentDashboard() {
       {/* Agent's permanent personal customer-upload link — sales only. */}
       {!isUnderwriter && (
         <ShareLinkCard agentId={effectiveAgentId ?? ""} agentName={user.name} />
+      )}
+      {import.meta.env.DEV && (
+        <div className="mb-4 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning-foreground">
+          Dashboard debug: current logged-in agent user id = {user.id} · agent_code = {user.agentId ?? "—"} · query agentId = {effectiveAgentId ?? "—"} · loaded = {items.length}
+        </div>
       )}
       {/* Status filter tabs */}
       <div className="mb-4 -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
