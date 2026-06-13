@@ -61,7 +61,7 @@ function fullName(u: DxUserRecord): string {
   const fn = (u.first_name ?? "").trim();
   const ln = (u.last_name ?? "").trim();
   const joined = `${fn} ${ln}`.trim();
-  return joined || u.email;
+  return joined || u.email || u.id;
 }
 
 function userToAgent(u: DxUserRecord): DemoAgent | null {
@@ -127,9 +127,25 @@ export async function refreshBranches(): Promise<void> {
 
 export async function refreshAgents(): Promise<void> {
   // Pull both agent + supervisor rows. Admin rows are filtered out in mapper.
-  const r = await dxRequest<{ data: DxUserRecord[] }>(
-    `/users?fields=${USER_FIELDS}&filter[app_role][_in]=supervisor,agent&limit=-1&sort=email`,
-  );
+  const agentSafeFields = [
+    "id", "first_name", "last_name", "agent_code", "app_role", "staff_type",
+    "branch.id", "branch.code",
+    "assigned_underwriter", "assigned_underwriter.id", "assigned_underwriter.agent_code",
+    "assigned_underwriter_code", "app_active",
+  ].join(",");
+  let r: { data: DxUserRecord[] };
+  try {
+    r = await dxRequest<{ data: DxUserRecord[] }>(
+      `/users?fields=${USER_FIELDS}&filter[app_role][_in]=supervisor,agent&limit=-1&sort=email`,
+    );
+  } catch {
+    // Agent role permissions intentionally cannot read private user fields like
+    // email. Fall back to the minimal staff-routing fields so sales pages can
+    // still see their assigned underwriter button.
+    r = await dxRequest<{ data: DxUserRecord[] }>(
+      `/users?fields=${agentSafeFields}&filter[app_role][_in]=supervisor,agent&limit=-1&sort=first_name`,
+    );
+  }
   const list: DemoAgent[] = [];
   // Resolve requester display names from the same dataset where possible.
   const byId = new Map(r.data.map((u) => [u.id, u]));
