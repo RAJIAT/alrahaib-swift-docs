@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Lock, Loader2, X } from "lucide-react";
 import { useLang } from "@/i18n/LanguageProvider";
 import { getAgents, getBranches, listAgents, listBranches, type Agent, type AgentRole, type StaffType } from "@/services/api";
@@ -61,7 +61,6 @@ export function AgentFormDialog({
   const [loading, setLoading] = useState(false);
 
   const [allAgents, setAllAgents] = useState<Agent[]>(() => listAgents());
-  const supervisors = useMemo(() => allAgents.filter((a) => a.role === "supervisor"), [allAgents]);
 
   const [branches, setBranches] = useState<string[]>(() => listBranches());
 
