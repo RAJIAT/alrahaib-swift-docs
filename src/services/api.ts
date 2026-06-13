@@ -277,6 +277,8 @@ export type RequestsQueryDebug = {
   rawFetchedCount: number;
   filteredCount: number;
   rawOwners: Array<{ id: string; agent: string; agentUserId?: string; origin_agent?: string; originAgentUserId?: string; branch: string }>;
+  filterDroppedReasons: string[];
+  directusBaseUrl: string;
 };
 
 export async function listRequestsWithDebug(opts?: { agentId?: string; branch?: string }): Promise<{ items: InsuranceRequest[]; debug: RequestsQueryDebug }> {
@@ -320,6 +322,7 @@ export async function listRequestsWithDebug(opts?: { agentId?: string; branch?: 
   if (opts?.agentId) want.add(opts.agentId);
   if (agentUuid) want.add(agentUuid);
   if (me) { want.add(me.id); if (me.agentId) want.add(me.agentId); }
+  const filterDroppedReasons: string[] = [];
   const items = rows.filter((r) => {
     if (opts?.agentId) {
       const ok =
@@ -327,11 +330,18 @@ export async function listRequestsWithDebug(opts?: { agentId?: string; branch?: 
         (r.agentUserId && want.has(r.agentUserId)) ||
         (r.originAgentId && want.has(r.originAgentId)) ||
         (r.originAgentUserId && want.has(r.originAgentUserId));
-      if (!ok) return false;
+      if (!ok) {
+        filterDroppedReasons.push(`${r.id}: owner mismatch (agent=${r.agentUserId ?? r.agentId}, origin=${r.originAgentUserId ?? r.originAgentId}, want=${[...want].join("|")})`);
+        return false;
+      }
     }
-    if (opts?.branch && r.branch !== opts.branch) return false;
+    if (opts?.branch && r.branch !== opts.branch) {
+      filterDroppedReasons.push(`${r.id}: branch mismatch (row=${r.branch}, want=${opts.branch})`);
+      return false;
+    }
     return true;
   });
+  const directusBaseUrl = (import.meta.env.VITE_DIRECTUS_URL as string | undefined) ?? "";
   return {
     items,
     debug: {
@@ -342,6 +352,8 @@ export async function listRequestsWithDebug(opts?: { agentId?: string; branch?: 
       rawFetchedCount: rows.length,
       filteredCount: items.length,
       rawOwners: rows.map((r) => ({ id: r.id, agent: r.agentId, agentUserId: r.agentUserId, origin_agent: r.originAgentId, originAgentUserId: r.originAgentUserId, branch: r.branch })),
+      filterDroppedReasons,
+      directusBaseUrl,
     },
   };
 }
