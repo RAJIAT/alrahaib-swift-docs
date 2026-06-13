@@ -28,6 +28,7 @@ function AdminAgents() {
   const navigate = useNavigate();
   const [user, setUser] = useState<AuthUser | null>(() => getCurrentUser());
   const [allAgents, setAllAgents] = useState<Agent[]>([]);
+  const [rawCount, setRawCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>("underwriter");
   const [branchFilter, setBranchFilter] = useState<string>("");
@@ -76,8 +77,17 @@ function AdminAgents() {
     const refresh = () => {
       getAgents().then((list) => {
         if (!alive) return;
-        const visible = u.role === "supervisor" && u.branch
-          ? list.filter((a) => a.branch === u.branch || a.createdByUserId === u.id)
+        setRawCount(list.length);
+        const visible = u.role === "supervisor"
+          ? list.filter((a) => {
+              // Supervisors see every user in their own branch, plus anyone
+              // they personally created (covers legacy rows where the branch
+              // FK might be unset). If the supervisor profile has no branch
+              // yet (cache still warming), don't drop everyone — show all
+              // rows the server returned and let Directus enforce visibility.
+              if (!u.branch) return true;
+              return a.branch === u.branch || a.createdByUserId === u.id;
+            })
           : list;
         setAllAgents(visible);
         setLoading(false);
