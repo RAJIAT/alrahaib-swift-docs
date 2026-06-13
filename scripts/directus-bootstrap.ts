@@ -1104,21 +1104,37 @@ const flows: FlowDef[] = [
         },
       },
       {
+        key: "read_agent",
+        name: "Read owner agent routing",
+        type: "item-read",
+        options: {
+          collection: "directus_users",
+          key: "{{read_request.agent}}",
+          query: { fields: ["id", "assigned_underwriter"] },
+        },
+      },
+      {
         key: "build_items",
         name: "Build notification rows",
         type: "exec",
         options: {
           code:
-            "module.exports = async function({ $last }) {" +
-            " const req = $last || {};" +
+            "module.exports = async function(data) {" +
+            " const req = data.read_request || {};" +
+            " const owner = data.read_agent || {};" +
             " const seen = new Set();" +
             " const recipients = [];" +
-            " if (req.agent) { seen.add(req.agent); recipients.push(req.agent); }" +
-            " if (req.origin_agent && !seen.has(req.origin_agent)) { recipients.push(req.origin_agent); }" +
+            " function add(uid) { if (uid && !seen.has(uid)) { seen.add(uid); recipients.push(uid); } }" +
+            " add(req.agent);" +
+            " add(req.origin_agent);" +
+            " const assigned = owner.assigned_underwriter && typeof owner.assigned_underwriter === 'object' ? owner.assigned_underwriter.id : owner.assigned_underwriter;" +
+            " add(assigned);" +
             " const items = recipients.map(function(uid){ return {" +
             "   recipient: uid," +
             "   kind: 'request_new'," +
             "   title: 'New documents uploaded for request ' + req.id," +
+            "   body: 'New documents uploaded for request ' + req.id," +
+            "   link: '/requests/' + req.id," +
             "   read: false," +
             " }; });" +
             " return { items: items, has_any: items.length > 0, request_id: req.id };" +
