@@ -76,6 +76,7 @@ export const Route = createRootRoute({
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/png", href: "/al-diplomacy-logo.png" },
+      { rel: "shortcut icon", type: "image/png", href: "/al-diplomacy-logo.png" },
       { rel: "apple-touch-icon", href: "/al-diplomacy-logo.png" },
     ],
   }),
