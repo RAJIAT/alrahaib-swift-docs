@@ -5,6 +5,19 @@ import { listRequests, subscribeRequests, type InsuranceRequest } from "@/servic
 // immediately on agent / supervisor / admin dashboards without manual refresh.
 const POLL_INTERVAL_MS = 4_000;
 
+function requestSig(r: InsuranceRequest): string {
+  const imageCount =
+    (r.images.registration?.length ?? 0) +
+    (r.images.license?.length ?? 0) +
+    (r.images.emirates?.length ?? 0) +
+    (r.images.vehicleMedia?.length ?? 0) +
+    (r.images.attachments?.length ?? 0) +
+    (r.images.missingAttachments?.length ?? 0) +
+    (r.images.inspection ? 1 : 0) +
+    (r.quotes?.length ?? 0);
+  return `${r.id}:${r.status}:${r.assignedAt ?? ""}:${imageCount}:${r.notes?.length ?? 0}`;
+}
+
 export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
   const [items, setItems] = useState<InsuranceRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -13,13 +26,13 @@ export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
 
   const agentId = opts?.agentId;
   const branch = opts?.branch;
+  const wantsScoped = opts !== undefined;
 
   useEffect(() => {
     let alive = true;
     // If a filter object was provided but it has no agentId/branch, treat as
     // "not ready yet" — never list ALL requests by accident from a dashboard
     // that's supposed to be scoped to one agent or branch.
-    const wantsScoped = opts !== undefined;
     const ready = !wantsScoped || !!agentId || !!branch;
     if (!ready) {
       setLoading(false);
@@ -34,8 +47,8 @@ export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
         .then((rs) => {
           if (!alive) return;
           setError(null);
-          // Cheap signature: length + ids+statuses concatenated. Skips state update if nothing changed.
-          const sig = `${rs.length}|` + rs.map((r) => `${r.id}:${r.status}`).join(",");
+          // Include file/note counts too, so customer uploads update open dashboards without refresh.
+          const sig = `${rs.length}|` + rs.map(requestSig).join(",");
           if (sig !== sigRef.current) {
             sigRef.current = sig;
             setItems(rs);
@@ -85,7 +98,7 @@ export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
         document.removeEventListener("visibilitychange", onVisibility);
       }
     };
-  }, [agentId, branch, opts]);
+  }, [agentId, branch, wantsScoped]);
 
   return { items, loading, error };
 }
