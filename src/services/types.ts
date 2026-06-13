@@ -67,8 +67,10 @@ export type InsuranceRequest = {
   id: string;
   uuid: string;
   agentId: string;
+  agentUserId?: string;
   agentName: string;
   originAgentId?: string;
+  originAgentUserId?: string;
   originAgentName?: string;
   assignedAt?: string;
   branch: string;

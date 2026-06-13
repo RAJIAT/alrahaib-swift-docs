@@ -96,6 +96,8 @@ export type AuthUser = {
   role: Role;
   agentId?: string;
   branch?: string;
+  branchId?: number;
+  staffType?: StaffType;
 };
 
 export type Agent = {
@@ -166,7 +168,7 @@ export const subscribeBranches = (cb: () => void) => sub(BR_EVT, cb);
 // ---------------------------------------------------------------------------
 
 function profileToAuth(p: ProfileSnapshot): AuthUser {
-  return { id: p.id, email: p.email, name: p.name, role: p.role, agentId: p.agentId, branch: p.branch };
+  return { id: p.id, email: p.email, name: p.name, role: p.role, agentId: p.agentId, branch: p.branch, branchId: p.branchId, staffType: p.staffType };
 }
 
 export async function login(email: string, password: string): Promise<AuthUser> {
