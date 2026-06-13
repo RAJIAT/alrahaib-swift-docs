@@ -111,10 +111,13 @@ function RequestDetails() {
   }, [user?.agentId]);
   const isUnderwriter = myStaffType === "underwriter";
   const isSalesAgent = myStaffType === "sales";
-  // Sales agents only get: view docs, download, notes, send to underwriter.
-  // They must NOT see quote/sold/payment/reupload actions or change status.
-  const canChangeStatus = role === "admin" || role === "supervisor" || isUnderwriter;
-  const canRunFinalActions = role === "admin" || role === "supervisor" || isUnderwriter;
+  // Sales agents track the request lifecycle too (Sold / Payment link sent /
+  // Quote created / Reupload). Only the actual quote-file upload stays
+  // underwriter-only (gated inside QuotesCard).
+  const canChangeStatus =
+    role === "admin" || role === "supervisor" || isUnderwriter || isSalesAgent;
+  const canRunFinalActions =
+    role === "admin" || role === "supervisor" || isUnderwriter || isSalesAgent;
   void isSalesAgent;
 
   useEffect(() => {
@@ -1271,6 +1274,7 @@ function QuotesCard({
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [sendingToUW, setSendingToUW] = useState(false);
 
   if (!user) return null;
 
@@ -1281,6 +1285,35 @@ function QuotesCard({
   const isSales = myType === "sales";
   const isAdmin = user.role === "admin";
   const isSup = user.role === "supervisor" && user.branch === req.branch;
+
+  // Sales owner shortcut: when no quote exists yet, surface a direct
+  // "Send to assigned underwriter" button right here in the Quotes card.
+  const isSalesOwner = isSales && user.agentId === req.agentId;
+  const assignedUW = meAgent?.assignedUnderwriterId
+    ? agents.find((a: Agent) => a.id === meAgent.assignedUnderwriterId)
+    : undefined;
+  const canSendToUW =
+    isSalesOwner &&
+    !!assignedUW &&
+    assignedUW.active &&
+    assignedUW.branch === req.branch &&
+    req.agentId !== assignedUW.id;
+
+  const sendToUW = async () => {
+    if (!assignedUW || sendingToUW) return;
+    setSendingToUW(true);
+    try {
+      const updated = await reassignRequest(req.id, assignedUW.id);
+      onUpdated(updated);
+      toast.success(
+        ar ? "تم إرسال الطلب للأندررايتر" : "Request sent to underwriter",
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setSendingToUW(false);
+    }
+  };
 
   const quotes = req.quotes ?? [];
   const fmt = (iso: string) =>
@@ -1351,13 +1384,28 @@ function QuotesCard({
       </div>
 
       {quotes.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {isUW
-            ? (ar ? "ارفع عرض السعر هنا — سيرجع الطلب تلقائياً للسيلز ليرسله للعميل." : "Upload the quote here — the request returns to sales automatically so they can share it with the customer.")
-            : isSales
-              ? (ar ? "بانتظار رفع عرض السعر من الأندررايتر." : "Waiting for the underwriter to upload the quote.")
-              : (ar ? "لم يتم رفع أي عرض سعر بعد." : "No quotes uploaded yet.")}
-        </p>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {isUW
+              ? (ar ? "ارفع عرض السعر هنا — سيرجع الطلب تلقائياً للسيلز ليرسله للعميل." : "Upload the quote here — the request returns to sales automatically so they can share it with the customer.")
+              : isSales
+                ? (ar ? "بانتظار رفع عرض السعر من الأندررايتر." : "Waiting for the underwriter to upload the quote.")
+                : (ar ? "لم يتم رفع أي عرض سعر بعد." : "No quotes uploaded yet.")}
+          </p>
+          {canSendToUW && (
+            <button
+              type="button"
+              onClick={sendToUW}
+              disabled={sendingToUW}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-95 disabled:opacity-60"
+            >
+              {sendingToUW ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {ar
+                ? `إرسال إلى الأندررايتر (${assignedUW!.name})`
+                : `Send to assigned underwriter (${assignedUW!.name})`}
+            </button>
+          )}
+        </div>
       ) : (
         <ul className="space-y-2">
           {quotes.map((q) => {
