@@ -268,20 +268,44 @@ export async function deleteBranch(id: number): Promise<void> {
 
 export async function listRequests(opts?: { agentId?: string; branch?: string }): Promise<InsuranceRequest[]> {
   // Map agent_code → user uuid and branch code → branch id so we can filter
-  // server-side. If the agent/branch is unknown to the cache, fall back to a
-  // client-side filter on the returned list.
-  const agentUuid = opts?.agentId
-    ? getAgentsCache().find((a) => a.id === opts.agentId || a.userId === opts.agentId)?.userId
-    : undefined;
+  // server-side. Sales agents need a tolerant lookup: the agents cache may
+  // not yet be warm, or it may exclude their own row (permissions). Fall
+  // back to the logged-in user's uuid when nothing else resolves so the
+  // `agent OR origin_agent` filter still applies on the server.
+  const me = getCurrentUser();
+  let agentUuid: string | undefined;
+  if (opts?.agentId) {
+    const cached = getAgentsCache().find((a) => a.id === opts.agentId || a.userId === opts.agentId);
+    agentUuid = cached?.userId;
+    if (!agentUuid && me && (opts.agentId === me.agentId || opts.agentId === me.id)) {
+      agentUuid = me.id;
+    }
+    // Accept a raw uuid passed in directly.
+    if (!agentUuid && /^[0-9a-f-]{36}$/i.test(opts.agentId)) {
+      agentUuid = opts.agentId;
+    }
+  }
   const branchId = opts?.branch
     ? getBranchesCache().find((b) => b.code === opts.branch)?.id
     : undefined;
   const rows = await dxListRequests({ agentUuid, branchId });
-  // Belt-and-braces client filter for unmapped cases
-  return rows.filter((r) =>
-    (!opts?.agentId || r.agentId === opts.agentId || r.originAgentId === opts.agentId) &&
-    (!opts?.branch || r.branch === opts.branch),
-  );
+  // Belt-and-braces client filter for unmapped cases. Accept matches on
+  // agent_code OR user uuid so a partially-mapped cache never hides the
+  // sales agent's own requests.
+  const want = new Set<string>();
+  if (opts?.agentId) want.add(opts.agentId);
+  if (agentUuid) want.add(agentUuid);
+  if (me) { want.add(me.id); if (me.agentId) want.add(me.agentId); }
+  return rows.filter((r) => {
+    if (opts?.agentId) {
+      const ok =
+        (r.agentId && want.has(r.agentId)) ||
+        (r.originAgentId && want.has(r.originAgentId));
+      if (!ok) return false;
+    }
+    if (opts?.branch && r.branch !== opts.branch) return false;
+    return true;
+  });
 }
 
 export async function getRequest(id: string): Promise<InsuranceRequest | null> {
