@@ -269,7 +269,17 @@ export async function deleteBranch(id: number): Promise<void> {
 // Requests
 // ---------------------------------------------------------------------------
 
-export async function listRequests(opts?: { agentId?: string; branch?: string }): Promise<InsuranceRequest[]> {
+export type RequestsQueryDebug = {
+  currentUserId: string | null;
+  currentUserStaffType: StaffType | null;
+  currentUserBranch: string | number | null;
+  queryFilter: { inputAgentId: string | null; agentUuid: string | null; branch: string | null; branchId: number | null };
+  rawFetchedCount: number;
+  filteredCount: number;
+  rawOwners: Array<{ id: string; agent: string; agentUserId?: string; origin_agent?: string; originAgentUserId?: string; branch: string }>;
+};
+
+export async function listRequestsWithDebug(opts?: { agentId?: string; branch?: string }): Promise<{ items: InsuranceRequest[]; debug: RequestsQueryDebug }> {
   // Map agent_code → user uuid and branch code → branch id so we can filter
   // server-side. Sales agents need a tolerant lookup: the agents cache may
   // not yet be warm, or it may exclude their own row (permissions). Fall
@@ -293,12 +303,15 @@ export async function listRequests(opts?: { agentId?: string; branch?: string })
     ? getBranchesCache().find((b) => b.code === opts.branch)?.id
     : undefined;
   const rows = await dxListRequests({ agentUuid, branchId });
+  const queryFilter = { inputAgentId: opts?.agentId ?? null, agentUuid: agentUuid ?? null, branch: opts?.branch ?? null, branchId: branchId ?? null };
   console.info("[agent dashboard debug] listRequests", {
     currentLoggedInAgentUserId: me?.id ?? null,
+    currentUserStaffType: me?.staffType ?? null,
+    currentUserBranch: me?.branchId ?? me?.branch ?? null,
     currentLoggedInAgentCode: me?.agentId ?? null,
-    dashboardQueryFilter: { inputAgentId: opts?.agentId ?? null, agentUuid: agentUuid ?? null, branch: opts?.branch ?? null, branchId: branchId ?? null },
+    dashboardQueryFilter: queryFilter,
     returnedRows: rows.length,
-    returnedRequestOwners: rows.map((r) => ({ id: r.id, agent: r.agentId, origin_agent: r.originAgentId, branch: r.branch })),
+    returnedRequestOwners: rows.map((r) => ({ id: r.id, agent: r.agentId, agentUserId: r.agentUserId, origin_agent: r.originAgentId, originAgentUserId: r.originAgentUserId, branch: r.branch })),
   });
   // Belt-and-braces client filter for unmapped cases. Accept matches on
   // agent_code OR user uuid so a partially-mapped cache never hides the
@@ -307,16 +320,34 @@ export async function listRequests(opts?: { agentId?: string; branch?: string })
   if (opts?.agentId) want.add(opts.agentId);
   if (agentUuid) want.add(agentUuid);
   if (me) { want.add(me.id); if (me.agentId) want.add(me.agentId); }
-  return rows.filter((r) => {
+  const items = rows.filter((r) => {
     if (opts?.agentId) {
       const ok =
         (r.agentId && want.has(r.agentId)) ||
-        (r.originAgentId && want.has(r.originAgentId));
+        (r.agentUserId && want.has(r.agentUserId)) ||
+        (r.originAgentId && want.has(r.originAgentId)) ||
+        (r.originAgentUserId && want.has(r.originAgentUserId));
       if (!ok) return false;
     }
     if (opts?.branch && r.branch !== opts.branch) return false;
     return true;
   });
+  return {
+    items,
+    debug: {
+      currentUserId: me?.id ?? null,
+      currentUserStaffType: me?.staffType ?? null,
+      currentUserBranch: me?.branchId ?? me?.branch ?? null,
+      queryFilter,
+      rawFetchedCount: rows.length,
+      filteredCount: items.length,
+      rawOwners: rows.map((r) => ({ id: r.id, agent: r.agentId, agentUserId: r.agentUserId, origin_agent: r.originAgentId, originAgentUserId: r.originAgentUserId, branch: r.branch })),
+    },
+  };
+}
+
+export async function listRequests(opts?: { agentId?: string; branch?: string }): Promise<InsuranceRequest[]> {
+  return (await listRequestsWithDebug(opts)).items;
 }
 
 export async function getRequest(id: string): Promise<InsuranceRequest | null> {
