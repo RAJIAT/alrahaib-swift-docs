@@ -1406,6 +1406,16 @@ function QuotesCard({
   };
 
   const shareLink = `${typeof window !== "undefined" ? window.location.origin : ""}/q/${encodeURIComponent(req.id)}`;
+  const markLinkSentBestEffort = async () => {
+    // Only flip status forward; never overwrite a sold/rejected terminal state.
+    if (req.status === "sold" || req.status === "rejected" || req.status === "linkSent") return;
+    try {
+      const updated = await updateRequestStatus(req.id, "linkSent");
+      onUpdated(updated);
+    } catch (e) {
+      console.warn("[share quote] failed to mark linkSent", e);
+    }
+  };
   const copyShareLink = async () => {
     try {
       await navigator.clipboard.writeText(shareLink);
@@ -1413,8 +1423,9 @@ function QuotesCard({
     } catch {
       window.prompt(ar ? "انسخ الرابط" : "Copy link", shareLink);
     }
+    await markLinkSentBestEffort();
   };
-  const emailShareLink = () => {
+  const emailShareLink = async () => {
     if (!req.customerEmail) return copyShareLink();
     const subject = encodeURIComponent(ar ? `عرض السعر — ${req.id}` : `Insurance quote — ${req.id}`);
     const body = encodeURIComponent(
@@ -1422,7 +1433,13 @@ function QuotesCard({
         ? `مرحباً ${req.customerName ?? ""}،\n\nيمكنك الاطلاع على عرض السعر من الرابط التالي:\n${shareLink}`
         : `Hello ${req.customerName ?? ""},\n\nYou can view your quote here:\n${shareLink}`),
     );
-    window.location.href = `mailto:${encodeURIComponent(req.customerEmail)}?subject=${subject}&body=${body}`;
+    // Open mail client first, then record status change in the background.
+    window.open(
+      `mailto:${encodeURIComponent(req.customerEmail)}?subject=${subject}&body=${body}`,
+      "_self",
+    );
+    toast.success(ar ? "تم إرسال الرابط للعميل" : "Quote link sent to customer");
+    await markLinkSentBestEffort();
   };
 
   return (
