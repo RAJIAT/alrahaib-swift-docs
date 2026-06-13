@@ -8,9 +8,9 @@
  * and are skipped.
  *
  * Usage:
- *   DIRECTUS_URL=https://directus.example.com \
- *   DIRECTUS_ADMIN_TOKEN=xxxxx \
- *   bun run scripts/directus-patch-audit-create-perms.ts
+ *   DIRECTUS_URL=http://127.0.0.1:8055 \
+ *   DIRECTUS_ADMIN_TOKEN= \
+ *   npx tsx scripts/directus-patch-audit-create-perms.ts
  */
 
 const URL_BASE = (process.env.DIRECTUS_URL ?? "").replace(/\/$/, "");

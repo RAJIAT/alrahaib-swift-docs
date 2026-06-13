@@ -12,9 +12,9 @@
  * the `lovable: enforce_sales_routing` flow.
  *
  * Usage:
- *   DIRECTUS_URL=https://directus.example.com \
- *   DIRECTUS_ADMIN_TOKEN=xxxxx \
- *   bun run scripts/directus-patch-underwriter-assignment.ts
+ *   DIRECTUS_URL=http://127.0.0.1:8055 \
+ *   DIRECTUS_ADMIN_TOKEN= \
+ *   npx tsx scripts/directus-patch-underwriter-assignment.ts
  */
 
 const URL_BASE = (process.env.DIRECTUS_URL ?? "").replace(/\/$/, "");

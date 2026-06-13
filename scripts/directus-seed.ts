@@ -2,7 +2,7 @@
  * Directus Seed — يضيف بيانات تجريبية مطابقة لـ src/services/demoStore.ts.
  *
  * تشغيل بعد bootstrap:
- *   DIRECTUS_URL=… DIRECTUS_ADMIN_TOKEN=… bun run scripts/directus-seed.ts
+ *   DIRECTUS_URL=http://127.0.0.1:8055 DIRECTUS_ADMIN_TOKEN= npx tsx scripts/directus-seed.ts
  *
  * Idempotent: يفحص بالـ email/code قبل الإنشاء.
  */
