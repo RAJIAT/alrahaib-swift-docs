@@ -88,6 +88,23 @@ type DxRequestFileRow = {
   file?: DxFileObj | string | null;
 };
 
+type DxAgentLookupRow = {
+  id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  agent_code?: string | null;
+  app_role?: "admin" | "supervisor" | "agent" | null;
+  staff_type?: "underwriter" | "sales" | null;
+  branch?: { id: number; code: string } | number | null;
+  app_active?: boolean | null;
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | undefined | null): value is string {
+  return !!value && UUID_RE.test(value);
+}
+
 function fileObj(row: DxRequestFileRow): DxFileObj | null {
   const f = row.file;
   if (!f) return null;
@@ -102,9 +119,24 @@ function agentCodeFromUuid(uuid: string | null | undefined): { code: string; nam
 }
 function uuidFromAgentCode(code: string | undefined): string | null {
   if (!code) return null;
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(code)) return code;
+  if (isUuid(code)) return code;
   const a = getAgentsCache().find((x) => x.id === code || x.userId === code);
   return a?.userId ?? null;
+}
+function agentLookupName(u: DxAgentLookupRow): string {
+  const joined = `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim();
+  return joined || u.agent_code || u.id;
+}
+function agentLookupBranchCode(u: DxAgentLookupRow): string {
+  const b = u.branch;
+  if (b && typeof b === "object" && "code" in b) return b.code ?? "";
+  return "";
+}
+function agentLookupBranchId(u: DxAgentLookupRow): number | null {
+  const b = u.branch;
+  if (typeof b === "number") return b;
+  if (b && typeof b === "object" && "id" in b) return b.id ?? null;
+  return null;
 }
 function branchCodeFromId(id: number | null | undefined): string {
   if (id == null) return "";
