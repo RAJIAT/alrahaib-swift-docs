@@ -147,6 +147,77 @@ function branchIdFromCode(code: string | undefined | null): number | null {
   return getBranchesCache().find((b) => b.code === code)?.id ?? null;
 }
 
+export type ResolvedUploadAgent = {
+  userId: string;
+  agentCode: string;
+  name: string;
+  branchCode: string;
+  branchId: number | null;
+  staffType?: "underwriter" | "sales";
+  source: "cache" | "direct-user-id" | "direct-agent-code" | "raw-uuid";
+};
+
+export async function dxResolveUploadAgent(identifier: string): Promise<ResolvedUploadAgent> {
+  await ensureEntitiesCached();
+  const key = identifier.trim();
+  const cached = getAgentsCache().find((a) => a.id === key || a.userId === key);
+  if (cached) {
+    return {
+      userId: cached.userId,
+      agentCode: cached.id,
+      name: cached.name,
+      branchCode: cached.branch ?? "",
+      branchId: branchIdFromCode(cached.branch),
+      staffType: cached.staffType,
+      source: "cache",
+    };
+  }
+
+  const fields = "id,first_name,last_name,agent_code,app_role,staff_type,branch.id,branch.code,app_active";
+  let row: DxAgentLookupRow | undefined;
+  let source: ResolvedUploadAgent["source"] = "direct-agent-code";
+  if (isUuid(key)) {
+    try {
+      const r = await dxRequest<{ data: DxAgentLookupRow }>(`/users/${encodeURIComponent(key)}?fields=${fields}`);
+      row = r.data;
+      source = "direct-user-id";
+    } catch (e) {
+      console.warn("[upload debug] direct user-id agent lookup failed", { agentParam: key, error: e });
+    }
+  }
+  if (!row) {
+    try {
+      const r = await dxRequest<{ data: DxAgentLookupRow[] }>(
+        `/users?fields=${fields}&limit=1&filter[_or][0][id][_eq]=${encodeURIComponent(key)}&filter[_or][1][agent_code][_eq]=${encodeURIComponent(key)}`,
+      );
+      row = r.data[0];
+      source = row?.id === key ? "direct-user-id" : "direct-agent-code";
+    } catch (e) {
+      console.warn("[upload debug] agent-code lookup failed", { agentParam: key, error: e });
+    }
+  }
+
+  if (row) {
+    if (row.app_role && row.app_role !== "agent") throw new Error("Upload link does not point to an agent user");
+    if (row.app_active === false) throw new Error("Upload link points to an inactive agent user");
+    const branchCode = agentLookupBranchCode(row);
+    return {
+      userId: row.id,
+      agentCode: row.agent_code || row.id,
+      name: agentLookupName(row),
+      branchCode,
+      branchId: agentLookupBranchId(row) ?? branchIdFromCode(branchCode),
+      staffType: row.staff_type ?? undefined,
+      source,
+    };
+  }
+
+  if (isUuid(key)) {
+    return { userId: key, agentCode: key, name: key, branchCode: "", branchId: null, source: "raw-uuid" };
+  }
+  throw new Error("Sales Agent not found for this upload link");
+}
+
 function noteFromRow(n: DxNoteRow): DemoNote {
   const author = agentCodeFromUuid(n.author);
   return {
