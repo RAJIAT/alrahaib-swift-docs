@@ -110,9 +110,9 @@ bun install --production
 
 ```bash
 cd ~/apps/aldiplomacy-portal
-export DIRECTUS_URL=https://directus.alrahaib.com
+export DIRECTUS_URL=http://10.8.0.21:8080
 export DIRECTUS_ADMIN_TOKEN=<من Directus admin>
-bun run scripts/directus-bootstrap.ts
+npx tsx scripts/directus-bootstrap.ts
 ```
 
 ### 3.6 تشغيل التطبيق عبر PM2
@@ -133,10 +133,10 @@ curl -I http://127.0.0.1:3000/
 
 ### 3.7 ربط الدومين عبر Apache
 
-1. من DirectAdmin → **Domain Setup** أضف الدومين `docportal.alrahaib.com`.
+1. من DirectAdmin → **Domain Setup** أضف الدومين `10.8.0.21`.
 2. ضع ملف `deploy/.htaccess` (الموجود في هذا الـ repo) داخل `public_html/`:
    ```bash
-   cp ~/apps/aldiplomacy-portal/deploy/.htaccess ~/domains/docportal.alrahaib.com/public_html/
+   cp ~/apps/aldiplomacy-portal/deploy/.htaccess ~/domains/10.8.0.21/public_html/
    ```
 3. تأكد أن `mod_proxy` و `mod_proxy_http` و `mod_headers` مفعّلة (DirectAdmin → Custom HTTPD Configurations).
 4. أصدر شهادة SSL:
@@ -145,9 +145,9 @@ curl -I http://127.0.0.1:3000/
 ### 3.8 التحقق النهائي
 
 ```bash
-curl -I https://docportal.alrahaib.com/
-curl -I https://docportal.alrahaib.com/login
-curl -I https://directus.alrahaib.com/server/info
+curl -I http://10.8.0.21/
+curl -I http://10.8.0.21/login
+curl -I http://10.8.0.21:8080/server/info
 ```
 
 ---
@@ -177,7 +177,7 @@ ssh user@server "cd ~/apps/aldiplomacy-portal && pm2 reload aldiplomacy-portal"
 | `~/apps/aldiplomacy-portal/logs/` | logs PM2 |
 | `~/apps/aldiplomacy-portal/uploads/` | (احتياطي) — الأساس عند Directus |
 | `~/directus/uploads/` | ملفات Directus |
-| `~/domains/docportal.alrahaib.com/public_html/.htaccess` | reverse proxy rules |
+| `~/domains/10.8.0.21/public_html/.htaccess` | reverse proxy rules |
 
 ---
 

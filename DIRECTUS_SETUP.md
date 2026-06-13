@@ -94,7 +94,7 @@ day-to-day operations.
 Create a `.env` file at the project root (or set the variable in your build env):
 
 ```
-VITE_DIRECTUS_URL=https://api.alrahaib.ae
+VITE_DIRECTUS_URL=http://10.8.0.21:8080
 ```
 
 Rebuild / restart. The demo banner disappears and all calls now go to Directus.
@@ -107,7 +107,7 @@ real Directus credentials.
 Customers receive a link like:
 
 ```
-https://app.alrahaib.ae/?agent=A123
+http://10.8.0.21/?agent=A123
 ```
 
 The `agent=...` value is stored on the new request as `agent_id` and is
