@@ -352,18 +352,26 @@ const FILE_FIELDS =
 
 export async function dxListRequests(opts?: { agentUuid?: string; branchId?: number }): Promise<DemoRequest[]> {
   await ensureEntitiesCached();
-  const filters: string[] = [];
+  const andClauses: unknown[] = [];
   if (opts?.agentUuid) {
-    filters.push(
-      `filter[_or][0][agent][_eq]=${encodeURIComponent(opts.agentUuid)}`,
-      `filter[_or][1][origin_agent][_eq]=${encodeURIComponent(opts.agentUuid)}`,
-    );
+    andClauses.push({
+      _or: [
+        { agent: { _eq: opts.agentUuid } },
+        { origin_agent: { _eq: opts.agentUuid } },
+      ],
+    });
   }
   if (opts?.branchId != null) {
-    filters.push(`filter[branch][_eq]=${opts.branchId}`);
+    andClauses.push({ branch: { _eq: opts.branchId } });
   }
-  const qs = `?fields=${REQ_FIELDS}&limit=-1&sort=-date_created${filters.length ? "&" + filters.join("&") : ""}`;
-  const r = await dxRequest<{ data: DxRequestRow[] }>(`/items/requests${qs}`);
+  const filterObj = andClauses.length ? { _and: andClauses } : undefined;
+  const qs =
+    `?fields=${REQ_FIELDS}&limit=-1&sort=-date_created` +
+    (filterObj ? `&filter=${encodeURIComponent(JSON.stringify(filterObj))}` : "");
+  const url = `/items/requests${qs}`;
+  console.info("[agent dashboard debug] dxListRequests URL", url);
+  const r = await dxRequest<{ data: DxRequestRow[] }>(url);
+  console.info("[agent dashboard debug] dxListRequests raw rows", r.data.map((x) => ({ id: x.id, agent: x.agent, origin_agent: x.origin_agent, branch: x.branch })));
   const ids = r.data.map((x) => x.id);
   let notes: DxNoteRow[] = [];
   let files: DxRequestFileRow[] = [];
