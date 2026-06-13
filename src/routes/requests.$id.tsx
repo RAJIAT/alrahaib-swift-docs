@@ -7,6 +7,7 @@ import { DashboardShell } from "@/components/DashboardShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLang } from "@/i18n/LanguageProvider";
 import { isPdfDataUrl } from "@/lib/imageUtils";
+import { copyToClipboard, safeMessage } from "@/lib/utils";
 import {
   getCurrentUser, refreshCurrentUser, getRequest, updateRequestStatus, resolveAssetUrl,
   addRequestNote, resolveRequestNote, subscribeRequests,
@@ -522,7 +523,15 @@ function RequestDetails() {
           {/* Actions — admin/supervisor/underwriter only. Sales agents only
               view docs, add notes, and send-to-underwriter. */}
           {canRunFinalActions && (
-            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              <button
+                onClick={() => setStatus("processing", "quote")}
+                disabled={saving}
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-soft transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingAction === "quote" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                {t.details.markProcessing}
+              </button>
               <button
                 onClick={() => setStatus("linkSent", "linkSent")}
                 disabled={saving}
@@ -532,12 +541,12 @@ function RequestDetails() {
                 {t.details.markLinkSent}
               </button>
               <button
-                onClick={() => setStatus("processing", "quote")}
+                onClick={() => setStatus("reupload", "reupload")}
                 disabled={saving}
-                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-soft transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-purple text-sm font-semibold text-purple-foreground shadow-soft transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {savingAction === "quote" ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                {t.details.createQuote}
+                {savingAction === "reupload" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                {t.details.awaitingMissing}
               </button>
               <button
                 onClick={() => setStatus("sold", "sold")}
@@ -548,12 +557,12 @@ function RequestDetails() {
                 {t.details.markSold}
               </button>
               <button
-                onClick={() => setStatus("reupload", "reupload")}
+                onClick={() => setStatus("rejected", "rejected")}
                 disabled={saving}
-                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-purple text-sm font-semibold text-purple-foreground shadow-soft transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-destructive text-sm font-semibold text-destructive-foreground shadow-soft transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {savingAction === "reupload" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-                {t.details.reupload}
+                {savingAction === "rejected" ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                {t.details.markRejected}
               </button>
             </div>
           )}
@@ -817,7 +826,7 @@ function NotesSection({
       );
     } catch (e) {
       console.error(e);
-      toast.error(lang === "ar" ? "تعذر حفظ الملاحظة، حاول مرة أخرى" : "Could not save the note, please try again");
+      toast.error(safeMessage(e, lang === "ar" ? "تعذر حفظ الملاحظة، حاول مرة أخرى" : "Could not save the note, please try again"));
     } finally {
       setBusy(false);
     }
@@ -828,8 +837,8 @@ function NotesSection({
     try {
       const updated = await resolveRequestNote(req.id, noteId);
       onUpdated(updated);
-    } catch {
-      toast.error(lang === "ar" ? "تعذر تحديث الملاحظة" : "Could not update the note");
+    } catch (e) {
+      toast.error(safeMessage(e, lang === "ar" ? "تعذر تحديث الملاحظة" : "Could not update the note"));
     } finally {
       setResolvingId(null);
     }
@@ -838,10 +847,10 @@ function NotesSection({
   const copyReuploadLink = async () => {
     const url = `${window.location.origin}/r/${encodeURIComponent(req.id)}`;
     try {
-      await navigator.clipboard.writeText(url);
+      await copyToClipboard(url);
       toast.success(t.details.reuploadLinkCopied);
-    } catch {
-      window.prompt(t.details.copyReuploadLink, url);
+    } catch (e) {
+      toast.error(safeMessage(e, t.details.copyReuploadLink));
     }
   };
 
@@ -1419,10 +1428,11 @@ function QuotesCard({
   };
   const copyShareLink = async () => {
     try {
-      await navigator.clipboard.writeText(shareLink);
+      await copyToClipboard(shareLink);
       toast.success(ar ? "تم نسخ رابط المشاركة" : "Share link copied");
-    } catch {
-      window.prompt(ar ? "انسخ الرابط" : "Copy link", shareLink);
+    } catch (e) {
+      toast.error(safeMessage(e, ar ? "تعذر نسخ الرابط" : "Could not copy link"));
+      return;
     }
     await markLinkSentBestEffort();
   };
