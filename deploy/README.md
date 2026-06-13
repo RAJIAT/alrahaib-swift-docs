@@ -43,7 +43,7 @@ pm2 save
 Then load schema/seed once `scripts/directus-bootstrap.ts` is finalised:
 
 ```bash
-DIRECTUS_URL=https://directus.alrahaib.com \
+DIRECTUS_URL=http://10.8.0.21:8080 \
 DIRECTUS_ADMIN_TOKEN=<token> \
 node scripts/directus-bootstrap.mjs
 ```
@@ -80,16 +80,16 @@ pm2 reload aldiplomacy-portal     # zero-downtime, sends SIGINT for graceful shu
 ## 4. Nginx + SSL
 
 ```bash
-sudo cp deploy/nginx.conf /etc/nginx/sites-available/docportal.alrahaib.com
-sudo ln -sf /etc/nginx/sites-available/docportal.alrahaib.com /etc/nginx/sites-enabled/
+sudo cp deploy/nginx.conf /etc/nginx/sites-available/10.8.0.21
+sudo ln -sf /etc/nginx/sites-available/10.8.0.21 /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d docportal.alrahaib.com -d directus.alrahaib.com
+sudo certbot --nginx -d 10.8.0.21 -d 10.8.0.21:8080
 ```
 
 ## 5. Health check
 
 ```bash
-curl -fsS https://docportal.alrahaib.com/api/health
+curl -fsS http://10.8.0.21/api/health
 # => {"status":"ok","uptime":...,"timestamp":"..."}
 ```
 
@@ -147,4 +147,4 @@ Uploaded files: rsync `~/directus/uploads/` to backup target nightly.
 | App crashes on start          | `pm2 logs aldiplomacy-portal --err --lines 200`              |
 | Directus 500 on upload        | `~/directus/uploads/` writable? client_max_body_size in nginx? |
 | SSR errors after deploy       | `.env` populated? `SESSION_SECRET` set? rebuild needed       |
-| CORS errors from frontend     | Directus `CORS_ORIGIN` must list `https://docportal.alrahaib.com` |
+| CORS errors from frontend     | Directus `CORS_ORIGIN` must list `http://10.8.0.21` |

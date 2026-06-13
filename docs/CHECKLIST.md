@@ -39,8 +39,8 @@
 - [ ] تفعيل Apache modules: `mod_proxy`, `mod_proxy_http`, `mod_headers`, `mod_rewrite` (Custom HTTPD Configurations).
 - [ ] تثبيت Postgres + Directus (راجع `DIRECTUS_SETUP.md`).
 - [ ] ضبط DNS:
-  - `docportal.alrahaib.com` → IP السيرفر (A record)
-  - `directus.alrahaib.com` → نفس IP السيرفر (A record)
+  - `10.8.0.21` → IP السيرفر (A record)
+  - `10.8.0.21:8080` → نفس IP السيرفر (A record)
 - [ ] إصدار شهادات SSL لكلا الدومينين (DirectAdmin → SSL → Let's Encrypt).
 - [ ] إنشاء `.env` على السيرفر بالقيم الإنتاجية + `chmod 600 .env`.
 - [ ] إعداد `EMAIL_*` في `.env` الخاص بـ Directus (SMTP فعلي).
@@ -65,16 +65,16 @@ cp .env.example .env && nano .env && chmod 600 .env
 mkdir -p logs
 
 # Directus bootstrap (مرة واحدة)
-DIRECTUS_URL=https://directus.alrahaib.com \
+DIRECTUS_URL=http://10.8.0.21:8080 \
 DIRECTUS_ADMIN_TOKEN=xxxxxxxx \
-bun run scripts/directus-bootstrap.ts
+npx tsx scripts/directus-bootstrap.ts
 
 # تشغيل التطبيق
 pm2 start ecosystem.config.cjs --env production
 pm2 save && pm2 startup
 
 # 3) Apache
-cp deploy/.htaccess ~/domains/docportal.alrahaib.com/public_html/.htaccess
+cp deploy/.htaccess ~/domains/10.8.0.21/public_html/.htaccess
 # ثم: DirectAdmin → SSL → Let's Encrypt لكلا الدومينين
 ```
 
@@ -82,8 +82,8 @@ cp deploy/.htaccess ~/domains/docportal.alrahaib.com/public_html/.htaccess
 
 ## 🔧 إعدادات DirectAdmin
 
-1. **Domain Setup** → أضف `docportal.alrahaib.com` و `directus.alrahaib.com`.
-2. **Node.js Selector** → اختر Node 20، اضبط Application Root = `~/apps/aldiplomacy-portal`، Application URL = `docportal.alrahaib.com`، Startup File = `.output/server/index.mjs` (أو اعتمد على PM2 وعطّل Node Selector).
+1. **Domain Setup** → أضف `10.8.0.21` و `10.8.0.21:8080`.
+2. **Node.js Selector** → اختر Node 20، اضبط Application Root = `~/apps/aldiplomacy-portal`، Application URL = `10.8.0.21`، Startup File = `.output/server/index.mjs` (أو اعتمد على PM2 وعطّل Node Selector).
 3. **Custom HTTPD Configurations** → فعّل `mod_proxy`, `mod_proxy_http`, `mod_headers`, `mod_rewrite`.
 4. **SSL Certificates** → Let's Encrypt → اختر الدومينين → Save.
 5. **Cron Jobs** → أضف backup يومي لـ Postgres.
@@ -98,14 +98,14 @@ cp deploy/.htaccess ~/domains/docportal.alrahaib.com/public_html/.htaccess
 cd ~/apps/aldiplomacy-portal
 
 # ولّد admin token من Directus → Settings → Access Tokens
-export DIRECTUS_URL=https://directus.alrahaib.com
+export DIRECTUS_URL=http://10.8.0.21:8080
 export DIRECTUS_ADMIN_TOKEN=<token>
 
 # طبّق الـ collections (idempotent، آمن للإعادة)
-bun run scripts/directus-bootstrap.ts
+npx tsx scripts/directus-bootstrap.ts
 
 # (اختياري) بيانات seed أولية
-bun run scripts/directus-seed.ts
+npx tsx scripts/directus-seed.ts
 ```
 
 تفاصيل الـ schema في `docs/directus-schema.md` و `scripts/directus-permissions.json`.
@@ -125,7 +125,7 @@ bun run scripts/directus-seed.ts
 
 ## 🚀 تأكيد الجاهزية النهائية (بعد go-live)
 
-- [ ] `https://docportal.alrahaib.com/` يفتح صفحة login.
+- [ ] `http://10.8.0.21/` يفتح صفحة login.
 - [ ] تسجيل دخول Admin يعمل.
 - [ ] إنشاء request + رفع ملف يعمل.
 - [ ] الـ logs نظيفة (`pm2 logs`).
