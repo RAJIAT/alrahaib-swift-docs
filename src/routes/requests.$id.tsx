@@ -1293,8 +1293,8 @@ function QuotesCard({
 
   if (!user) return null;
 
-  const meAgent = agents.find((a: Agent) => a.id === user.agentId);
-  const myType = meAgent?.staffType;
+  const meAgent = agents.find((a: Agent) => a.userId === user.id || a.id === user.agentId);
+  const myType = meAgent?.staffType ?? user.staffType;
   const isUW = myType === "underwriter";
   const isSales = myType === "sales";
   const isAdmin = user.role === "admin";
@@ -1302,16 +1302,26 @@ function QuotesCard({
 
   // Sales owner shortcut: when no quote exists yet, surface a direct
   // "Send to assigned underwriter" button right here in the Quotes card.
-  const isSalesOwner = isSales && (user.agentId === req.agentId || user.agentId === req.originAgentId);
+  // Compare by canonical Directus user UUIDs; fall back to agent codes only
+  // if UUIDs are missing on the request row.
+  const isSalesOwner =
+    isSales && (
+      (!!req.agentUserId && req.agentUserId === user.id) ||
+      (!!req.originAgentUserId && req.originAgentUserId === user.id) ||
+      (!!user.agentId && (user.agentId === req.agentId || user.agentId === req.originAgentId))
+    );
   const assignedUW = meAgent?.assignedUnderwriterId
     ? agents.find((a: Agent) => a.id === meAgent.assignedUnderwriterId || a.userId === meAgent.assignedUnderwriterId)
     : undefined;
-  const requestAlreadyAtAssignedUW = !!assignedUW && (req.agentId === assignedUW.id || req.agentId === assignedUW.userId);
+  const requestAlreadyAtAssignedUW =
+    !!assignedUW && (
+      (!!req.agentUserId && req.agentUserId === assignedUW.userId) ||
+      req.agentId === assignedUW.id ||
+      req.agentId === assignedUW.userId
+    );
   const canSendToUW =
     isSalesOwner &&
     !!assignedUW &&
-    assignedUW.active &&
-    assignedUW.branch === req.branch &&
     !requestAlreadyAtAssignedUW;
   const sendToUWDebugReason = !isSales
     ? "current user is not sales"
@@ -1323,13 +1333,9 @@ function QuotesCard({
           ? "sales user has no assigned_underwriter"
           : !assignedUW
             ? "assigned underwriter row not loaded or not visible"
-            : !assignedUW.active
-              ? "assigned underwriter is inactive"
-              : assignedUW.branch !== req.branch
-                ? "assigned underwriter branch does not match request branch"
-                : requestAlreadyAtAssignedUW
-                  ? "request is already assigned to this underwriter"
-                  : "visible";
+            : requestAlreadyAtAssignedUW
+              ? "request is already assigned to this underwriter"
+              : "visible";
 
   if (import.meta.env.DEV && isSales) {
     console.info("[Al Diplomacy request routing]", {
@@ -1439,10 +1445,18 @@ function QuotesCard({
                 ? (ar ? "بانتظار رفع عرض السعر من الأندررايتر." : "Waiting for the underwriter to upload the quote.")
                 : (ar ? "لم يتم رفع أي عرض سعر بعد." : "No quotes uploaded yet.")}
           </p>
-          {import.meta.env.DEV && isSales && !canSendToUW && (
-            <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning-foreground">
-              {ar ? "سبب إخفاء زر الأندررايتر: " : "Send-to-underwriter hidden: "}{sendToUWDebugReason}
-            </p>
+          {isSales && !canSendToUW && (
+            <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[11px] text-warning-foreground space-y-0.5 font-mono">
+              <div className="font-sans font-semibold">
+                {ar ? "سبب إخفاء زر الأندررايتر:" : "Send-to-underwriter hidden:"} {sendToUWDebugReason}
+              </div>
+              <div>currentUser.id = {user.id}</div>
+              <div>currentUser.staff_type = {String(myType ?? "(unknown)")}</div>
+              <div>currentUser.assigned_underwriter = {String(meAgent?.assignedUnderwriterId ?? "(none)")}</div>
+              <div>request.agent (uuid) = {String(req.agentUserId ?? "(none)")}</div>
+              <div>request.origin_agent (uuid) = {String(req.originAgentUserId ?? "(none)")}</div>
+              <div>request.branch = {String(req.branch ?? "(none)")}</div>
+            </div>
           )}
           {canSendToUW && (
             <button
