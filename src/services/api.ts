@@ -705,16 +705,22 @@ export type { PushNotificationInput } from "./directusNotify";
 // and refreshed whenever the change-event fires.
 const _notifCache = new Map<string, DemoNotification[]>();
 
+function notificationSignature(rows: DemoNotification[]): string {
+  return rows.map((n) => `${n.id}:${n.read}:${n.createdAt}`).join("|");
+}
+
 export function listNotificationsFor(userId: string): DemoNotification[] {
-  if (!_notifCache.has(userId)) {
-    void fetchNotificationsFor(userId).then((rows) => {
+  if (!_notifCache.has(userId)) _notifCache.set(userId, []);
+  void fetchNotificationsFor(userId).then((rows) => {
+    const before = notificationSignature(_notifCache.get(userId) ?? []);
+    const after = notificationSignature(rows);
+    if (before !== after) {
       _notifCache.set(userId, rows);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("aib:notifications-changed"));
       }
-    });
-    return [];
-  }
+    }
+  });
   return _notifCache.get(userId) ?? [];
 }
 
