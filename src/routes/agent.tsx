@@ -13,7 +13,7 @@ export const Route = createFileRoute("/agent")({
   component: AgentDashboard,
 });
 
-type StatusFilter = "all" | "new" | "processing" | "sold" | "rejected" | "reupload";
+type StatusFilter = "all" | "new" | "quoted" | "linkSent" | "processing" | "sold" | "rejected" | "reupload";
 
 function AgentDashboard() {
   const { t, dir, lang } = useLang();
@@ -79,6 +79,8 @@ function AgentDashboard() {
     () => ({
       all: items.length,
       new: items.filter((r) => r.status === "new").length,
+      quoted: items.filter((r) => r.status === "quoted").length,
+      linkSent: items.filter((r) => r.status === "linkSent").length,
       processing: items.filter((r) => r.status === "processing").length,
       sold: items.filter((r) => r.status === "sold").length,
       rejected: items.filter((r) => r.status === "rejected").length,
@@ -98,6 +100,8 @@ function AgentDashboard() {
     { key: "all", label: lang === "ar" ? "الكل" : "All", tone: "bg-foreground text-background" },
     { key: "new", label: t.status.new, tone: "bg-info text-info-foreground" },
     { key: "processing", label: t.status.processing, tone: "bg-warning text-warning-foreground" },
+    { key: "quoted", label: t.status.quoted, tone: "bg-info text-info-foreground" },
+    { key: "linkSent", label: t.status.linkSent, tone: "bg-info text-info-foreground" },
     { key: "sold", label: t.status.sold, tone: "bg-success text-success-foreground" },
     { key: "reupload", label: t.status.reupload, tone: "bg-purple text-purple-foreground" },
     { key: "rejected", label: t.status.rejected, tone: "bg-destructive text-destructive-foreground" },
