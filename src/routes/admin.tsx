@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, FileText, Inbox, Loader2, Sparkles, TrendingUp, X } from "lucide-react";
+import * as XLSX from "xlsx";
 import { DashboardShell } from "@/components/DashboardShell";
 import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -87,6 +88,27 @@ function AdminDashboard() {
     return m;
   }, [agents]);
 
+  const agentById = useMemo(() => {
+    const m = new Map<string, Agent>();
+    for (const a of agents) m.set(a.id, a);
+    return m;
+  }, [agents]);
+
+  const resolveUnderwriterName = (r: typeof items[number]): string => {
+    const owner = agentById.get(r.agentId);
+    if (owner && owner.staffType === "underwriter") return owner.name;
+    const checkSales = (id?: string) => {
+      if (!id) return undefined;
+      const a = agentById.get(id);
+      if (a && a.staffType === "sales" && a.assignedUnderwriterId) {
+        const uw = agentById.get(a.assignedUnderwriterId);
+        if (uw) return uw.name;
+      }
+      return undefined;
+    };
+    return checkSales(r.agentId) ?? checkSales(r.originAgentId) ?? t.table.notAssigned;
+  };
+
   const agentOptions = useMemo(
     () => agents.map((a) => ({ value: a.id, label: a.name })),
     [agents],
@@ -139,6 +161,23 @@ function AdminDashboard() {
   if (branchF) activeChips.push({ label: `${t.admin.filterBranch}: ${branchF}`, clear: () => startTransition(() => setBranchF("")) });
   if (statusF) activeChips.push({ label: `${t.admin.filterStatus}: ${t.status[statusF]}`, clear: () => startTransition(() => setStatusF("")) });
   if (dateF) activeChips.push({ label: `${t.admin.filterDate}: ${dateF}`, clear: () => startTransition(() => setDateF("")) });
+
+  const exportExcel = () => {
+    const rows = filtered.map((r) => ({
+      [t.table.requestId]: r.id,
+      [t.table.agent]: r.agentName,
+      [t.table.underwriter]: resolveUnderwriterName(r),
+      [t.table.branch]: r.branch,
+      [t.table.date]: new Date(r.createdAt).toLocaleString(lang === "ar" ? "ar-AE" : "en-GB", {
+        dateStyle: "medium", timeStyle: "short",
+      }),
+      [t.table.status]: t.status[r.status],
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Requests");
+    XLSX.writeFile(wb, "requests-log-export.xlsx");
+  };
 
   return (
     <DashboardShell role={["admin", "supervisor"]} title={isSupervisor ? `${t.admin.supervisorTitle} — ${lockedBranch}` : t.admin.title}>
