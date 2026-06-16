@@ -1643,6 +1643,24 @@ function QuotesCard({
                   </button>
                 </div>
                 <p dir="ltr" className="mb-3 truncate rounded-lg border border-border bg-surface px-2 py-1.5 text-[11px] text-muted-foreground" title={shareLink}>{shareLink}</p>
+                <div className="mb-3">
+                  <label className="mb-1 block text-[11px] font-semibold text-foreground">
+                    {ar ? "رابط الدفع (اختياري)" : "Payment Link (optional)"}
+                  </label>
+                  <input
+                    type="url"
+                    dir="ltr"
+                    value={paymentLink}
+                    onChange={(e) => setPaymentLink(e.target.value)}
+                    placeholder="https://…"
+                    className="h-9 w-full rounded-lg border border-input bg-surface px-2.5 text-xs text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    {ar
+                      ? "إذا أُضيف رابط دفع: ستصبح الحالة «تم إرسال رابط الدفع». بدونه: «تم إرسال عرض السعر»."
+                      : "If a payment link is added, status becomes “Payment link sent”. Otherwise, status becomes “Quoted”."}
+                  </p>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => { setShareOpen(false); whatsappShareLink(); }}
