@@ -806,6 +806,121 @@ async function ensurePermissions(roleMap: RoleMap) {
       }
     }
   }
+
+  await ensurePublicUploadPermissions();
+}
+
+// Anonymous public upload page (/?agent=<id-or-code>) needs a narrow set of
+// permissions on the Public policy so customers can submit a request + files
+// without logging in. See scripts/directus-patch-public-upload.ts for the
+// stand-alone patch script that mirrors this exact set.
+async function ensurePublicUploadPermissions(): Promise<void> {
+  console.log("\n🔐 Public policy (anonymous customer upload)…");
+  let publicPolicyId: string | null = null;
+  try {
+    const access = await api<{
+      data: Array<{ policy: string | { id: string } }>;
+    }>(`/access?limit=-1&fields=id,policy,role&filter[role][_null]=true`);
+    for (const row of access.data) {
+      const pid = typeof row.policy === "string" ? row.policy : row.policy?.id;
+      if (pid) {
+        publicPolicyId = pid;
+        break;
+      }
+    }
+  } catch (e) {
+    console.warn(`   ! could not resolve Public policy: ${(e as Error).message}`);
+  }
+  if (!publicPolicyId) {
+    try {
+      const created = await api<{ data: { id: string } }>("/policies", {
+        method: "POST",
+        body: JSON.stringify({ name: "Public", icon: "public", description: "Public policy" }),
+      });
+      publicPolicyId = created.data.id;
+      try {
+        await api("/access", {
+          method: "POST",
+          body: JSON.stringify({ role: null, policy: publicPolicyId }),
+        });
+      } catch {
+        /* tolerated — may already be linked */
+      }
+    } catch (e) {
+      console.warn(`   ! could not create Public policy: ${(e as Error).message}`);
+      return;
+    }
+  }
+
+  const publicPerms: PermissionEntry[] = [
+    {
+      collection: "directus_users",
+      action: "read",
+      fields: ["id", "first_name", "last_name", "agent_code", "app_role", "staff_type", "branch", "app_active"],
+      permissions: {
+        _and: [
+          { app_role: { _eq: "agent" } },
+          { app_active: { _eq: true } },
+        ],
+      },
+      _comment: "Resolve sales agent from public upload link",
+    },
+    {
+      collection: "branches",
+      action: "read",
+      fields: ["id", "code", "name_en", "name_ar"],
+      _comment: "Branch cache warmup",
+    },
+    {
+      collection: "requests",
+      action: "create",
+      fields: ["id", "status", "customer_name", "customer_email", "customer_phone", "agent", "origin_agent", "branch"],
+      validation: { status: { _eq: "new" } },
+      _comment: "Public customer upload",
+    },
+    {
+      collection: "directus_files",
+      action: "create",
+      _comment: "Upload customer documents",
+    },
+    {
+      collection: "directus_files",
+      action: "read",
+      fields: ["id", "filename_download", "type", "filesize"],
+      _comment: "Read just-uploaded file metadata",
+    },
+    {
+      collection: "request_files",
+      action: "create",
+      fields: ["id", "request", "kind", "file", "uploaded_at", "uploaded_by"],
+      _comment: "Link uploaded files to the new request",
+    },
+  ];
+
+  for (const entry of publicPerms) {
+    const { _comment, validation, permissions, fields, action, collection } = entry;
+    try {
+      await api("/permissions", {
+        method: "POST",
+        body: JSON.stringify({
+          policy: publicPolicyId,
+          collection,
+          action,
+          fields: fields ?? ["*"],
+          permissions: permissions ?? {},
+          validation: validation ?? {},
+        }),
+      });
+      console.log(`   + Public → ${collection}.${action}${_comment ? " // " + _comment : ""}`);
+    } catch (e) {
+      const msg = String((e as Error).message ?? e).split("\n")[0];
+      if (isAppendOnlyPermissionSuccess(msg)) {
+        console.log(`   = Public → ${collection}.${action} (already present, skipped)`);
+      } else {
+        console.warn(`   ! Public → ${collection}.${action} skipped: ${msg}`);
+      }
+    }
+  }
 }
 
 // ----------------- 3. Flows -----------------
