@@ -292,11 +292,21 @@ function AdminDashboard() {
 
       {/* Table */}
       <div className="mt-6 hidden overflow-hidden rounded-2xl border border-border bg-card shadow-card md:block">
+        <div className="flex items-center justify-end border-b border-border bg-muted/30 px-4 py-2">
+          <button
+            onClick={exportExcel}
+            disabled={filtered.length === 0}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {t.table.downloadExcel}
+          </button>
+        </div>
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-muted-foreground">
             <tr className={dir === "rtl" ? "text-right" : "text-left"}>
               <th className="px-5 py-3 font-semibold">{t.table.requestId}</th>
               <th className="px-5 py-3 font-semibold">{t.table.agent}</th>
+              <th className="px-5 py-3 font-semibold">{t.table.underwriter}</th>
               <th className="px-5 py-3 font-semibold">{t.table.branch}</th>
               <th className="px-5 py-3 font-semibold">{t.table.date}</th>
               <th className="px-5 py-3 font-semibold">{t.table.status}</th>
@@ -305,9 +315,9 @@ function AdminDashboard() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="px-5 py-12 text-center text-muted-foreground">…</td></tr>
+              <tr><td colSpan={7} className="px-5 py-12 text-center text-muted-foreground">…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} className="px-5 py-8">
+              <tr><td colSpan={7} className="px-5 py-8">
                 <EmptyState
                   icon={<Inbox className="h-7 w-7" />}
                   title={t.admin.emptyTitle}
@@ -327,6 +337,7 @@ function AdminDashboard() {
                       </div>
                     )}
                   </td>
+                  <td className="px-5 py-4 text-foreground">{resolveUnderwriterName(r)}</td>
                   <td className="px-5 py-4 text-muted-foreground">{r.branch}</td>
                   <td className="px-5 py-4 text-muted-foreground">
                     {new Date(r.createdAt).toLocaleString(lang === "ar" ? "ar-AE" : "en-GB", {
