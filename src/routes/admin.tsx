@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, FileText, Inbox, Loader2, Sparkles, TrendingUp, X } from "lucide-react";
+import * as XLSX from "xlsx";
 import { DashboardShell } from "@/components/DashboardShell";
 import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -87,6 +88,27 @@ function AdminDashboard() {
     return m;
   }, [agents]);
 
+  const agentById = useMemo(() => {
+    const m = new Map<string, Agent>();
+    for (const a of agents) m.set(a.id, a);
+    return m;
+  }, [agents]);
+
+  const resolveUnderwriterName = (r: typeof items[number]): string => {
+    const owner = agentById.get(r.agentId);
+    if (owner && owner.staffType === "underwriter") return owner.name;
+    const checkSales = (id?: string) => {
+      if (!id) return undefined;
+      const a = agentById.get(id);
+      if (a && a.staffType === "sales" && a.assignedUnderwriterId) {
+        const uw = agentById.get(a.assignedUnderwriterId);
+        if (uw) return uw.name;
+      }
+      return undefined;
+    };
+    return checkSales(r.agentId) ?? checkSales(r.originAgentId) ?? t.table.notAssigned;
+  };
+
   const agentOptions = useMemo(
     () => agents.map((a) => ({ value: a.id, label: a.name })),
     [agents],
@@ -139,6 +161,23 @@ function AdminDashboard() {
   if (branchF) activeChips.push({ label: `${t.admin.filterBranch}: ${branchF}`, clear: () => startTransition(() => setBranchF("")) });
   if (statusF) activeChips.push({ label: `${t.admin.filterStatus}: ${t.status[statusF]}`, clear: () => startTransition(() => setStatusF("")) });
   if (dateF) activeChips.push({ label: `${t.admin.filterDate}: ${dateF}`, clear: () => startTransition(() => setDateF("")) });
+
+  const exportExcel = () => {
+    const rows = filtered.map((r) => ({
+      [t.table.requestId]: r.id,
+      [t.table.agent]: r.agentName,
+      [t.table.underwriter]: resolveUnderwriterName(r),
+      [t.table.branch]: r.branch,
+      [t.table.date]: new Date(r.createdAt).toLocaleString(lang === "ar" ? "ar-AE" : "en-GB", {
+        dateStyle: "medium", timeStyle: "short",
+      }),
+      [t.table.status]: t.status[r.status],
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Requests");
+    XLSX.writeFile(wb, "requests-log-export.xlsx");
+  };
 
   return (
     <DashboardShell role={["admin", "supervisor"]} title={isSupervisor ? `${t.admin.supervisorTitle} — ${lockedBranch}` : t.admin.title}>
@@ -253,11 +292,21 @@ function AdminDashboard() {
 
       {/* Table */}
       <div className="mt-6 hidden overflow-hidden rounded-2xl border border-border bg-card shadow-card md:block">
+        <div className="flex items-center justify-end border-b border-border bg-muted/30 px-4 py-2">
+          <button
+            onClick={exportExcel}
+            disabled={filtered.length === 0}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {t.table.downloadExcel}
+          </button>
+        </div>
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-muted-foreground">
             <tr className={dir === "rtl" ? "text-right" : "text-left"}>
               <th className="px-5 py-3 font-semibold">{t.table.requestId}</th>
               <th className="px-5 py-3 font-semibold">{t.table.agent}</th>
+              <th className="px-5 py-3 font-semibold">{t.table.underwriter}</th>
               <th className="px-5 py-3 font-semibold">{t.table.branch}</th>
               <th className="px-5 py-3 font-semibold">{t.table.date}</th>
               <th className="px-5 py-3 font-semibold">{t.table.status}</th>
@@ -266,9 +315,9 @@ function AdminDashboard() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="px-5 py-12 text-center text-muted-foreground">…</td></tr>
+              <tr><td colSpan={7} className="px-5 py-12 text-center text-muted-foreground">…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} className="px-5 py-8">
+              <tr><td colSpan={7} className="px-5 py-8">
                 <EmptyState
                   icon={<Inbox className="h-7 w-7" />}
                   title={t.admin.emptyTitle}
@@ -288,6 +337,7 @@ function AdminDashboard() {
                       </div>
                     )}
                   </td>
+                  <td className="px-5 py-4 text-foreground">{resolveUnderwriterName(r)}</td>
                   <td className="px-5 py-4 text-muted-foreground">{r.branch}</td>
                   <td className="px-5 py-4 text-muted-foreground">
                     {new Date(r.createdAt).toLocaleString(lang === "ar" ? "ar-AE" : "en-GB", {
