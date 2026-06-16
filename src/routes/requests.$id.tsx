@@ -1024,19 +1024,18 @@ function ReassignCard({
   // - Sales owner: only underwriters (cannot hand off to another sales).
   // - Underwriter owner: only other underwriters (return-to-sales is a separate quick action).
   // - Admin / supervisor: full pool.
-  let candidates = basePool;
+  // Transfer dropdown should only ever list Underwriters. Sales agents must
+  // never appear in this dropdown — "Return to sales" is offered as a separate
+  // quick action below when applicable.
+  let candidates = basePool.filter((a) => a.staffType === "underwriter");
   if (isOwner && myType === "sales") {
     // Sales can only send to their single assigned underwriter.
-    candidates = basePool.filter(
-      (a) => a.staffType === "underwriter" && a.id === meAgent?.assignedUnderwriterId,
-    );
-  } else if (isOwner && myType === "underwriter") {
-    candidates = basePool.filter((a) => a.staffType === "underwriter");
+    candidates = candidates.filter((a) => a.id === meAgent?.assignedUnderwriterId);
   } else if (!isOwner && (isAdmin || isBranchSup) && ownerType === "sales") {
-    // Admin/Sup viewing a sales-owned request: still default to that sales' assigned UW
+    // Admin/Sup viewing a sales-owned request: default to that sales' assigned UW
     // but allow picking any UW in the branch.
     const ownerAssignedUW = currentOwner?.assignedUnderwriterId;
-    candidates = [...basePool].sort((a, b) => {
+    candidates = [...candidates].sort((a, b) => {
       if (a.id === ownerAssignedUW) return -1;
       if (b.id === ownerAssignedUW) return 1;
       return 0;
@@ -1127,13 +1126,14 @@ function ReassignCard({
         : "";
   const effectiveTarget = target || defaultTarget;
 
+  const targetIsOriginSales = !!originSales && effectiveTarget === originSales.id;
   const primaryLabel = showSendToUW
     ? (lang === "ar" ? "اطلب عرض السعر من الأندررايتر" : "Request quote from underwriter")
-    : showHandoffUW && (!originSales || effectiveTarget !== originSales.id)
-      ? (lang === "ar" ? "تحويل لأندررايتر آخر" : "Transfer to another underwriter")
-      : showReturnToSales
-        ? (lang === "ar" ? "إرجاع للسيلز" : "Return to sales")
-        : (lang === "ar" ? "نقل" : "Transfer");
+    : targetIsOriginSales
+      ? (lang === "ar" ? "إرجاع للسيلز" : "Return to sales")
+      : showHandoffUW
+        ? (lang === "ar" ? "تحويل لأندررايتر آخر" : "Transfer to another underwriter")
+        : (lang === "ar" ? "تحويل للأندررايتر" : "Transfer to Underwriter");
   const successLabel = showSendToUW
     ? (lang === "ar" ? "تم إرسال الطلب للأندررايتر" : "Request sent to underwriter")
     : showHandoffUW && (!originSales || effectiveTarget !== originSales.id)
