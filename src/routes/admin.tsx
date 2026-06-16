@@ -165,6 +165,7 @@ function AdminDashboard() {
   const exportExcel = () => {
     const rows = filtered.map((r) => ({
       [t.table.requestId]: r.id,
+      [t.table.customer]: r.customerName ?? "",
       [t.table.agent]: r.agentName,
       [t.table.underwriter]: resolveUnderwriterName(r),
       [t.table.branch]: r.branch,
@@ -305,6 +306,7 @@ function AdminDashboard() {
           <thead className="bg-muted/50 text-muted-foreground">
             <tr className={dir === "rtl" ? "text-right" : "text-left"}>
               <th className="px-5 py-3 font-semibold">{t.table.requestId}</th>
+              <th className="px-5 py-3 font-semibold">{t.table.customer}</th>
               <th className="px-5 py-3 font-semibold">{t.table.agent}</th>
               <th className="px-5 py-3 font-semibold">{t.table.underwriter}</th>
               <th className="px-5 py-3 font-semibold">{t.table.branch}</th>
@@ -315,9 +317,9 @@ function AdminDashboard() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="px-5 py-12 text-center text-muted-foreground">…</td></tr>
+              <tr><td colSpan={8} className="px-5 py-12 text-center text-muted-foreground">…</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="px-5 py-8">
+              <tr><td colSpan={8} className="px-5 py-8">
                 <EmptyState
                   icon={<Inbox className="h-7 w-7" />}
                   title={t.admin.emptyTitle}
@@ -328,6 +330,7 @@ function AdminDashboard() {
               filtered.map((r) => (
                 <tr key={r.id} className="border-t border-border transition hover:bg-muted/30">
                   <td className="px-5 py-4 font-semibold text-foreground">{r.id}</td>
+                  <td className="px-5 py-4 text-foreground">{r.customerName ?? "—"}</td>
                   <td className="px-5 py-4 text-foreground">
                     <div>{r.agentName}</div>
                     {!isSupervisor && supervisorByAgentId.get(r.agentId) && (
