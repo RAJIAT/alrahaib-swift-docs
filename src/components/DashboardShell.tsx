@@ -81,16 +81,25 @@ export function DashboardShell({
   void canManageAgents;
 
   // Show staff type (Underwriter / Sales) for agents instead of generic "agent".
-  const staffType = user.agentId
-    ? listAgents().find((a) => a.id === user.agentId)?.staffType
+  const agentRow = user.agentId || user.id
+    ? listAgents().find((a) => a.id === user.agentId || a.userId === user.id)
     : undefined;
+  const staffType = user.staffType ?? agentRow?.staffType;
   const roleLabel = staffType ?? user.role;
+
+  // Prefer the user's profile name; fall back to the linked agent row name if
+  // the profile name resolved to the email (e.g. first/last name not set).
+  const displayName =
+    user.name && user.name !== user.email
+      ? user.name
+      : (agentRow?.name && agentRow.name !== user.email ? agentRow.name : user.name);
+  const userForSidebar = { ...user, name: displayName };
 
   return (
     <div className="min-h-screen bg-background">
       <div className="flex min-h-screen">
         <aside className={`hidden lg:flex w-72 shrink-0 flex-col bg-sidebar p-5 ${sideBorder} border-border`}>
-          <SidebarInner items={items} user={user} roleLabel={roleLabel} onLogout={onLogout} />
+          <SidebarInner items={items} user={userForSidebar} roleLabel={roleLabel} onLogout={onLogout} />
         </aside>
 
         {open && (
@@ -99,7 +108,7 @@ export function DashboardShell({
             <aside
               className={`absolute top-0 ${dir === "rtl" ? "right-0" : "left-0"} flex h-full w-72 shrink-0 flex-col bg-sidebar p-5 ${sideBorder} border-border`}
             >
-              <SidebarInner items={items} user={user} roleLabel={roleLabel} onLogout={onLogout} />
+              <SidebarInner items={items} user={userForSidebar} roleLabel={roleLabel} onLogout={onLogout} />
             </aside>
           </div>
         )}
@@ -116,7 +125,15 @@ export function DashboardShell({
               </button>
               <h1 className="text-lg font-bold text-foreground">{title ?? t.nav.dashboard}</h1>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex flex-col items-end leading-tight">
+                <span className="text-sm font-semibold text-foreground truncate max-w-[200px]" title={displayName}>
+                  {displayName}
+                </span>
+                <span className="text-[11px] text-muted-foreground truncate max-w-[200px]" title={roleLabelToText(t, roleLabel)}>
+                  {roleLabelToText(t, roleLabel)}
+                </span>
+              </div>
               <NotificationBell />
               <LanguageSwitcher />
             </div>
