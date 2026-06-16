@@ -643,7 +643,18 @@ export async function dxAttachFile(
     `/items/request_files?fields=${FILE_FIELDS}`,
     { method: "POST", body: JSON.stringify(body) },
   );
-  return r.data;
+  // Public uploader role often lacks READ on request_files, so the POST may
+  // return an empty body. Synthesize a row from inputs so callers don't crash.
+  return (
+    r?.data ?? ({
+      id: `local-${Date.now()}`,
+      request: requestId,
+      kind,
+      uploaded_by: uploadedByUuid ?? null,
+      uploaded_at: body.uploaded_at as string,
+      file: { id: uploaded.id, filename_download: uploaded.name, type: uploaded.type, filesize: uploaded.size },
+    } as unknown as DxRequestFileRow)
+  );
 }
 
 /**
