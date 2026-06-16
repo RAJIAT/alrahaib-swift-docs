@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Check, ShieldCheck, User, Zap, LogIn, Send, Clock, FileImage, IdCard, BadgeCheck, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -9,6 +9,7 @@ import { DocumentRow } from "@/components/DocumentRow";
 import { OptionalDocsSection } from "@/components/OptionalDocsSection";
 import { useLang } from "@/i18n/LanguageProvider";
 import { submitUpload } from "@/services/api";
+import { dxResolveUploadAgent } from "@/services/directusRequests";
 
 type Search = { agent?: string };
 
@@ -23,6 +24,16 @@ function UploadPage() {
   const { t, dir } = useLang();
   const navigate = useNavigate();
   const { agent } = useSearch({ from: "/" });
+  const [agentName, setAgentName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!agent) { setAgentName(null); return; }
+    let alive = true;
+    dxResolveUploadAgent(agent)
+      .then((a) => { if (alive) setAgentName(a.name || null); })
+      .catch(() => { if (alive) setAgentName(null); });
+    return () => { alive = false; };
+  }, [agent]);
 
   // Required documents
   const [registration, setRegistration] = useState<File[]>([]);
@@ -157,7 +168,9 @@ function UploadPage() {
           <LanguageSwitcher />
           <div className="flex items-center gap-2">
             {agent ? (
-              <span className="text-xs text-muted-foreground">{`Agent: ${agent}`}</span>
+              <span className="text-xs text-muted-foreground">
+                {`Agent: ${agentName ?? "…"}`}
+              </span>
             ) : (
               <Link
                 to="/login"
