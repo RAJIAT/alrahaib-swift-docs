@@ -1,8 +1,10 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
-  // Build for Node.js (DirectAdmin / PM2), not Cloudflare Workers.
-  cloudflare: false,
+  // Lovable hosting deploys to Cloudflare Workers; keep this enabled
+  // so the published site loads. For self-hosted Node/PM2 deploys, build
+  // separately with cloudflare: false.
+  cloudflare: true,
   vite: {
     server: {
       host: "0.0.0.0",
