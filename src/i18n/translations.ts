@@ -120,6 +120,9 @@ export const translations = {
       branch: "الفرع",
       view: "عرض",
       empty: "لا توجد طلبات",
+      underwriter: "المكتتب",
+      notAssigned: "غير معيّن",
+      downloadExcel: "تنزيل Excel",
     },
     status: {
       new: "جديد",
@@ -531,6 +534,9 @@ export const translations = {
       branch: "Branch",
       view: "View",
       empty: "No requests yet",
+      underwriter: "Underwriter",
+      notAssigned: "Not assigned",
+      downloadExcel: "Download Excel",
     },
     status: {
       new: "New",
