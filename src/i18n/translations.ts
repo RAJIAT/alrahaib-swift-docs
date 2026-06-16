@@ -188,6 +188,8 @@ export const translations = {
       roleAdmin: "مدير",
       roleSupervisor: "مشرف",
       roleAgent: "وكيل",
+      roleSalesAgent: "وكيل مبيعات",
+      roleUnderwriter: "مكتتب",
     },
     agent: {
       yoursOnly: "هذه الطلبات تخصك فقط",
@@ -603,6 +605,8 @@ export const translations = {
       roleAdmin: "Admin",
       roleSupervisor: "Supervisor",
       roleAgent: "Agent",
+      roleSalesAgent: "Sales Agent",
+      roleUnderwriter: "Underwriter",
     },
     agent: {
       yoursOnly: "These requests are yours only",
