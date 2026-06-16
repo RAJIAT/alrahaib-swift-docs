@@ -4,7 +4,7 @@ export default defineConfig({
   // Lovable hosting deploys to Cloudflare Workers; keep this enabled
   // so the published site loads. For self-hosted Node/PM2 deploys, build
   // separately with cloudflare: false.
-  cloudflare: true,
+  cloudflare: {},
   vite: {
     server: {
       host: "0.0.0.0",
