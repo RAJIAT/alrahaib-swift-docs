@@ -949,7 +949,7 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
     (updated.status === "new" || updated.status === "reupload")
   ) {
     try {
-      withStatus = await dxSetRequestStatusFromApi(updated.id, "processing");
+      withStatus = await dxSetRequestStatus(updated.id, "processing");
     } catch (e) {
       console.warn("[reassign] auto status flip to processing failed", e);
     }
@@ -1035,7 +1035,7 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
     updated.status !== "quoted"
   ) {
     try {
-      updated = await dxSetRequestStatusFromApi(updated.id, "quoted");
+      updated = await dxSetRequestStatus(updated.id, "quoted");
     } catch (e) {
       console.warn("[addQuotesToRequest] auto status flip to quoted failed", e);
     }
