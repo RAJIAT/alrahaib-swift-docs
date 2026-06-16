@@ -132,7 +132,11 @@ function AgentDashboard() {
 
       {/* Agent's permanent personal customer-upload link — sales only. */}
       {!isUnderwriter && (
-        <ShareLinkCard agentId={effectiveAgentId ?? ""} agentName={user.name} />
+        <ShareLinkCard
+          agentId={effectiveAgentId ?? ""}
+          agentCode={user.agentId}
+          agentName={user.name}
+        />
       )}
       {/* Status filter tabs */}
       <div className="mb-4 -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
@@ -271,14 +275,29 @@ function Chip({ label, value, tone }: { label: string; value: number; tone: "pri
   );
 }
 
-function ShareLinkCard({ agentId, agentName }: { agentId: string; agentName: string }) {
+function slugify(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[\u0600-\u06FF]+/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function ShareLinkCard({ agentId, agentCode, agentName }: { agentId: string; agentCode?: string; agentName: string }) {
   const { t, lang } = useLang();
   const [copied, setCopied] = useState(false);
 
+  const slug = useMemo(() => {
+    const namePart = slugify(agentName);
+    const codePart = agentCode ? slugify(agentCode) : "";
+    const joined = [namePart, codePart].filter(Boolean).join("-");
+    return joined || agentCode || agentId;
+  }, [agentName, agentCode, agentId]);
+
   const link = useMemo(() => {
     if (typeof window === "undefined") return "";
-    return `${window.location.origin}/?agent=${encodeURIComponent(agentId)}`;
-  }, [agentId]);
+    return `${window.location.origin}/?agent=${encodeURIComponent(slug)}`;
+  }, [slug]);
 
   const writeToClipboard = async (text: string) => {
     if (navigator.clipboard && window.isSecureContext) {
@@ -342,7 +361,7 @@ function ShareLinkCard({ agentId, agentName }: { agentId: string; agentName: str
           </div>
         </div>
         <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-          {agentId}
+          {agentCode ?? slug}
         </span>
       </div>
 

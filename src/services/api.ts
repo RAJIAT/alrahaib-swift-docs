@@ -941,6 +941,20 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
   else if (fromType === "underwriter" && toType === "underwriter") action = "request.underwriter_changed";
   else if (fromType === "sales" && toType === "sales") action = "request.sales_changed";
 
+  // Auto status: when a sales agent hands off to an underwriter, mark the
+  // request as actively being processed. Never overwrite terminal/late states.
+  let withStatus = updated;
+  if (
+    fromType === "sales" && toType === "underwriter" &&
+    (updated.status === "new" || updated.status === "reupload")
+  ) {
+    try {
+      withStatus = await dxSetRequestStatus(updated.id, "processing");
+    } catch (e) {
+      console.warn("[reassign] auto status flip to processing failed", e);
+    }
+  }
+
   logEvent({
     action,
     entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
@@ -965,7 +979,7 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
     link: `/requests/${req.id}`,
   })));
 
-  return updated;
+  return withStatus;
 }
 
 // ---------------------------------------------------------------------------
@@ -1010,6 +1024,21 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
     }
   } else {
     try { updated = (await dxGetRequest(req.id)) ?? req; } catch { updated = req; }
+  }
+
+  // Auto status: uploading a quote means the request now has a quote.
+  // Only flip forward; never overwrite terminal/later states.
+  if (
+    updated.status !== "sold" &&
+    updated.status !== "rejected" &&
+    updated.status !== "linkSent" &&
+    updated.status !== "quoted"
+  ) {
+    try {
+      updated = await dxSetRequestStatus(updated.id, "quoted");
+    } catch (e) {
+      console.warn("[addQuotesToRequest] auto status flip to quoted failed", e);
+    }
   }
 
   logEvent({

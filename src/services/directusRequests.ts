@@ -160,7 +160,15 @@ export type ResolvedUploadAgent = {
 export async function dxResolveUploadAgent(identifier: string): Promise<ResolvedUploadAgent> {
   await ensureEntitiesCached();
   const key = identifier.trim();
-  const cached = getAgentsCache().find((a) => a.id === key || a.userId === key);
+  // Accept readable slugs like "raja-niaz-sls-2308" by extracting the
+  // trailing agent code (e.g. "SLS-2308"). Fall back to the full key for
+  // legacy UUID / agent_code links.
+  const slugMatch = /([A-Za-z]+-\d+)$/i.exec(key);
+  const codeFromSlug = slugMatch?.[1]?.toUpperCase();
+  const candidates = Array.from(new Set([key, codeFromSlug ?? "", key.toUpperCase()].filter(Boolean)));
+  const cached = getAgentsCache().find((a) =>
+    candidates.some((c) => a.id === c || a.userId === c || a.id?.toUpperCase() === c),
+  );
   if (cached) {
     return {
       userId: cached.userId,
@@ -186,9 +194,14 @@ export async function dxResolveUploadAgent(identifier: string): Promise<Resolved
     }
   }
   if (!row) {
+    const lookupKeys = candidates.filter((c) => !isUuid(c));
+    const filterParts = lookupKeys.flatMap((c, i) => [
+      `filter[_or][${i * 2}][id][_eq]=${encodeURIComponent(c)}`,
+      `filter[_or][${i * 2 + 1}][agent_code][_eq]=${encodeURIComponent(c)}`,
+    ]);
     try {
       const r = await dxRequest<{ data: DxAgentLookupRow[] }>(
-        `/users?fields=${fields}&limit=1&filter[_or][0][id][_eq]=${encodeURIComponent(key)}&filter[_or][1][agent_code][_eq]=${encodeURIComponent(key)}`,
+        `/users?fields=${fields}&limit=1&${filterParts.join("&")}`,
       );
       row = r.data[0];
       source = row?.id === key ? "direct-user-id" : "direct-agent-code";

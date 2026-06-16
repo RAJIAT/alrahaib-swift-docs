@@ -1386,30 +1386,38 @@ function QuotesCard({
 
   const shareLink = `${typeof window !== "undefined" ? window.location.origin : ""}/q/${encodeURIComponent(req.id)}`;
   const [shareOpen, setShareOpen] = useState(false);
-  const markQuotedBestEffort = async () => {
-    // Only flip status forward; never overwrite a terminal or later state.
-    if (
-      req.status === "sold" ||
-      req.status === "rejected" ||
-      req.status === "linkSent" ||
-      req.status === "quoted"
-    ) return;
+  const [paymentLink, setPaymentLink] = useState("");
+
+  const composedShareLink = (() => {
+    const trimmed = paymentLink.trim();
+    if (!trimmed) return shareLink;
+    return `${shareLink}#pay=${encodeURIComponent(trimmed)}`;
+  })();
+
+  const markShareStatus = async () => {
+    const wantsLinkSent = paymentLink.trim().length > 0;
+    const target: RequestStatus = wantsLinkSent ? "linkSent" : "quoted";
+    // Don't downgrade terminal or later states.
+    if (req.status === "sold" || req.status === "rejected") return;
+    if (target === "quoted" && (req.status === "linkSent" || req.status === "quoted")) return;
+    if (target === "linkSent" && req.status === "linkSent") return;
     try {
-      const updated = await updateRequestStatus(req.id, "quoted");
+      const updated = await updateRequestStatus(req.id, target);
       onUpdated(updated);
     } catch (e) {
-      console.warn("[share quote] failed to mark quoted", e);
+      console.warn("[share quote] failed to update status", e);
     }
   };
+
   const copyShareLink = async () => {
     try {
-      await copyToClipboard(shareLink);
+      await copyToClipboard(composedShareLink);
       toast.success(ar ? "تم نسخ رابط المشاركة" : "Share link copied");
     } catch (e) {
       toast.error(safeMessage(e, ar ? "تعذر نسخ الرابط" : "Could not copy link"));
       return;
     }
-    await markQuotedBestEffort();
+    await markShareStatus();
   };
   const emailShareLink = async () => {
     if (!req.customerEmail) {
@@ -1417,10 +1425,11 @@ function QuotesCard({
       return;
     }
     const subject = encodeURIComponent(ar ? `عرض السعر — ${req.id}` : `Insurance quote — ${req.id}`);
+    const pay = paymentLink.trim();
     const body = encodeURIComponent(
       (ar
-        ? `مرحباً ${req.customerName ?? ""}،\n\nيمكنك الاطلاع على عرض السعر من الرابط التالي:\n${shareLink}`
-        : `Hello ${req.customerName ?? ""},\n\nYou can view your quote here:\n${shareLink}`),
+        ? `مرحباً ${req.customerName ?? ""}،\n\nيمكنك الاطلاع على عرض السعر من الرابط التالي:\n${composedShareLink}${pay ? `\n\nرابط الدفع:\n${pay}` : ""}`
+        : `Hello ${req.customerName ?? ""},\n\nYou can view your quote here:\n${composedShareLink}${pay ? `\n\nPayment link:\n${pay}` : ""}`),
     );
     // Open the user's mail client. We do NOT claim "sent" — no SMTP is wired.
     window.open(
@@ -1428,7 +1437,7 @@ function QuotesCard({
       "_self",
     );
     toast.message(ar ? "تم فتح بريدك — أكمل الإرسال يدوياً" : "Opened your email client — send manually to finish");
-    await markQuotedBestEffort();
+    await markShareStatus();
   };
   const whatsappShareLink = async () => {
     const raw = (req.customerPhone ?? "").replace(/[^\d+]/g, "");
@@ -1437,15 +1446,16 @@ function QuotesCard({
       toast.error(ar ? "لا يوجد رقم هاتف للعميل" : "No customer phone on file");
       return;
     }
+    const pay = paymentLink.trim();
     const msg = ar
-      ? `مرحباً ${req.customerName ?? ""}، عرض السعر جاهز. يمكنك الاطلاع عليه هنا: ${shareLink}`
-      : `Hello ${req.customerName ?? ""}, your insurance quote is ready. You can view it here: ${shareLink}`;
+      ? `مرحباً ${req.customerName ?? ""}، عرض السعر جاهز. يمكنك الاطلاع عليه هنا: ${composedShareLink}${pay ? `\nرابط الدفع: ${pay}` : ""}`
+      : `Hello ${req.customerName ?? ""}, your insurance quote is ready. You can view it here: ${composedShareLink}${pay ? `\nPayment link: ${pay}` : ""}`;
     window.open(`https://wa.me/${digits}?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
-    await markQuotedBestEffort();
+    await markShareStatus();
   };
   const openShareLink = async () => {
-    window.open(shareLink, "_blank", "noopener");
-    await markQuotedBestEffort();
+    window.open(composedShareLink, "_blank", "noopener");
+    await markShareStatus();
   };
 
   return (
@@ -1633,6 +1643,24 @@ function QuotesCard({
                   </button>
                 </div>
                 <p dir="ltr" className="mb-3 truncate rounded-lg border border-border bg-surface px-2 py-1.5 text-[11px] text-muted-foreground" title={shareLink}>{shareLink}</p>
+                <div className="mb-3">
+                  <label className="mb-1 block text-[11px] font-semibold text-foreground">
+                    {ar ? "رابط الدفع (اختياري)" : "Payment Link (optional)"}
+                  </label>
+                  <input
+                    type="url"
+                    dir="ltr"
+                    value={paymentLink}
+                    onChange={(e) => setPaymentLink(e.target.value)}
+                    placeholder="https://…"
+                    className="h-9 w-full rounded-lg border border-input bg-surface px-2.5 text-xs text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    {ar
+                      ? "إذا أُضيف رابط دفع: ستصبح الحالة «تم إرسال رابط الدفع». بدونه: «تم إرسال عرض السعر»."
+                      : "If a payment link is added, status becomes “Payment link sent”. Otherwise, status becomes “Quoted”."}
+                  </p>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => { setShareOpen(false); whatsappShareLink(); }}
