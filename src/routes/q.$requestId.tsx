@@ -16,6 +16,15 @@ function QuoteSharePage() {
   const [req, setReq] = useState<PublicQuoteView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [paymentLink, setPaymentLink] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash.replace(/^#/, "");
+    const params = new URLSearchParams(hash);
+    const pay = params.get("pay");
+    if (pay) setPaymentLink(pay);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -168,6 +177,26 @@ function QuoteSharePage() {
             </ul>
           )}
         </section>
+
+        {paymentLink && (
+          <section className="mt-6 rounded-2xl border border-primary/30 bg-primary-soft/40 p-5 shadow-card">
+            <h2 className="mb-2 text-sm font-bold text-foreground">
+              {ar ? "رابط الدفع" : "Payment link"}
+            </h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              {ar ? "اضغط الرابط لإتمام عملية الدفع بأمان." : "Tap the link to complete your payment securely."}
+            </p>
+            <a
+              href={paymentLink}
+              target="_blank"
+              rel="noreferrer"
+              dir="ltr"
+              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-95"
+            >
+              {ar ? "ادفع الآن" : "Pay now"}
+            </a>
+          </section>
+        )}
 
         <p className="mt-6 text-center text-[11px] text-muted-foreground">
           {ar ? "شكراً لاختياركم الدبلوماسية للتأمين" : "Thank you for choosing Al Diplomacy Insurance"}
