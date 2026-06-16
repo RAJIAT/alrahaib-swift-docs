@@ -123,6 +123,7 @@ export const translations = {
       underwriter: "المكتتب",
       notAssigned: "غير معيّن",
       downloadExcel: "تنزيل Excel",
+      customer: "اسم العميل",
     },
     status: {
       new: "جديد",
