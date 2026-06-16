@@ -6,7 +6,7 @@
 export type Role = "admin" | "supervisor" | "agent";
 export type StaffType = "underwriter" | "sales";
 export type RequestStatus =
-  | "new" | "linkSent" | "processing" | "sold" | "rejected" | "reupload";
+  | "new" | "quoted" | "linkSent" | "processing" | "sold" | "rejected" | "reupload";
 
 export type Branch = {
   id: number;

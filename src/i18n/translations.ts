@@ -126,6 +126,7 @@ export const translations = {
     },
     status: {
       new: "جديد",
+      quoted: "تم إرسال عرض السعر",
       linkSent: "تم إرسال رابط الدفع",
       processing: "قيد المعالجة",
       sold: "مباع",
@@ -540,6 +541,7 @@ export const translations = {
     },
     status: {
       new: "New",
+      quoted: "Quote sent",
       linkSent: "Payment link sent",
       processing: "Processing",
       sold: "Sold",

@@ -119,7 +119,7 @@ function AdminDashboard() {
   );
   const statusOptions = useMemo(
     () =>
-      (["new", "processing", "sold", "rejected", "reupload"] as RequestStatus[]).map((s) => ({
+      (["new", "quoted", "linkSent", "processing", "sold", "rejected", "reupload"] as RequestStatus[]).map((s) => ({
         value: s,
         label: t.status[s],
       })),

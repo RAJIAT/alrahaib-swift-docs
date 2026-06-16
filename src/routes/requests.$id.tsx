@@ -345,7 +345,7 @@ function RequestDetails() {
                     disabled={saving}
                     className="h-10 rounded-xl border border-input bg-surface px-3 pe-9 text-sm font-medium text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {(["new", "processing", "sold", "rejected", "reupload"] as RequestStatus[]).map((s) => (
+                    {(["new", "quoted", "linkSent", "processing", "sold", "rejected", "reupload"] as RequestStatus[]).map((s) => (
                       <option key={s} value={s}>{t.status[s]}</option>
                     ))}
                   </select>
@@ -1386,14 +1386,19 @@ function QuotesCard({
 
   const shareLink = `${typeof window !== "undefined" ? window.location.origin : ""}/q/${encodeURIComponent(req.id)}`;
   const [shareOpen, setShareOpen] = useState(false);
-  const markLinkSentBestEffort = async () => {
-    // Only flip status forward; never overwrite a sold/rejected terminal state.
-    if (req.status === "sold" || req.status === "rejected" || req.status === "linkSent") return;
+  const markQuotedBestEffort = async () => {
+    // Only flip status forward; never overwrite a terminal or later state.
+    if (
+      req.status === "sold" ||
+      req.status === "rejected" ||
+      req.status === "linkSent" ||
+      req.status === "quoted"
+    ) return;
     try {
-      const updated = await updateRequestStatus(req.id, "linkSent");
+      const updated = await updateRequestStatus(req.id, "quoted");
       onUpdated(updated);
     } catch (e) {
-      console.warn("[share quote] failed to mark linkSent", e);
+      console.warn("[share quote] failed to mark quoted", e);
     }
   };
   const copyShareLink = async () => {
@@ -1404,7 +1409,7 @@ function QuotesCard({
       toast.error(safeMessage(e, ar ? "تعذر نسخ الرابط" : "Could not copy link"));
       return;
     }
-    await markLinkSentBestEffort();
+    await markQuotedBestEffort();
   };
   const emailShareLink = async () => {
     if (!req.customerEmail) {
@@ -1423,7 +1428,7 @@ function QuotesCard({
       "_self",
     );
     toast.message(ar ? "تم فتح بريدك — أكمل الإرسال يدوياً" : "Opened your email client — send manually to finish");
-    await markLinkSentBestEffort();
+    await markQuotedBestEffort();
   };
   const whatsappShareLink = async () => {
     const raw = (req.customerPhone ?? "").replace(/[^\d+]/g, "");
@@ -1436,11 +1441,11 @@ function QuotesCard({
       ? `مرحباً ${req.customerName ?? ""}، عرض السعر جاهز. يمكنك الاطلاع عليه هنا: ${shareLink}`
       : `Hello ${req.customerName ?? ""}, your insurance quote is ready. You can view it here: ${shareLink}`;
     window.open(`https://wa.me/${digits}?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
-    await markLinkSentBestEffort();
+    await markQuotedBestEffort();
   };
   const openShareLink = async () => {
     window.open(shareLink, "_blank", "noopener");
-    await markLinkSentBestEffort();
+    await markQuotedBestEffort();
   };
 
   return (
