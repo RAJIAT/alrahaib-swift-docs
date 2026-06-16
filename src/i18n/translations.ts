@@ -541,6 +541,7 @@ export const translations = {
       underwriter: "Underwriter",
       notAssigned: "Not assigned",
       downloadExcel: "Download Excel",
+      customer: "Customer Name",
     },
     status: {
       new: "New",
