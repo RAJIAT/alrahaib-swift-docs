@@ -141,6 +141,7 @@ function SidebarInner({
 }) {
   const { t } = useLang();
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const displayRole = roleLabelToText(t, roleLabel);
 
   return (
     <>
@@ -149,7 +150,7 @@ function SidebarInner({
           <Logo size={40} />
           <div>
             <div className="text-sm font-bold text-sidebar-foreground">Al Diplomacy Insurance Services LLC</div>
-            <div className="text-xs text-muted-foreground capitalize">{roleLabel}</div>
+            <div className="text-xs text-muted-foreground">{displayRole}</div>
           </div>
         </div>
         <button
@@ -181,9 +182,16 @@ function SidebarInner({
       </nav>
 
       <div className="mt-4 border-t border-sidebar-border pt-4">
-        <div className="mb-3 px-2">
-          <div className="truncate text-sm font-semibold text-sidebar-foreground">{user.name}</div>
-          <div className="truncate text-xs text-muted-foreground">{user.email}</div>
+        <div className="mb-4 px-2">
+          <div className="truncate text-base font-bold text-sidebar-foreground" title={user.name}>
+            {user.name}
+          </div>
+          <div className="truncate text-xs font-semibold text-sidebar-foreground/80 mt-1" title={displayRole}>
+            {displayRole}
+          </div>
+          <div className="truncate text-xs text-muted-foreground mt-0.5" title={user.email}>
+            {user.email}
+          </div>
         </div>
         <button
           onClick={onLogout}
@@ -195,4 +203,20 @@ function SidebarInner({
       </div>
     </>
   );
+}
+
+function roleLabelToText(t: ReturnType<typeof useLang>["t"], roleLabel: string): string {
+  switch (roleLabel) {
+    case "admin":
+      return t.admin.roleAdmin;
+    case "supervisor":
+      return t.admin.roleSupervisor;
+    case "underwriter":
+      return t.admin.roleUnderwriter;
+    case "sales":
+      return t.admin.roleSalesAgent;
+    case "agent":
+    default:
+      return t.admin.roleAgent;
+  }
 }
