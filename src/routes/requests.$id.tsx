@@ -572,7 +572,7 @@ function RequestDetails() {
       {/* Audit timeline — visible to everyone, raw JSON only for admins */}
       {req && (
         <div className="mt-4">
-          <RequestHistoryTimeline requestId={req.id} showAdvanced={role === "admin"} />
+          <RequestHistoryTimeline requestId={req.id} />
         </div>
       )}
 
