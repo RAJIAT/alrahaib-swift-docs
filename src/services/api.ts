@@ -442,16 +442,22 @@ export async function submitUpload(input: {
   });
   const id = `REQ-${Date.now()}`;
   // Create the request row first so file rows have something to link to.
-  const req = await dxCreateRequest({
-    id, uuid: id.toLowerCase(),
-    agentCode: agent.agentCode,
-    agentUserId: agent.userId,
-    branchCode: agent.branchCode,
-    branchId: agent.branchId,
-    customerName: input.customerName,
-    customerEmail: input.customerEmail,
-    customerPhone: input.customerPhone,
-  });
+  let req;
+  try {
+    req = await dxCreateRequest({
+      id, uuid: id.toLowerCase(),
+      agentCode: agent.agentCode,
+      agentUserId: agent.userId,
+      branchCode: agent.branchCode,
+      branchId: agent.branchId,
+      customerName: input.customerName,
+      customerEmail: input.customerEmail,
+      customerPhone: input.customerPhone,
+    });
+  } catch (e) {
+    console.error("[public upload] step=create_request failed", e);
+    throw e;
+  }
   console.info("[upload debug] created request", {
     createdRequestId: req.id,
     createdRequestAgent: req.agentId,
@@ -461,21 +467,36 @@ export async function submitUpload(input: {
   // Upload all bytes to Directus and create matching request_files rows.
   // Ordered kinds (front/back/etc.) upload sequentially; everything else in parallel.
   const ownerUuid = agent.userId;
-  await dxAttachFilesSequential(id, input.images.registration, "registration", ownerUuid);
-  await dxAttachFilesSequential(id, input.images.license, "license", ownerUuid);
-  await dxAttachFilesSequential(id, input.images.emirates, "emirates", ownerUuid);
-  if (input.optional?.inspection) {
-    await dxAttachFile(id, input.optional.inspection, "inspection", ownerUuid);
+  try {
+    await dxAttachFilesSequential(id, input.images.registration, "registration", ownerUuid);
+    await dxAttachFilesSequential(id, input.images.license, "license", ownerUuid);
+    await dxAttachFilesSequential(id, input.images.emirates, "emirates", ownerUuid);
+    if (input.optional?.inspection) {
+      await dxAttachFile(id, input.optional.inspection, "inspection", ownerUuid);
+    }
+    const vehicleImages = input.images.vehicleMedia.filter((f) => !f.type.startsWith("video/"));
+    const vehicleVideos = input.images.vehicleMedia.filter((f) => f.type.startsWith("video/"));
+    await Promise.all([
+      dxAttachFilesParallel(id, vehicleImages, "vehicle_image", ownerUuid),
+      dxAttachFilesParallel(id, vehicleVideos, "vehicle_video", ownerUuid),
+      dxAttachFilesParallel(id, input.images.attachments ?? [], "attachment", ownerUuid),
+    ]);
+  } catch (e) {
+    console.error("[public upload] step=attach_files failed", e);
+    throw e;
   }
-  const vehicleImages = input.images.vehicleMedia.filter((f) => !f.type.startsWith("video/"));
-  const vehicleVideos = input.images.vehicleMedia.filter((f) => f.type.startsWith("video/"));
-  await Promise.all([
-    dxAttachFilesParallel(id, vehicleImages, "vehicle_image", ownerUuid),
-    dxAttachFilesParallel(id, vehicleVideos, "vehicle_video", ownerUuid),
-    dxAttachFilesParallel(id, input.images.attachments ?? [], "attachment", ownerUuid),
-  ]);
-  logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
-  notifyNewRequest(req);
+  // Audit + notification are best-effort: anonymous sessions usually can't
+  // write to those collections, but the upload itself already succeeded.
+  try {
+    logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
+  } catch (e) {
+    console.error("[public upload] step=log_event failed (tolerated)", e);
+  }
+  try {
+    notifyNewRequest(req);
+  } catch (e) {
+    console.error("[public upload] step=notify failed (tolerated)", e);
+  }
   return { id };
 }
 

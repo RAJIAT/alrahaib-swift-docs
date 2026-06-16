@@ -469,7 +469,23 @@ export async function dxCreateRequest(input: DxCreateRequestInput): Promise<Demo
     { method: "POST", body: JSON.stringify(body) },
   );
   emit();
-  return requestFromRow(r.data, [], []);
+  // Anonymous (public uploader) sessions may not have READ on `requests`, so
+  // Directus can return an empty body even though the row was created. Fall
+  // back to a stub built from the inputs we already know.
+  const row: DxRequestRow = r?.data ?? {
+    id: input.id,
+    uuid: input.uuid,
+    agent: agentUuid,
+    origin_agent: agentUuid,
+    branch: branchId ?? null,
+    status: "new",
+    customer_name: input.customerName ?? null,
+    customer_email: input.customerEmail ?? null,
+    customer_phone: input.customerPhone ?? null,
+    assigned_at: null,
+    date_created: new Date().toISOString(),
+  } as DxRequestRow;
+  return requestFromRow(row, [], []);
 }
 
 export async function dxPatchRequest(id: string, patch: Record<string, unknown>): Promise<DemoRequest> {
@@ -627,7 +643,18 @@ export async function dxAttachFile(
     `/items/request_files?fields=${FILE_FIELDS}`,
     { method: "POST", body: JSON.stringify(body) },
   );
-  return r.data;
+  // Public uploader role often lacks READ on request_files, so the POST may
+  // return an empty body. Synthesize a row from inputs so callers don't crash.
+  return (
+    r?.data ?? ({
+      id: `local-${Date.now()}`,
+      request: requestId,
+      kind,
+      uploaded_by: uploadedByUuid ?? null,
+      uploaded_at: body.uploaded_at as string,
+      file: { id: uploaded.id, filename_download: uploaded.name, type: uploaded.type, filesize: uploaded.size },
+    } as unknown as DxRequestFileRow)
+  );
 }
 
 /**
