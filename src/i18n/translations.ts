@@ -185,9 +185,6 @@ export const translations = {
       noteResolved: "محلول",
       noteKindComment: "كومنت",
       noteKindMissing: "نقص",
-      roleAdmin: "مدير",
-      roleSupervisor: "مشرف",
-      roleAgent: "وكيل",
     },
     agent: {
       yoursOnly: "هذه الطلبات تخصك فقط",
@@ -219,6 +216,11 @@ export const translations = {
       manageAgentsSupervisor: "الوكلاء والمكتتبون",
       manageBranches: "الفروع",
       auditLog: "سجل التدقيق",
+      roleAdmin: "مدير",
+      roleSupervisor: "مشرف",
+      roleAgent: "وكيل",
+      roleSalesAgent: "وكيل مبيعات",
+      roleUnderwriter: "مكتتب",
     },
     agents: {
       title: "الوكلاء والمشرفون",
@@ -600,9 +602,6 @@ export const translations = {
       noteResolved: "Resolved",
       noteKindComment: "Comment",
       noteKindMissing: "Missing",
-      roleAdmin: "Admin",
-      roleSupervisor: "Supervisor",
-      roleAgent: "Agent",
     },
     agent: {
       yoursOnly: "These requests are yours only",
@@ -634,6 +633,11 @@ export const translations = {
       manageAgentsSupervisor: "Agents & Underwriters",
       manageBranches: "Branches",
       auditLog: "Audit Log",
+      roleAdmin: "Admin",
+      roleSupervisor: "Supervisor",
+      roleAgent: "Agent",
+      roleSalesAgent: "Sales Agent",
+      roleUnderwriter: "Underwriter",
     },
     agents: {
       title: "Agents & Supervisors",
