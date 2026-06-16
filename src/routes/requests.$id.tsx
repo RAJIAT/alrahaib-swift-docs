@@ -1428,7 +1428,7 @@ function QuotesCard({
       "_self",
     );
     toast.message(ar ? "تم فتح بريدك — أكمل الإرسال يدوياً" : "Opened your email client — send manually to finish");
-    await markLinkSentBestEffort();
+    await markQuotedBestEffort();
   };
   const whatsappShareLink = async () => {
     const raw = (req.customerPhone ?? "").replace(/[^\d+]/g, "");
@@ -1441,11 +1441,11 @@ function QuotesCard({
       ? `مرحباً ${req.customerName ?? ""}، عرض السعر جاهز. يمكنك الاطلاع عليه هنا: ${shareLink}`
       : `Hello ${req.customerName ?? ""}, your insurance quote is ready. You can view it here: ${shareLink}`;
     window.open(`https://wa.me/${digits}?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
-    await markLinkSentBestEffort();
+    await markQuotedBestEffort();
   };
   const openShareLink = async () => {
     window.open(shareLink, "_blank", "noopener");
-    await markLinkSentBestEffort();
+    await markQuotedBestEffort();
   };
 
   return (
