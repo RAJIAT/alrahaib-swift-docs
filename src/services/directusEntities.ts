@@ -12,6 +12,7 @@
 import {
   dxIsLoggedIn,
   dxRequest,
+  getProfile,
   USER_FIELDS,
   userBranchCode,
   type DxUserRecord,
@@ -133,18 +134,36 @@ export async function refreshAgents(): Promise<void> {
     "assigned_underwriter", "assigned_underwriter.id", "assigned_underwriter.agent_code",
     "assigned_underwriter_code", "app_active",
   ].join(",");
-  let r: { data: DxUserRecord[] };
-  try {
-    r = await dxRequest<{ data: DxUserRecord[] }>(
-      `/users?fields=${USER_FIELDS}&filter[app_role][_in]=supervisor,agent&limit=-1&sort=email`,
-    );
-  } catch {
-    // Agent role permissions intentionally cannot read private user fields like
-    // email. Fall back to the minimal staff-routing fields so sales pages can
-    // still see their assigned underwriter button.
-    r = await dxRequest<{ data: DxUserRecord[] }>(
-      `/users?fields=${agentSafeFields}&filter[app_role][_in]=supervisor,agent&limit=-1&sort=first_name`,
-    );
+  // Only Admin/Supervisor can read the full directus_users field set
+  // (email, status, pending_approval, removal metadata, etc.). Sales Agents
+  // and Underwriters get a minimal, permission-safe projection so the
+  // dashboard never crashes on a 403.
+  const role = getProfile()?.role;
+  const elevated = role === "admin" || role === "supervisor";
+  let r: { data: DxUserRecord[] } = { data: [] };
+  if (elevated) {
+    try {
+      r = await dxRequest<{ data: DxUserRecord[] }>(
+        `/users?fields=${USER_FIELDS}&filter[app_role][_in]=supervisor,agent&limit=-1&sort=email`,
+      );
+    } catch {
+      try {
+        r = await dxRequest<{ data: DxUserRecord[] }>(
+          `/users?fields=${agentSafeFields}&filter[app_role][_in]=supervisor,agent&limit=-1&sort=first_name`,
+        );
+      } catch {
+        r = { data: [] };
+      }
+    }
+  } else {
+    try {
+      r = await dxRequest<{ data: DxUserRecord[] }>(
+        `/users?fields=${agentSafeFields}&filter[app_role][_in]=supervisor,agent&limit=-1&sort=first_name`,
+      );
+    } catch {
+      // Agent/Underwriter cannot read other users — keep dashboard alive.
+      r = { data: [] };
+    }
   }
   const list: DemoAgent[] = [];
   // Resolve requester display names from the same dataset where possible.
