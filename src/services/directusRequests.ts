@@ -106,6 +106,10 @@ function isUuid(value: string | undefined | null): value is string {
   return !!value && UUID_RE.test(value);
 }
 
+function safeLower(value: unknown): string {
+  return (value ?? "").toString().toLowerCase();
+}
+
 function fileObj(row: DxRequestFileRow): DxFileObj | null {
   const f = row.file;
   if (!f) return null;
@@ -329,7 +333,7 @@ function requestFromRow(
   const myFiles = fileRows.filter((f) => f.request === r.id);
   return {
     id: r.id,
-    uuid: r.uuid ?? r.id.toLowerCase(),
+    uuid: r.uuid ?? safeLower(r.id),
     agentId: agent.code,
     agentUserId: r.agent ?? undefined,
     agentName: agent.name,
@@ -426,7 +430,7 @@ export async function dxGetRequest(id: string): Promise<DemoRequest | null> {
   } catch {
     // Fall back to lookup by id OR uuid (handles legacy rows w/ uuid key).
     try {
-      const filter = `filter[_or][0][id][_eq]=${encodeURIComponent(id)}&filter[_or][1][uuid][_eq]=${encodeURIComponent(id.toLowerCase())}`;
+      const filter = `filter[_or][0][id][_eq]=${encodeURIComponent(id)}&filter[_or][1][uuid][_eq]=${encodeURIComponent(safeLower(id))}`;
       const r = await dxRequest<{ data: DxRequestRow[] }>(`/items/requests?fields=${REQ_FIELDS}&limit=1&${filter}`);
       row = r.data[0];
     } catch (e) {
