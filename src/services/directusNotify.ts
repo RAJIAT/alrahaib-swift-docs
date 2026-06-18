@@ -200,8 +200,12 @@ export async function logAudit(input: AuditLogInput): Promise<void> {
   try {
     await dxRequest(`/items/audit_log`, { method: "POST", body: JSON.stringify(body) });
     emit(EVT.audit);
-  } catch {
-    // Best-effort: never block the user's primary action.
+  } catch (e) {
+    // Best-effort: never block the user's primary action — but surface the
+    // failure so we can see when audit writes are silently rejected (e.g.
+    // missing Directus permissions for the current role / anonymous public
+    // upload).
+    console.warn("[audit_log] write failed", { action: input.action, entityId: input.entityId, error: e });
   }
 }
 
