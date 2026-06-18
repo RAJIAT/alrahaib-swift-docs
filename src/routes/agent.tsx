@@ -403,6 +403,10 @@ function safeText(value: unknown, fallback = "—"): string {
   return fallback;
 }
 
+function safeLower(value: unknown): string {
+  return safeText(value, "").toString().toLowerCase();
+}
+
 function safeStatus(value: unknown): RequestStatus {
   return VALID_STATUSES.includes(value as RequestStatus) ? (value as RequestStatus) : "new";
 }
@@ -432,9 +436,7 @@ function formatDashboardDate(value: unknown, lang: string): string {
 }
 
 function slugify(s: unknown): string {
-  return safeText(s, "")
-    .toString()
-    .toLowerCase()
+  return safeLower(s)
     .replace(/[\u0600-\u06FF]+/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
