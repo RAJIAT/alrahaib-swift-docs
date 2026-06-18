@@ -1049,14 +1049,21 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
     updated.status !== "linkSent" &&
     updated.status !== "quoted"
   ) {
+    const prevStatus = updated.status;
     try {
       updated = await dxSetRequestStatus(updated.id, "quoted");
+      await logEvent({
+        action: "request.status_changed",
+        entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
+        before: { status: prevStatus }, after: { status: "quoted" },
+        meta: { auto: true, reason: "quote_uploaded" },
+      });
     } catch (e) {
       console.warn("[addQuotesToRequest] auto status flip to quoted failed", e);
     }
   }
 
-  logEvent({
+  await logEvent({
     action: "request.quote_uploaded",
     entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
     meta: {
@@ -1066,7 +1073,7 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
     },
   });
   if (shouldReturnToSales && originSales) {
-    logEvent({
+    await logEvent({
       action: "request.returned_to_sales",
       entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
       before: { agentId: currentOwner?.id, agentName: currentOwner?.name, staffType: "underwriter" },
