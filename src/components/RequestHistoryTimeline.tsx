@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { fetchRequestHistory, subscribeAudit, type AuditEntry } from "@/services/audit";
 import { useLang } from "@/i18n/LanguageProvider";
+import { translations } from "@/i18n/translations";
 
 type FilterKey = "all" | "status" | "transfer" | "docs" | "notes";
 
@@ -38,16 +39,30 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "request.shared_with_customer": Send,
 };
 
+function statusLabel(key: any, ar: boolean): string {
+  if (!key) return "—";
+  const map = (ar ? translations.ar : translations.en).status as Record<string, string>;
+  return map[key as string] ?? String(key);
+}
+
 function labelFor(action: string, ar: boolean, before?: any, after?: any, meta?: any): string {
   const fromTo = (b: any, a: any) =>
     `${b ?? "—"} → ${a ?? "—"}`;
   switch (action) {
     case "request.created":
       return ar ? "تم إنشاء الطلب من العميل" : "Request created by customer";
-    case "request.status_changed":
+    case "request.status_changed": {
+      const b = statusLabel(before?.status, ar);
+      const a = statusLabel(after?.status, ar);
+      if (meta?.manual) {
+        return ar
+          ? `تغيير الحالة يدويًا: ${b} → ${a}`
+          : `Status changed manually: ${b} → ${a}`;
+      }
       return ar
-        ? `تغيّرت حالة الطلب: ${fromTo(before?.status, after?.status)}`
-        : `Status changed: ${fromTo(before?.status, after?.status)}`;
+        ? `تغيّرت حالة الطلب: ${b} → ${a}`
+        : `Status changed: ${b} → ${a}`;
+    }
     case "request.assigned_to_underwriter":
       return ar
         ? `حوّل السيلز ${before?.agentName ?? "—"} الطلب إلى الأندر رايتر ${after?.agentName ?? "—"}`
