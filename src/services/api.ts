@@ -959,7 +959,7 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
     const prevStatus = updated.status;
     try {
       withStatus = await dxSetRequestStatus(updated.id, "processing");
-      logEvent({
+      await logEvent({
         action: "request.status_changed",
         entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
         before: { status: prevStatus }, after: { status: "processing" },
@@ -970,7 +970,7 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
     }
   }
 
-  logEvent({
+  await logEvent({
     action,
     entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
     before: { agentId: req.agentId, agentName: req.agentName, staffType: fromType },
