@@ -23,10 +23,6 @@ export const Route = createFileRoute("/agents")({
 
 type TabKey = "supervisor" | "underwriter" | "sales";
 
-function safeLower(value: unknown): string {
-  return (value ?? "").toString().toLowerCase();
-}
-
 function AdminAgents() {
   const { t, dir } = useLang();
   const navigate = useNavigate();
@@ -51,7 +47,7 @@ function AdminAgents() {
   const isSelf = (a: Agent) =>
     !!user &&
     ((a.userId && a.userId === user.id) ||
-      (!!a.email && !!user.email && safeLower(a.email) === safeLower(user.email)));
+      (!!a.email && !!user.email && a.email.toLowerCase() === user.email.toLowerCase()));
 
   // Effective tab — supervisors can't see the Supervisors tab.
   const effectiveTab: TabKey = isSupervisor && tab === "supervisor" ? "underwriter" : tab;
