@@ -1190,6 +1190,24 @@ const flows: FlowDef[] = [
           payload: { status: "processing" },
         },
       },
+      {
+        key: "log_status_change",
+        name: "Request History: status changed",
+        type: "item-create",
+        options: {
+          collection: "audit_log",
+          payload: {
+            action: "request.status_changed",
+            entity_type: "request",
+            entity_id: "{{read_request.id}}",
+            entity_label: "{{read_request.id}}",
+            actor_role: "anonymous",
+            before: { status: "{{read_request.status}}" },
+            after: { status: "processing" },
+            meta: { auto: true, reason: "customer_upload" },
+          },
+        },
+      },
     ],
   },
 
