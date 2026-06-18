@@ -16,6 +16,8 @@
  *                                 entity_label, branch, before, after, meta,
  *                                 actor, actor_role, actor_branch
  *                                 validation: entity_type _eq "request"
+ *   - Agent.audit_log.create      fields: *
+ *   - Supervisor.audit_log.create fields: *
  *   - Agent.audit_log.read        fields: *
  *                                 permissions: entity_type _eq "request"
  *   - Supervisor.audit_log.read   fields: *
@@ -52,9 +54,9 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 async function findPolicyId(name: string): Promise<string | null> {
-  const r = await api<{ data: Array<{ id: string }> }>(
-    `/policies?filter[name][_eq]=${encodeURIComponent(name)}&limit=1`,
-  );
+  const names = [name, `App ${name} Policy`, `${name} Policy`];
+  const filter = encodeURIComponent(JSON.stringify({ name: { _in: names } }));
+  const r = await api<{ data: Array<{ id: string }> }>(`/policies?filter=${filter}&limit=1`);
   return r.data?.[0]?.id ?? null;
 }
 
@@ -99,7 +101,9 @@ async function upsertPermission(label: string, row: PermRow): Promise<void> {
       console.log(`   ~ updated ${label} → ${row.collection}.${row.action}`);
       return;
     }
-  } catch { /* fall through to POST */ }
+  } catch {
+    /* fall through to POST */
+  }
   try {
     await api("/permissions", {
       method: "POST",
@@ -156,6 +160,12 @@ async function main() {
     await upsertPermission("Agent", {
       policy: agentPolicy,
       collection: "audit_log",
+      action: "create",
+      fields: ["*"],
+    });
+    await upsertPermission("Agent", {
+      policy: agentPolicy,
+      collection: "audit_log",
       action: "read",
       fields: ["*"],
       permissions: { entity_type: { _eq: "request" } },
@@ -166,6 +176,12 @@ async function main() {
 
   // Supervisor: broaden read so anonymous/customer events also appear.
   if (supervisorPolicy) {
+    await upsertPermission("Supervisor", {
+      policy: supervisorPolicy,
+      collection: "audit_log",
+      action: "create",
+      fields: ["*"],
+    });
     await upsertPermission("Supervisor", {
       policy: supervisorPolicy,
       collection: "audit_log",

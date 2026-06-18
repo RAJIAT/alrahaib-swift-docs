@@ -11,7 +11,7 @@ import { copyToClipboard, getPublicAppOrigin, safeMessage } from "@/lib/utils";
 import {
   getCurrentUser, refreshCurrentUser, getRequest, updateRequestStatus, resolveAssetUrl,
   addRequestNote, resolveRequestNote, subscribeRequests,
-  reassignRequest, listAgents, getAgents, addQuotesToRequest, removeQuoteFromRequest,
+  reassignRequest, listAgents, getAgents, addQuotesToRequest, removeQuoteFromRequest, markRequestSharedWithCustomer,
   type AuthUser, type InsuranceRequest, type RequestStatus, type RequestNoteKind, type Agent,
 } from "@/services/api";
 import { isDirectusAssetUrl } from "@/services/directus";
@@ -576,7 +576,7 @@ function RequestDetails() {
       {/* Audit timeline — visible to everyone, raw JSON only for admins */}
       {req && (
         <div className="mt-4">
-          <RequestHistoryTimeline requestId={req.id} />
+          <RequestHistoryTimeline requestId={req.id} requestAliases={[req.uuid].filter(Boolean)} />
         </div>
       )}
 
@@ -1403,6 +1403,11 @@ function QuotesCard({
   const markShareStatus = async () => {
     const wantsLinkSent = paymentLink.trim().length > 0;
     const target: RequestStatus = wantsLinkSent ? "linkSent" : "quoted";
+    try {
+      await markRequestSharedWithCustomer(req.id, { paymentLinkIncluded: wantsLinkSent });
+    } catch (e) {
+      console.warn("[share quote] failed to write history", e);
+    }
     // Don't downgrade terminal or later states.
     if (req.status === "sold" || req.status === "rejected") return;
     if (target === "quoted" && (req.status === "linkSent" || req.status === "quoted")) return;

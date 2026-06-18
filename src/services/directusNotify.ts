@@ -202,10 +202,9 @@ export async function logAudit(input: AuditLogInput): Promise<void> {
     emit(EVT.audit);
   } catch (e) {
     // Best-effort: never block the user's primary action — but surface the
-    // failure so we can see when audit writes are silently rejected (e.g.
-    // missing Directus permissions for the current role / anonymous public
-    // upload).
-    console.warn("[audit_log] write failed", { action: input.action, entityId: input.entityId, error: e });
+    // failure so we can see when audit writes are rejected by Directus
+    // permissions for the current role / anonymous public upload.
+    console.warn("[request history] audit write failed", { action: input.action, entityId: input.entityId, error: e });
   }
 }
 
@@ -229,21 +228,39 @@ export async function fetchAudit(opts?: {
   try {
     const r = await dxRequest<{ data: DxAuditRow[] }>(`/items/audit_log${qs}`);
     return r.data.map(rowToAudit);
-  } catch {
+  } catch (e) {
+    console.warn("[request history] audit read failed", { opts, error: e });
     return [];
   }
 }
 
-export async function fetchRequestAuditHistory(requestId: string): Promise<AuditEntry[]> {
+export async function fetchRequestAuditHistory(requestId: string, aliases: string[] = []): Promise<AuditEntry[]> {
+  const candidates = Array.from(
+    new Set(
+      [requestId, requestId.toLowerCase(), ...aliases, ...aliases.map((x) => x.toLowerCase())]
+        .map((x) => (x ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
+  const idFilters = candidates.flatMap((id) => [
+    { entity_id: { _eq: id } },
+    { entity_label: { _eq: id } },
+  ]);
+  const filter = encodeURIComponent(JSON.stringify({
+    _and: [
+      { entity_type: { _eq: "request" } },
+      { _or: idFilters },
+    ],
+  }));
   try {
     const r = await dxRequest<{ data: DxAuditRow[] }>(
-      `/items/audit_log?fields=${A_FIELDS}&sort=ts&limit=-1&filter[entity_type][_eq]=request&filter[entity_id][_eq]=${encodeURIComponent(requestId)}`,
+      `/items/audit_log?fields=${A_FIELDS}&sort=ts&limit=-1&filter=${filter}`,
     );
     const rows = r.data.map(rowToAudit);
-    console.info("[audit_log] fetchRequestAuditHistory", { requestId, count: rows.length });
+    console.info("[request history] audit read", { requestId, aliases, count: rows.length });
     return rows;
   } catch (e) {
-    console.warn("[audit_log] fetchRequestAuditHistory failed", { requestId, error: e });
+    console.warn("[request history] audit read failed", { requestId, aliases, error: e });
     return [];
   }
 }

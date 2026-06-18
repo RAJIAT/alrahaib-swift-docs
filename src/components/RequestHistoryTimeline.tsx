@@ -134,18 +134,28 @@ function roleLabel(role: string | null | undefined, ar: boolean): string {
   return role;
 }
 
-export function RequestHistoryTimeline({ requestId, showAdvanced = false }: { requestId: string; showAdvanced?: boolean }) {
+export function RequestHistoryTimeline({
+  requestId,
+  requestAliases = [],
+  showAdvanced = false,
+}: {
+  requestId: string;
+  requestAliases?: string[];
+  showAdvanced?: boolean;
+}) {
   const { lang, dir } = useLang();
   const ar = lang === "ar";
   const [items, setItems] = useState<AuditEntry[]>([]);
   const [filter, setFilter] = useState<FilterKey>("all");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
+  const requestAliasKey = useMemo(() => requestAliases.join("|"), [requestAliases]);
 
   useEffect(() => {
     let alive = true;
+    const aliases = requestAliasKey.split("|").filter(Boolean);
     const load = () => {
-      fetchRequestHistory(requestId).then((rows) => {
+      fetchRequestHistory(requestId, aliases).then((rows) => {
         if (!alive) return;
         setItems(rows);
         setLoading(false);
@@ -157,7 +167,7 @@ export function RequestHistoryTimeline({ requestId, showAdvanced = false }: { re
       alive = false;
       unsub();
     };
-  }, [requestId]);
+  }, [requestId, requestAliasKey]);
 
   const filtered = useMemo(() => {
     if (filter === "all") return items;

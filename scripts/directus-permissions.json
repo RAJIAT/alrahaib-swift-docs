@@ -123,7 +123,7 @@
       "collection": "audit_log",
       "action": "read",
       "fields": ["*"],
-      "permissions": { "actor_branch": { "_eq": "$CURRENT_USER.branch.code" } }
+      "permissions": { "entity_type": { "_eq": "request" } }
     },
     {
       "collection": "audit_log",
@@ -262,6 +262,13 @@
       "collection": "directus_files",
       "action": "delete",
       "permissions": { "uploaded_by": { "_eq": "$CURRENT_USER" } }
+    },
+    {
+      "collection": "audit_log",
+      "action": "read",
+      "fields": ["*"],
+      "permissions": { "entity_type": { "_eq": "request" } },
+      "_comment": "Agents and underwriters can view Request History for request-scoped events."
     },
     {
       "collection": "notifications",

@@ -182,7 +182,7 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   const auth = profileToAuth(profile);
   // Warm caches so subsequent sync reads (listAgents/listBranches) have data.
   bootstrapEntities().catch(() => {});
-  logEvent({
+  await logEvent({
     action: "auth.login", entityType: "auth", entityId: auth.id, entityLabel: auth.name,
     actor: { id: auth.id, name: auth.name, role: auth.role, branch: auth.branch ?? null },
   });
@@ -393,7 +393,7 @@ export async function createEmptyRequest(): Promise<InsuranceRequest> {
     agentUserId: me.id,
     branchCode: me.branch ?? agent?.branch ?? "",
   });
-  logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
+  await logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
   notifyNewRequest(req);
   return req;
 }
@@ -423,7 +423,7 @@ export async function updateRequestStatus(
   const before = current.status;
   if (before === status) return current;
   const updated = await dxSetRequestStatus(current.id, status);
-  logEvent({
+  await logEvent({
     action: "request.status_changed",
     entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
     before: { status: before }, after: { status },
@@ -431,6 +431,22 @@ export async function updateRequestStatus(
   });
   notifyRequestStatus(updated, before);
   return updated;
+}
+
+export async function markRequestSharedWithCustomer(
+  id: string,
+  meta?: Record<string, unknown>,
+): Promise<void> {
+  const current = await dxGetRequest(id);
+  if (!current) throw new Error("Request not found");
+  await logEvent({
+    action: "request.shared_with_customer",
+    entityType: "request",
+    entityId: current.id,
+    entityLabel: current.id,
+    branch: current.branch,
+    meta,
+  });
 }
 
 export async function submitUpload(input: {
@@ -481,6 +497,11 @@ export async function submitUpload(input: {
     createdRequestOriginAgent: req.originAgentId,
     createdRequestBranch: req.branch,
   });
+  try {
+    await logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
+  } catch (e) {
+    console.error("[public upload] step=log_event failed (tolerated)", e);
+  }
   // Upload all bytes to Directus and create matching request_files rows.
   // Ordered kinds (front/back/etc.) upload sequentially; everything else in parallel.
   const ownerUuid = agent.userId;
@@ -502,13 +523,8 @@ export async function submitUpload(input: {
     console.error("[public upload] step=attach_files failed", e);
     throw e;
   }
-  // Audit + notification are best-effort: anonymous sessions usually can't
-  // write to those collections, but the upload itself already succeeded.
-  try {
-    logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
-  } catch (e) {
-    console.error("[public upload] step=log_event failed (tolerated)", e);
-  }
+  // Notification is best-effort: anonymous sessions may not be able to write
+  // notification rows, but the upload itself already succeeded.
   try {
     notifyNewRequest(req);
   } catch (e) {
@@ -535,11 +551,19 @@ export async function addRequestNote(
     authorId: me.id,
     authorRole: me.role,
   });
-  logEvent({
+  await logEvent({
     action: input.kind === "missing" ? "request.reupload_requested" : "request.note_added",
     entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
     meta: { snippet: input.text.slice(0, 140), authorRole: me.role },
   });
+  if (input.kind === "missing" && current.status !== updated.status) {
+    await logEvent({
+      action: "request.status_changed",
+      entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
+      before: { status: current.status }, after: { status: updated.status },
+      meta: { auto: true, reason: "missing_documents_requested" },
+    });
+  }
   return updated;
 }
 
@@ -566,7 +590,15 @@ export async function appendAttachmentsToRequest(
     }
   }
   const updated = await dxSetRequestStatus(current.id, "processing");
-  logEvent({
+  if (current.status !== updated.status) {
+    await logEvent({
+      action: "request.status_changed",
+      entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
+      before: { status: current.status }, after: { status: updated.status },
+      meta: { auto: true, reason: "customer_reupload" },
+    });
+  }
+  await logEvent({
     action: "request.document_uploaded",
     entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
     meta: {
@@ -729,7 +761,7 @@ export async function updateAgent(id: string, patch: Partial<{
     if ((patch as Record<string, unknown>)[k] !== undefined && (before as Record<string, unknown>)[k] !== (updated as Record<string, unknown>)[k]) changed.push(k);
   });
   if (changed.includes("assignedUnderwriterId")) {
-    logEvent({
+    await logEvent({
       action: "agent.assigned_underwriter_changed",
       entityType: "agent", entityId: updated.id, entityLabel: updated.name, branch: updated.branch,
       before: { assignedUnderwriterId: before.assignedUnderwriterId },
@@ -777,7 +809,7 @@ export async function deleteAgent(id: string): Promise<void> {
 // Audit (delegated to a tiny inline impl so we don't need a separate file)
 // ---------------------------------------------------------------------------
 
-function logEvent(input: {
+async function logEvent(input: {
   action: string;
   entityType: "request" | "agent" | "auth";
   entityId?: string | null;
@@ -787,26 +819,9 @@ function logEvent(input: {
   after?: unknown;
   meta?: Record<string, unknown>;
   actor?: { id: string; name: string; role: Role | "anonymous"; branch?: string | null };
-}) {
+}): Promise<void> {
   const u = input.actor ?? getCurrentUser();
-  const entry = {
-    id: safeUUID(),
-    ts: new Date().toISOString(),
-    actorId: u?.id ?? null,
-    actorName: u?.name ?? null,
-    actorRole: (u?.role ?? "anonymous") as Role | "anonymous",
-    actorBranch: (u && "branch" in u ? (u as { branch?: string | null }).branch ?? null : null),
-    action: input.action,
-    entityType: input.entityType,
-    entityId: input.entityId ?? null,
-    entityLabel: input.entityLabel ?? null,
-    branch: input.branch ?? null,
-    before: input.before ?? null,
-    after: input.after ?? null,
-    meta: input.meta ?? undefined,
-  };
-  void entry;
-  void logAudit({
+  await logAudit({
     action: input.action,
     entityType: input.entityType,
     entityId: input.entityId ?? null,
@@ -976,7 +991,7 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
     const prevStatus = updated.status;
     try {
       withStatus = await dxSetRequestStatus(updated.id, "processing");
-      logEvent({
+      await logEvent({
         action: "request.status_changed",
         entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
         before: { status: prevStatus }, after: { status: "processing" },
@@ -987,7 +1002,7 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
     }
   }
 
-  logEvent({
+  await logEvent({
     action,
     entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
     before: { agentId: req.agentId, agentName: req.agentName, staffType: fromType },
@@ -1066,14 +1081,21 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
     updated.status !== "linkSent" &&
     updated.status !== "quoted"
   ) {
+    const prevStatus = updated.status;
     try {
       updated = await dxSetRequestStatus(updated.id, "quoted");
+      await logEvent({
+        action: "request.status_changed",
+        entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
+        before: { status: prevStatus }, after: { status: "quoted" },
+        meta: { auto: true, reason: "quote_uploaded" },
+      });
     } catch (e) {
       console.warn("[addQuotesToRequest] auto status flip to quoted failed", e);
     }
   }
 
-  logEvent({
+  await logEvent({
     action: "request.quote_uploaded",
     entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
     meta: {
@@ -1083,7 +1105,7 @@ export async function addQuotesToRequest(requestId: string, files: File[]): Prom
     },
   });
   if (shouldReturnToSales && originSales) {
-    logEvent({
+    await logEvent({
       action: "request.returned_to_sales",
       entityType: "request", entityId: req.id, entityLabel: req.id, branch: req.branch,
       before: { agentId: currentOwner?.id, agentName: currentOwner?.name, staffType: "underwriter" },

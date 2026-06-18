@@ -199,6 +199,15 @@ async function main() {
     fields: ["id", "request", "kind", "file", "uploaded_at", "uploaded_by"],
   });
 
+  // Request History for anonymous customer submissions.
+  await upsertPermission({
+    policy: publicPolicy,
+    collection: "audit_log",
+    action: "create",
+    fields: ["action", "entity_type", "entity_id", "entity_label", "branch", "before", "after", "meta", "actor", "actor_role", "actor_branch"],
+    validation: { entity_type: { _eq: "request" } },
+  });
+
   console.log("\n✅ Done.");
   console.log("   • Public upload page can now create a request + upload files.");
   console.log("   • Public users still cannot read, list or modify other requests.");
