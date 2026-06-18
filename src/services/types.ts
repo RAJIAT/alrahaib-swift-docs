@@ -72,6 +72,9 @@ export type InsuranceRequest = {
   originAgentId?: string;
   originAgentUserId?: string;
   originAgentName?: string;
+  assignedUnderwriterId?: string;
+  assignedUnderwriterUserId?: string;
+  assignedUnderwriterName?: string;
   assignedAt?: string;
   branch: string;
   status: RequestStatus;
