@@ -16,6 +16,8 @@
  *                                 entity_label, branch, before, after, meta,
  *                                 actor, actor_role, actor_branch
  *                                 validation: entity_type _eq "request"
+ *   - Agent.audit_log.create      fields: *
+ *   - Supervisor.audit_log.create fields: *
  *   - Agent.audit_log.read        fields: *
  *                                 permissions: entity_type _eq "request"
  *   - Supervisor.audit_log.read   fields: *
@@ -52,8 +54,9 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 async function findPolicyId(name: string): Promise<string | null> {
+  const names = [name, `App ${name} Policy`, `${name} Policy`];
   const r = await api<{ data: Array<{ id: string }> }>(
-    `/policies?filter[name][_eq]=${encodeURIComponent(name)}&limit=1`,
+    `/policies?filter[name][_in]=${encodeURIComponent(names.join(","))}&limit=1`,
   );
   return r.data?.[0]?.id ?? null;
 }
@@ -156,6 +159,12 @@ async function main() {
     await upsertPermission("Agent", {
       policy: agentPolicy,
       collection: "audit_log",
+      action: "create",
+      fields: ["*"],
+    });
+    await upsertPermission("Agent", {
+      policy: agentPolicy,
+      collection: "audit_log",
       action: "read",
       fields: ["*"],
       permissions: { entity_type: { _eq: "request" } },
@@ -166,6 +175,12 @@ async function main() {
 
   // Supervisor: broaden read so anonymous/customer events also appear.
   if (supervisorPolicy) {
+    await upsertPermission("Supervisor", {
+      policy: supervisorPolicy,
+      collection: "audit_log",
+      action: "create",
+      fields: ["*"],
+    });
     await upsertPermission("Supervisor", {
       policy: supervisorPolicy,
       collection: "audit_log",
