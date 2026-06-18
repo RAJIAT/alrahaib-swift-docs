@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, FileText, Inbox, Copy, Check, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/DashboardShell";
@@ -7,15 +7,66 @@ import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLang } from "@/i18n/LanguageProvider";
 import { useRequestsLive } from "@/hooks/useRequestsLive";
-import { getCurrentUser, refreshCurrentUser, listAgents, type AuthUser } from "@/services/api";
+import {
+  getCurrentUser,
+  refreshCurrentUser,
+  listAgents,
+  type AuthUser,
+  type InsuranceRequest,
+  type RequestStatus,
+} from "@/services/api";
 
 export const Route = createFileRoute("/agent")({
   component: AgentDashboard,
 });
 
-type StatusFilter = "all" | "new" | "quoted" | "linkSent" | "processing" | "sold" | "rejected" | "reupload";
+type StatusFilter =
+  | "all"
+  | "new"
+  | "quoted"
+  | "linkSent"
+  | "processing"
+  | "sold"
+  | "rejected"
+  | "reupload";
 
 function AgentDashboard() {
+  return (
+    <AgentDashboardRenderBoundary>
+      <AgentDashboardContent />
+    </AgentDashboardRenderBoundary>
+  );
+}
+
+class AgentDashboardRenderBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error) {
+    console.error("[agent dashboard render error]", error);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen bg-background px-4 py-10 text-center text-foreground">
+          <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-5 shadow-card">
+            <h1 className="text-lg font-bold">Requests</h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Unable to render one dashboard row. Please refresh.
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function AgentDashboardContent() {
   const { t, dir, lang } = useLang();
   const navigate = useNavigate();
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -30,7 +81,10 @@ function AgentDashboard() {
     setUser(u);
     // Re-verify role server-side; if tampered, send to login.
     refreshCurrentUser().then((fresh) => {
-      if (!fresh || fresh.role !== "agent") { navigate({ to: "/login" }); return; }
+      if (!fresh || fresh.role !== "agent") {
+        navigate({ to: "/login" });
+        return;
+      }
       setUser(fresh);
     });
   }, [navigate]);
@@ -44,14 +98,20 @@ function AgentDashboard() {
   // filter, and result count so visibility issues are easy to debug.
   useEffect(() => {
     if (!user) return;
+    const safeItems = Array.isArray(items) ? items : [];
     console.info("[underwriter/agent dashboard]", {
-      loggedInUserId: user.id,
-      loggedInAgentCode: user.agentId,
-      staffType: user.staffType,
+      loggedInUserId: user?.id ?? null,
+      loggedInAgentCode: user?.agentId ?? null,
+      staffType: user?.staffType ?? null,
       queryFilter: { agentId: effectiveAgentId },
       loading,
-      returnedCount: items.length,
-      statuses: items.map((r) => ({ id: r.id, status: r.status, agent: r.agentId, assignedUW: r.assignedUnderwriterId })),
+      returnedCount: safeItems.length,
+      statuses: safeItems.map((r) => ({
+        id: safeText(r?.id, ""),
+        status: safeStatus(r?.status),
+        agent: safeText(r?.agentId, ""),
+        assignedUW: safeText(r?.assignedUnderwriterId ?? r?.assignedUnderwriterUserId, ""),
+      })),
     });
   }, [user, effectiveAgentId, items, loading]);
 
@@ -61,54 +121,62 @@ function AgentDashboard() {
   const seenIdsRef = useRef<Set<string> | null>(null);
   useEffect(() => {
     if (!user || loading) return;
-    const ids = new Set(items.map((r) => r.id));
+    const safeItems = Array.isArray(items) ? items : [];
+    const ids = new Set(safeItems.map((r) => safeText(r?.id, "")).filter(Boolean));
     if (seenIdsRef.current === null) {
       seenIdsRef.current = ids;
       return;
     }
-    const fresh = items.filter((r) => !seenIdsRef.current!.has(r.id));
+    const fresh = safeItems.filter((r) => !seenIdsRef.current!.has(safeText(r?.id, "")));
     seenIdsRef.current = ids;
     if (!fresh.length) return;
     const cutoff = Date.now() - 30 * 60 * 1000;
     const recent = fresh.filter((r) => {
-      const t = Date.parse(r.createdAt);
+      const t = Date.parse(safeText(r?.createdAt, ""));
       return !Number.isNaN(t) && t >= cutoff;
     });
     if (!recent.length) return;
     for (const r of recent) {
       toast.success(
-        lang === "ar"
-          ? `طلب جديد ${r.id}`
-          : `New request ${r.id}`,
+        lang === "ar" ? `طلب جديد ${safeText(r?.id)}` : `New request ${safeText(r?.id)}`,
       );
     }
   }, [items, loading, user, lang]);
 
   const myStaffType = useMemo(
-    () => user?.staffType ?? (effectiveAgentId ? listAgents().find((a) => a.id === effectiveAgentId || a.userId === effectiveAgentId)?.staffType : undefined),
+    () =>
+      user?.staffType ??
+      (effectiveAgentId
+        ? listAgents().find((a) => a.id === effectiveAgentId || a.userId === effectiveAgentId)
+            ?.staffType
+        : undefined),
     [effectiveAgentId, user?.staffType],
   );
   const isUnderwriter = myStaffType === "underwriter";
+  const safeItems = useMemo(
+    () => (Array.isArray(items) ? items : []).map(normalizeRequestForDashboard),
+    [items],
+  );
 
   const counts = useMemo(
     () => ({
-      all: items.length,
-      new: items.filter((r) => r.status === "new").length,
-      quoted: items.filter((r) => r.status === "quoted").length,
-      linkSent: items.filter((r) => r.status === "linkSent").length,
-      processing: items.filter((r) => r.status === "processing").length,
-      sold: items.filter((r) => r.status === "sold").length,
-      rejected: items.filter((r) => r.status === "rejected").length,
-      reupload: items.filter((r) => r.status === "reupload").length,
+      all: safeItems.length,
+      new: safeItems.filter((r) => r.status === "new").length,
+      quoted: safeItems.filter((r) => r.status === "quoted").length,
+      linkSent: safeItems.filter((r) => r.status === "linkSent").length,
+      processing: safeItems.filter((r) => r.status === "processing").length,
+      sold: safeItems.filter((r) => r.status === "sold").length,
+      rejected: safeItems.filter((r) => r.status === "rejected").length,
+      reupload: safeItems.filter((r) => r.status === "reupload").length,
     }),
-    [items],
+    [safeItems],
   );
 
   const stats = { total: counts.all, newReq: counts.new, sales: counts.sold };
 
   const filteredItems = useMemo(
-    () => (filter === "all" ? items : items.filter((r) => r.status === filter)),
-    [items, filter],
+    () => (filter === "all" ? safeItems : safeItems.filter((r) => r.status === filter)),
+    [safeItems, filter],
   );
 
   const tabs: { key: StatusFilter; label: string; tone: string }[] = [
@@ -119,7 +187,11 @@ function AgentDashboard() {
     { key: "linkSent", label: t.status.linkSent, tone: "bg-info text-info-foreground" },
     { key: "sold", label: t.status.sold, tone: "bg-success text-success-foreground" },
     { key: "reupload", label: t.status.reupload, tone: "bg-purple text-purple-foreground" },
-    { key: "rejected", label: t.status.rejected, tone: "bg-destructive text-destructive-foreground" },
+    {
+      key: "rejected",
+      label: t.status.rejected,
+      tone: "bg-destructive text-destructive-foreground",
+    },
   ];
 
   const Chevron = dir === "rtl" ? ChevronLeft : ChevronRight;
@@ -172,7 +244,9 @@ function AgentDashboard() {
                 <span>{tab.label}</span>
                 <span
                   className={`inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${
-                    active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                    active
+                      ? "bg-primary-foreground/20 text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {count}
@@ -196,25 +270,31 @@ function AgentDashboard() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={4} className="px-5 py-12 text-center text-muted-foreground">…</td></tr>
+              <tr>
+                <td colSpan={4} className="px-5 py-12 text-center text-muted-foreground">
+                  …
+                </td>
+              </tr>
             ) : filteredItems.length === 0 ? (
-              <tr><td colSpan={4} className="px-5 py-8">
-                <EmptyState
-                  icon={<Inbox className="h-7 w-7" />}
-                  title={t.agent.emptyTitle}
-                  subtitle={t.agent.emptySubtitle}
-                />
-              </td></tr>
+              <tr>
+                <td colSpan={4} className="px-5 py-8">
+                  <EmptyState
+                    icon={<Inbox className="h-7 w-7" />}
+                    title={t.agent.emptyTitle}
+                    subtitle={t.agent.emptySubtitle}
+                  />
+                </td>
+              </tr>
             ) : (
               filteredItems.map((r) => (
                 <tr key={r.id} className="border-t border-border transition hover:bg-muted/30">
                   <td className="px-5 py-4 font-semibold text-foreground">{r.id}</td>
                   <td className="px-5 py-4 text-muted-foreground">
-                    {new Date(r.createdAt).toLocaleString(lang === "ar" ? "ar-AE" : "en-GB", {
-                      dateStyle: "medium", timeStyle: "short",
-                    })}
+                    {formatDashboardDate(r.createdAt, lang)}
                   </td>
-                  <td className="px-5 py-4"><StatusBadge status={r.status} /></td>
+                  <td className="px-5 py-4">
+                    <StatusBadge status={r.status} />
+                  </td>
                   <td className="px-5 py-4">
                     <Link
                       to="/requests/$id"
@@ -247,11 +327,7 @@ function AgentDashboard() {
               key={r.id}
               className="animate-fade-in rounded-2xl border border-border bg-card p-4 shadow-card"
             >
-              <Link
-                to="/requests/$id"
-                params={{ id: r.id }}
-                className="flex items-center gap-3"
-              >
+              <Link to="/requests/$id" params={{ id: r.id }} className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-soft text-primary">
                   <FileText className="h-5 w-5" />
                 </div>
@@ -261,9 +337,7 @@ function AgentDashboard() {
                     <StatusBadge status={r.status} />
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {new Date(r.createdAt).toLocaleString(lang === "ar" ? "ar-AE" : "en-GB", {
-                      dateStyle: "medium", timeStyle: "short",
-                    })}
+                    {formatDashboardDate(r.createdAt, lang)}
                   </div>
                 </div>
                 <Chevron className="h-5 w-5 text-muted-foreground" />
@@ -276,18 +350,85 @@ function AgentDashboard() {
   );
 }
 
-function Chip({ label, value, tone }: { label: string; value: number; tone: "primary" | "info" | "success" }) {
+function Chip({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "primary" | "info" | "success";
+}) {
   const tones = {
     primary: "bg-primary-soft text-primary",
     info: "bg-info/10 text-info",
     success: "bg-success/10 text-success",
   };
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${tones[tone]}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${tones[tone]}`}
+    >
       <span className="opacity-80">{label}</span>
       <span className="font-bold">{value}</span>
     </span>
   );
+}
+
+type DashboardRequest = {
+  id: string;
+  status: RequestStatus;
+  createdAt: string;
+  agentId: string;
+  assignedUnderwriterId?: string;
+  assignedUnderwriterUserId?: string;
+};
+
+const VALID_STATUSES: RequestStatus[] = [
+  "new",
+  "processing",
+  "reupload",
+  "quoted",
+  "linkSent",
+  "sold",
+  "rejected",
+];
+
+function safeText(value: unknown, fallback = "—"): string {
+  if (typeof value === "string") return value.trim() || fallback;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    return safeText(obj.agent_code ?? obj.code ?? obj.name ?? obj.id, fallback);
+  }
+  return fallback;
+}
+
+function safeStatus(value: unknown): RequestStatus {
+  return VALID_STATUSES.includes(value as RequestStatus) ? (value as RequestStatus) : "new";
+}
+
+function normalizeRequestForDashboard(
+  req: Partial<InsuranceRequest> | null | undefined,
+): DashboardRequest {
+  const id = safeText(req?.id, "REQ-UNKNOWN");
+  return {
+    id,
+    status: safeStatus(req?.status),
+    createdAt: safeText(req?.createdAt, ""),
+    agentId: safeText(req?.agentId, ""),
+    assignedUnderwriterId: safeText(req?.assignedUnderwriterId, ""),
+    assignedUnderwriterUserId: safeText(req?.assignedUnderwriterUserId, ""),
+  };
+}
+
+function formatDashboardDate(value: unknown, lang: string): string {
+  const raw = safeText(value, "");
+  const date = raw ? new Date(raw) : null;
+  if (!date || Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString(lang === "ar" ? "ar-AE" : "en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 function slugify(s: string): string {
@@ -298,7 +439,15 @@ function slugify(s: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function ShareLinkCard({ agentId, agentCode, agentName }: { agentId: string; agentCode?: string; agentName: string }) {
+function ShareLinkCard({
+  agentId,
+  agentCode,
+  agentName,
+}: {
+  agentId: string;
+  agentCode?: string;
+  agentName: string;
+}) {
   const { t, lang } = useLang();
   const [copied, setCopied] = useState(false);
 
@@ -393,9 +542,7 @@ function ShareLinkCard({ agentId, agentCode, agentName }: { agentId: string; age
             className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-95"
           >
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            {copied
-              ? lang === "ar" ? "تم النسخ" : "Copied"
-              : lang === "ar" ? "نسخ" : "Copy"}
+            {copied ? (lang === "ar" ? "تم النسخ" : "Copied") : lang === "ar" ? "نسخ" : "Copy"}
           </button>
           <button
             onClick={share}
