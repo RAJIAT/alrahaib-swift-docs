@@ -777,7 +777,7 @@ export async function deleteAgent(id: string): Promise<void> {
 // Audit (delegated to a tiny inline impl so we don't need a separate file)
 // ---------------------------------------------------------------------------
 
-function logEvent(input: {
+async function logEvent(input: {
   action: string;
   entityType: "request" | "agent" | "auth";
   entityId?: string | null;
@@ -787,26 +787,9 @@ function logEvent(input: {
   after?: unknown;
   meta?: Record<string, unknown>;
   actor?: { id: string; name: string; role: Role | "anonymous"; branch?: string | null };
-}) {
+}): Promise<void> {
   const u = input.actor ?? getCurrentUser();
-  const entry = {
-    id: safeUUID(),
-    ts: new Date().toISOString(),
-    actorId: u?.id ?? null,
-    actorName: u?.name ?? null,
-    actorRole: (u?.role ?? "anonymous") as Role | "anonymous",
-    actorBranch: (u && "branch" in u ? (u as { branch?: string | null }).branch ?? null : null),
-    action: input.action,
-    entityType: input.entityType,
-    entityId: input.entityId ?? null,
-    entityLabel: input.entityLabel ?? null,
-    branch: input.branch ?? null,
-    before: input.before ?? null,
-    after: input.after ?? null,
-    meta: input.meta ?? undefined,
-  };
-  void entry;
-  void logAudit({
+  await logAudit({
     action: input.action,
     entityType: input.entityType,
     entityId: input.entityId ?? null,
