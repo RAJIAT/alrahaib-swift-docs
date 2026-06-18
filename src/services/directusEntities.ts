@@ -40,6 +40,10 @@ export function getAgentsCache(): DemoAgent[] { return agentsCache; }
 export function getAdminUserIdsCache(): string[] { return adminUserIdsCache; }
 export function entitiesReady(): boolean { return ready; }
 
+function safeLower(value: unknown): string {
+  return (value ?? "").toString().toLowerCase();
+}
+
 // ---------------- mappers ----------------
 
 type DxBranchRow = {
@@ -106,7 +110,7 @@ async function loadRoles(): Promise<Record<string, string>> {
   if (Object.keys(rolesCache).length) return rolesCache;
   const r = await dxRequest<{ data: Array<{ id: string; name: string }> }>(`/roles?fields=id,name&limit=-1`);
   const map: Record<string, string> = {};
-  for (const row of r.data) map[row.name.toLowerCase()] = row.id;
+  for (const row of r.data) map[safeLower(row.name)] = row.id;
   rolesCache = map;
   return map;
 }
