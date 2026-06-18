@@ -540,6 +540,14 @@ export async function addRequestNote(
     entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
     meta: { snippet: input.text.slice(0, 140), authorRole: me.role },
   });
+  if (input.kind === "missing" && current.status !== updated.status) {
+    await logEvent({
+      action: "request.status_changed",
+      entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
+      before: { status: current.status }, after: { status: updated.status },
+      meta: { auto: true, reason: "missing_documents_requested" },
+    });
+  }
   return updated;
 }
 
@@ -566,6 +574,14 @@ export async function appendAttachmentsToRequest(
     }
   }
   const updated = await dxSetRequestStatus(current.id, "processing");
+  if (current.status !== updated.status) {
+    await logEvent({
+      action: "request.status_changed",
+      entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
+      before: { status: current.status }, after: { status: updated.status },
+      meta: { auto: true, reason: "customer_reupload" },
+    });
+  }
   await logEvent({
     action: "request.document_uploaded",
     entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
