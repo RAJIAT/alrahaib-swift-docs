@@ -123,17 +123,7 @@
       "collection": "audit_log",
       "action": "read",
       "fields": ["*"],
-      "permissions": {
-        "_and": [
-          { "entity_type": { "_eq": "request" } },
-          {
-            "_or": [
-              { "branch": { "_eq": "$CURRENT_USER.branch.code" } },
-              { "actor": { "_eq": "$CURRENT_USER" } }
-            ]
-          }
-        ]
-      }
+      "permissions": { "entity_type": { "_eq": "request" } }
     },
     {
       "collection": "audit_log",
@@ -277,17 +267,7 @@
       "collection": "audit_log",
       "action": "read",
       "fields": ["*"],
-      "permissions": {
-        "_and": [
-          { "entity_type": { "_eq": "request" } },
-          {
-            "_or": [
-              { "branch": { "_eq": "$CURRENT_USER.branch.code" } },
-              { "actor": { "_eq": "$CURRENT_USER" } }
-            ]
-          }
-        ]
-      },
+      "permissions": { "entity_type": { "_eq": "request" } },
       "_comment": "Agents and underwriters can view Request History for request-scoped events."
     },
     {
