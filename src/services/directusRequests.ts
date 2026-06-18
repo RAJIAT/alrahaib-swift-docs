@@ -132,14 +132,6 @@ function relationId(value: unknown): string | null {
   if (typeof value === "object") return safeString((value as Record<string, unknown>).id) || null;
   return safeString(value) || null;
 }
-function relationCode(value: unknown): string | null {
-  if (!value) return null;
-  if (typeof value === "object") {
-    const obj = value as Record<string, unknown>;
-    return safeString(obj.agent_code ?? obj.code ?? obj.id) || null;
-  }
-  return safeString(value) || null;
-}
 function uuidFromAgentCode(code: string | undefined): string | null {
   if (!code) return null;
   if (isUuid(code)) return code;
