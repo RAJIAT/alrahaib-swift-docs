@@ -239,8 +239,11 @@ export async function fetchRequestAuditHistory(requestId: string): Promise<Audit
     const r = await dxRequest<{ data: DxAuditRow[] }>(
       `/items/audit_log?fields=${A_FIELDS}&sort=ts&limit=-1&filter[entity_type][_eq]=request&filter[entity_id][_eq]=${encodeURIComponent(requestId)}`,
     );
-    return r.data.map(rowToAudit);
-  } catch {
+    const rows = r.data.map(rowToAudit);
+    console.info("[audit_log] fetchRequestAuditHistory", { requestId, count: rows.length });
+    return rows;
+  } catch (e) {
+    console.warn("[audit_log] fetchRequestAuditHistory failed", { requestId, error: e });
     return [];
   }
 }
