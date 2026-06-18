@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLang } from "@/i18n/LanguageProvider";
 import { useRequestsLive } from "@/hooks/useRequestsLive";
-import { getCurrentUser, refreshCurrentUser, listAgents, type AuthUser } from "@/services/api";
+import { getCurrentUser, refreshCurrentUser, listAgents, type AuthUser, type InsuranceRequest, type RequestStatus } from "@/services/api";
 
 export const Route = createFileRoute("/agent")({
   component: AgentDashboard,
@@ -319,6 +319,53 @@ function Chip({ label, value, tone }: { label: string; value: number; tone: "pri
       <span className="font-bold">{value}</span>
     </span>
   );
+}
+
+type DashboardRequest = {
+  id: string;
+  status: RequestStatus;
+  createdAt: string;
+  agentId: string;
+  assignedUnderwriterId?: string;
+  assignedUnderwriterUserId?: string;
+};
+
+const VALID_STATUSES: RequestStatus[] = ["new", "processing", "reupload", "quoted", "linkSent", "sold", "rejected"];
+
+function safeText(value: unknown, fallback = "—"): string {
+  if (typeof value === "string") return value.trim() || fallback;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    return safeText(obj.agent_code ?? obj.code ?? obj.name ?? obj.id, fallback);
+  }
+  return fallback;
+}
+
+function safeStatus(value: unknown): RequestStatus {
+  return VALID_STATUSES.includes(value as RequestStatus) ? (value as RequestStatus) : "new";
+}
+
+function normalizeRequestForDashboard(req: Partial<InsuranceRequest> | null | undefined): DashboardRequest {
+  const id = safeText(req?.id, "REQ-UNKNOWN");
+  return {
+    id,
+    status: safeStatus(req?.status),
+    createdAt: safeText(req?.createdAt, ""),
+    agentId: safeText(req?.agentId, ""),
+    assignedUnderwriterId: safeText(req?.assignedUnderwriterId, ""),
+    assignedUnderwriterUserId: safeText(req?.assignedUnderwriterUserId, ""),
+  };
+}
+
+function formatDashboardDate(value: unknown, lang: string): string {
+  const raw = safeText(value, "");
+  const date = raw ? new Date(raw) : null;
+  if (!date || Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString(lang === "ar" ? "ar-AE" : "en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 }
 
 function slugify(s: string): string {
