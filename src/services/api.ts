@@ -393,7 +393,7 @@ export async function createEmptyRequest(): Promise<InsuranceRequest> {
     agentUserId: me.id,
     branchCode: me.branch ?? agent?.branch ?? "",
   });
-  logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
+  await logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
   notifyNewRequest(req);
   return req;
 }
@@ -423,7 +423,7 @@ export async function updateRequestStatus(
   const before = current.status;
   if (before === status) return current;
   const updated = await dxSetRequestStatus(current.id, status);
-  logEvent({
+  await logEvent({
     action: "request.status_changed",
     entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
     before: { status: before }, after: { status },
@@ -505,7 +505,7 @@ export async function submitUpload(input: {
   // Audit + notification are best-effort: anonymous sessions usually can't
   // write to those collections, but the upload itself already succeeded.
   try {
-    logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
+    await logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
   } catch (e) {
     console.error("[public upload] step=log_event failed (tolerated)", e);
   }
