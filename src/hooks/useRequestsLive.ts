@@ -6,16 +6,17 @@ import { listRequests, subscribeRequests, type InsuranceRequest } from "@/servic
 const POLL_INTERVAL_MS = 4_000;
 
 function requestSig(r: InsuranceRequest): string {
+  const images = r.images ?? { registration: [], license: [], emirates: [], vehicleMedia: [], attachments: [] };
   const imageCount =
-    (r.images.registration?.length ?? 0) +
-    (r.images.license?.length ?? 0) +
-    (r.images.emirates?.length ?? 0) +
-    (r.images.vehicleMedia?.length ?? 0) +
-    (r.images.attachments?.length ?? 0) +
-    (r.images.missingAttachments?.length ?? 0) +
-    (r.images.inspection ? 1 : 0) +
+    (Array.isArray(images.registration) ? images.registration.length : 0) +
+    (Array.isArray(images.license) ? images.license.length : 0) +
+    (Array.isArray(images.emirates) ? images.emirates.length : 0) +
+    (Array.isArray(images.vehicleMedia) ? images.vehicleMedia.length : 0) +
+    (Array.isArray(images.attachments) ? images.attachments.length : 0) +
+    (Array.isArray(images.missingAttachments) ? images.missingAttachments.length : 0) +
+    (images.inspection ? 1 : 0) +
     (r.quotes?.length ?? 0);
-  return `${r.id}:${r.status}:${r.assignedAt ?? ""}:${imageCount}:${r.notes?.length ?? 0}`;
+  return `${r.id ?? ""}:${r.status ?? "new"}:${r.assignedAt ?? ""}:${imageCount}:${r.notes?.length ?? 0}`;
 }
 
 export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
