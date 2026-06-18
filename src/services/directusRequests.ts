@@ -44,10 +44,10 @@ if (typeof window !== "undefined") {
 type DxRequestRow = {
   id: string;
   uuid?: string | null;
-  agent?: string | null;          // user uuid
-  origin_agent?: string | null;   // user uuid
-  assigned_underwriter?: string | null; // user uuid — sticky underwriter for visibility
-  branch?: number | null;
+  agent?: string | { id?: string | null; agent_code?: string | null } | null;
+  origin_agent?: string | { id?: string | null; agent_code?: string | null } | null;
+  assigned_underwriter?: string | { id?: string | null; agent_code?: string | null; first_name?: string | null; last_name?: string | null } | null;
+  branch?: number | string | { id?: number | string | null; code?: string | null } | null;
   status: DemoStatus;
   customer_name?: string | null;
   customer_email?: string | null;
@@ -108,6 +108,10 @@ function isUuid(value: string | undefined | null): value is string {
 
 function safeLower(value: unknown): string {
   return (value ?? "").toString().toLowerCase();
+}
+
+function safeString(value: unknown): string {
+  return (value ?? "").toString();
 }
 
 function fileObj(row: DxRequestFileRow): DxFileObj | null {
