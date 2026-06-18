@@ -244,7 +244,9 @@ function AgentDashboardContent() {
                 <span>{tab.label}</span>
                 <span
                   className={`inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${
-                    active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted text-muted-foreground"
+                      active
+                        ? "bg-primary-foreground/20 text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {count}
@@ -268,15 +270,21 @@ function AgentDashboardContent() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={4} className="px-5 py-12 text-center text-muted-foreground">…</td></tr>
+              <tr>
+                <td colSpan={4} className="px-5 py-12 text-center text-muted-foreground">
+                  …
+                </td>
+              </tr>
             ) : filteredItems.length === 0 ? (
-              <tr><td colSpan={4} className="px-5 py-8">
-                <EmptyState
-                  icon={<Inbox className="h-7 w-7" />}
-                  title={t.agent.emptyTitle}
-                  subtitle={t.agent.emptySubtitle}
-                />
-              </td></tr>
+              <tr>
+                <td colSpan={4} className="px-5 py-8">
+                  <EmptyState
+                    icon={<Inbox className="h-7 w-7" />}
+                    title={t.agent.emptyTitle}
+                    subtitle={t.agent.emptySubtitle}
+                  />
+                </td>
+              </tr>
             ) : (
               filteredItems.map((r) => (
                 <tr key={r.id} className="border-t border-border transition hover:bg-muted/30">
@@ -284,7 +292,9 @@ function AgentDashboardContent() {
                   <td className="px-5 py-4 text-muted-foreground">
                     {formatDashboardDate(r.createdAt, lang)}
                   </td>
-                  <td className="px-5 py-4"><StatusBadge status={r.status} /></td>
+                  <td className="px-5 py-4">
+                    <StatusBadge status={r.status} />
+                  </td>
                   <td className="px-5 py-4">
                     <Link
                       to="/requests/$id"
@@ -317,11 +327,7 @@ function AgentDashboardContent() {
               key={r.id}
               className="animate-fade-in rounded-2xl border border-border bg-card p-4 shadow-card"
             >
-              <Link
-                to="/requests/$id"
-                params={{ id: r.id }}
-                className="flex items-center gap-3"
-              >
+              <Link to="/requests/$id" params={{ id: r.id }} className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-soft text-primary">
                   <FileText className="h-5 w-5" />
                 </div>
