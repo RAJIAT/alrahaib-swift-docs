@@ -6,7 +6,13 @@ import { listRequests, subscribeRequests, type InsuranceRequest } from "@/servic
 const POLL_INTERVAL_MS = 4_000;
 
 function requestSig(r: InsuranceRequest): string {
-  const images = r.images ?? { registration: [], license: [], emirates: [], vehicleMedia: [], attachments: [] };
+  const images = r.images ?? {
+    registration: [],
+    license: [],
+    emirates: [],
+    vehicleMedia: [],
+    attachments: [],
+  };
   const imageCount =
     (Array.isArray(images.registration) ? images.registration.length : 0) +
     (Array.isArray(images.license) ? images.license.length : 0) +
@@ -37,7 +43,9 @@ export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
     const ready = !wantsScoped || !!agentId || !!branch;
     if (!ready) {
       setLoading(false);
-      return () => { alive = false; };
+      return () => {
+        alive = false;
+      };
     }
 
     const refresh = () => {
@@ -79,7 +87,10 @@ export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
       }, POLL_INTERVAL_MS);
     };
     const stopPolling = () => {
-      if (intervalId !== null) { clearInterval(intervalId); intervalId = null; }
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
     };
     startPolling();
 
