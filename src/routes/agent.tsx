@@ -224,6 +224,8 @@ function AgentDashboardContent() {
           agentCode={user.agentId}
           agentName={user.name}
           agentEmail={user.email}
+          firstName={user.firstName}
+          lastName={user.lastName}
         />
       )}
       {/* Status filter tabs */}
@@ -453,8 +455,11 @@ export function buildAgentUploadSlug(input: {
   name?: string | null;
   email?: string | null;
   agentCode?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
 }): string {
-  const namePart = slugify(input.name);
+  const firstLast = [input.firstName, input.lastName].filter(Boolean).join(" ").trim();
+  const namePart = slugify(firstLast || input.name);
   const codePart = input.agentCode ? slugify(input.agentCode) : "";
   const emailUser = input.email ? slugify(String(input.email).split("@")[0]) : "";
   const candidates = [
@@ -467,7 +472,7 @@ export function buildAgentUploadSlug(input: {
   for (const c of candidates) {
     if (c && !UUID_RE.test(c)) return c;
   }
-  return "agent";
+  return "";
 }
 
 function ShareLinkCard({
@@ -475,30 +480,34 @@ function ShareLinkCard({
   agentCode,
   agentName,
   agentEmail,
+  firstName,
+  lastName,
 }: {
   agentId: string;
   agentCode?: string;
   agentName: string;
   agentEmail?: string;
+  firstName?: string;
+  lastName?: string;
 }) {
   const { t, lang } = useLang();
   const [copied, setCopied] = useState(false);
 
   const slug = useMemo(
-    () => buildAgentUploadSlug({ name: agentName, email: agentEmail, agentCode }),
-    [agentName, agentCode, agentEmail],
+    () => buildAgentUploadSlug({ name: agentName, email: agentEmail, agentCode, firstName, lastName }),
+    [agentName, agentCode, agentEmail, firstName, lastName],
   );
 
   const link = useMemo(() => {
     if (typeof window === "undefined") return "";
-    const s = slug || "agent";
-    return `${window.location.origin}/?agent=${encodeURIComponent(s)}`;
+    if (!slug) return "";
+    return `${window.location.origin}/?agent=${encodeURIComponent(slug)}`;
   }, [slug]);
 
   useEffect(() => {
     console.info("[agent upload link] user fields", {
-      first_name: (agentName || "").split(" ")[0],
-      last_name: (agentName || "").split(" ").slice(1).join(" "),
+      first_name: firstName ?? (agentName || "").split(" ")[0],
+      last_name: lastName ?? (agentName || "").split(" ").slice(1).join(" "),
       name: agentName,
       email: agentEmail,
       agent_code: agentCode,
@@ -506,7 +515,7 @@ function ShareLinkCard({
     });
     console.info("[agent upload link] final slug", slug);
     console.info("[agent upload link] final url", link);
-  }, [link, slug, agentName, agentEmail, agentCode, agentId]);
+  }, [link, slug, agentName, agentEmail, agentCode, agentId, firstName, lastName]);
 
   const writeToClipboard = async (text: string) => {
     if (navigator.clipboard && window.isSecureContext) {
