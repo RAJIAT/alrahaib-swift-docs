@@ -141,7 +141,19 @@ function uuidFromAgentCode(code: string | undefined): string | null {
 }
 function agentLookupName(u: DxAgentLookupRow): string {
   const joined = `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim();
-  return joined || u.agent_code || u.id;
+  if (joined) return joined;
+  // Fallback to the username part of the email (e.g. "raji.atiyah@x.com" -> "Raji Atiyah").
+  const email = (u.email ?? "").trim();
+  if (email.includes("@")) {
+    const local = email.split("@")[0].replace(/[._-]+/g, " ").trim();
+    if (local) {
+      return local
+        .split(" ")
+        .map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w))
+        .join(" ");
+    }
+  }
+  return u.agent_code || u.id;
 }
 function agentLookupBranchCode(u: DxAgentLookupRow): string {
   const b = u.branch;
@@ -209,7 +221,7 @@ export async function dxResolveUploadAgent(identifier: string): Promise<Resolved
     };
   }
 
-  const fields = "id,first_name,last_name,agent_code,app_role,staff_type,branch.id,branch.code,app_active";
+  const fields = "id,email,first_name,last_name,agent_code,app_role,staff_type,branch.id,branch.code,app_active";
   let row: DxAgentLookupRow | undefined;
   let source: ResolvedUploadAgent["source"] = "direct-agent-code";
   if (isUuid(key)) {
