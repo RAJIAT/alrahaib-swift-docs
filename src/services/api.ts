@@ -566,7 +566,7 @@ export async function appendAttachmentsToRequest(
     }
   }
   const updated = await dxSetRequestStatus(current.id, "processing");
-  logEvent({
+  await logEvent({
     action: "request.document_uploaded",
     entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
     meta: {
@@ -729,7 +729,7 @@ export async function updateAgent(id: string, patch: Partial<{
     if ((patch as Record<string, unknown>)[k] !== undefined && (before as Record<string, unknown>)[k] !== (updated as Record<string, unknown>)[k]) changed.push(k);
   });
   if (changed.includes("assignedUnderwriterId")) {
-    logEvent({
+    await logEvent({
       action: "agent.assigned_underwriter_changed",
       entityType: "agent", entityId: updated.id, entityLabel: updated.name, branch: updated.branch,
       before: { assignedUnderwriterId: before.assignedUnderwriterId },
