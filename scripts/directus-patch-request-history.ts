@@ -19,9 +19,9 @@
  *   - Agent.audit_log.create      fields: *
  *   - Supervisor.audit_log.create fields: *
  *   - Agent.audit_log.read        fields: *
- *                                 permissions: request events in user's branch
+ *                                 permissions: entity_type _eq "request"
  *   - Supervisor.audit_log.read   fields: *
- *                                 permissions: request events in user's branch
+ *                                 permissions: entity_type _eq "request"
  *     (replaces the actor_branch-only filter so transfers + customer events
  *      both show up for branch supervisors)
  *
@@ -80,18 +80,6 @@ type PermRow = {
   fields?: string[];
   permissions?: Record<string, unknown>;
   validation?: Record<string, unknown>;
-};
-
-const requestHistoryReadFilter = {
-  _and: [
-    { entity_type: { _eq: "request" } },
-    {
-      _or: [
-        { branch: { _eq: "$CURRENT_USER.branch.code" } },
-        { actor: { _eq: "$CURRENT_USER" } },
-      ],
-    },
-  ],
 };
 
 async function upsertPermission(label: string, row: PermRow): Promise<void> {
@@ -180,7 +168,7 @@ async function main() {
       collection: "audit_log",
       action: "read",
       fields: ["*"],
-      permissions: requestHistoryReadFilter,
+      permissions: { entity_type: { _eq: "request" } },
     });
   } else {
     console.warn("   ! Agent policy not found — skipped");
@@ -199,7 +187,7 @@ async function main() {
       collection: "audit_log",
       action: "read",
       fields: ["*"],
-      permissions: requestHistoryReadFilter,
+      permissions: { entity_type: { _eq: "request" } },
     });
   } else {
     console.warn("   ! Supervisor policy not found — skipped");
