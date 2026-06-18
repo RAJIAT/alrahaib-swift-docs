@@ -21,7 +21,7 @@ function requestSig(r: Partial<InsuranceRequest> | null | undefined): string {
     (Array.isArray(images.attachments) ? images.attachments.length : 0) +
     (Array.isArray(images.missingAttachments) ? images.missingAttachments.length : 0) +
     (images.inspection ? 1 : 0) +
-    (r.quotes?.length ?? 0);
+    (r?.quotes?.length ?? 0);
   return `${r?.id ?? ""}:${r?.status ?? "new"}:${r?.assignedAt ?? ""}:${imageCount}:${r?.notes?.length ?? 0}`;
 }
 
