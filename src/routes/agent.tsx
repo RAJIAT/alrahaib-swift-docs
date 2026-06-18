@@ -7,13 +7,28 @@ import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLang } from "@/i18n/LanguageProvider";
 import { useRequestsLive } from "@/hooks/useRequestsLive";
-import { getCurrentUser, refreshCurrentUser, listAgents, type AuthUser, type InsuranceRequest, type RequestStatus } from "@/services/api";
+import {
+  getCurrentUser,
+  refreshCurrentUser,
+  listAgents,
+  type AuthUser,
+  type InsuranceRequest,
+  type RequestStatus,
+} from "@/services/api";
 
 export const Route = createFileRoute("/agent")({
   component: AgentDashboard,
 });
 
-type StatusFilter = "all" | "new" | "quoted" | "linkSent" | "processing" | "sold" | "rejected" | "reupload";
+type StatusFilter =
+  | "all"
+  | "new"
+  | "quoted"
+  | "linkSent"
+  | "processing"
+  | "sold"
+  | "rejected"
+  | "reupload";
 
 function AgentDashboard() {
   return (
@@ -23,17 +38,26 @@ function AgentDashboard() {
   );
 }
 
-class AgentDashboardRenderBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+class AgentDashboardRenderBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
   state = { error: null as Error | null };
-  static getDerivedStateFromError(error: Error) { return { error }; }
-  componentDidCatch(error: Error) { console.error("[agent dashboard render error]", error); }
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error) {
+    console.error("[agent dashboard render error]", error);
+  }
   render() {
     if (this.state.error) {
       return (
         <div className="min-h-screen bg-background px-4 py-10 text-center text-foreground">
           <div className="mx-auto max-w-md rounded-2xl border border-border bg-card p-5 shadow-card">
             <h1 className="text-lg font-bold">Requests</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Unable to render one dashboard row. Please refresh.</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Unable to render one dashboard row. Please refresh.
+            </p>
           </div>
         </div>
       );
