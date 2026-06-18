@@ -512,7 +512,8 @@ export function buildAgentUploadSlug(input: {
   for (const c of candidates) {
     if (c && !UUID_RE.test(c)) return c;
   }
-  return namePart || emailUser || codePart;
+  // NEVER return empty — fallback to emailUser, then codePart, then hardcoded.
+  return emailUser || codePart || "agent";
 }
 
 function buildAgentUploadUrl(slug: string): string {
