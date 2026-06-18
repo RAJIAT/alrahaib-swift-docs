@@ -244,9 +244,9 @@ function AgentDashboardContent() {
                 <span>{tab.label}</span>
                 <span
                   className={`inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[11px] font-bold ${
-                      active
-                        ? "bg-primary-foreground/20 text-primary-foreground"
-                        : "bg-muted text-muted-foreground"
+                    active
+                      ? "bg-primary-foreground/20 text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
                   }`}
                 >
                   {count}
@@ -439,7 +439,15 @@ function slugify(s: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function ShareLinkCard({ agentId, agentCode, agentName }: { agentId: string; agentCode?: string; agentName: string }) {
+function ShareLinkCard({
+  agentId,
+  agentCode,
+  agentName,
+}: {
+  agentId: string;
+  agentCode?: string;
+  agentName: string;
+}) {
   const { t, lang } = useLang();
   const [copied, setCopied] = useState(false);
 
@@ -534,9 +542,7 @@ function ShareLinkCard({ agentId, agentCode, agentName }: { agentId: string; age
             className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-95"
           >
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            {copied
-              ? lang === "ar" ? "تم النسخ" : "Copied"
-              : lang === "ar" ? "نسخ" : "Copy"}
+            {copied ? (lang === "ar" ? "تم النسخ" : "Copied") : lang === "ar" ? "نسخ" : "Copy"}
           </button>
           <button
             onClick={share}
