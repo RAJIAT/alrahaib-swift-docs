@@ -442,6 +442,7 @@ function buildAgentDisplayName(user: AuthUser, linkedName?: string): string {
     if (!candidate || candidate === user.email || UUID_RE.test(candidate)) continue;
     return candidate;
   }
+  // NEVER return empty — fallback to email username, then email, then hardcoded.
   return emailName || safeText(user.email, "Sales Agent");
 }
 
