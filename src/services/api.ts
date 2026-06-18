@@ -595,7 +595,7 @@ export async function createAgent(input: {
   const me = getCurrentUser();
   const list = getAgentsCache();
   if (list.find((a) => a.id === input.id)) throw new Error("Agent ID already exists");
-  if (list.find((a) => a.email && input.email && a.email.toLowerCase() === input.email.toLowerCase())) {
+  if (list.find((a) => a.email && input.email && safeLower(a.email) === safeLower(input.email))) {
     throw new Error("Email already in use");
   }
 
@@ -1239,12 +1239,12 @@ export async function bulkImportUsers(branch: string, rows: BulkImportRow[]): Pr
     const row = rows[i];
     const lineNo = i + 2;
     const name = (row.name ?? "").trim();
-    const email = (row.email ?? "").trim().toLowerCase();
+    const email = safeLower(row.email).trim();
     const role = row.role;
     if (!name || !email || !role) { result.skipped.push({ row: lineNo, reason: "missing fields" }); continue; }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { result.skipped.push({ row: lineNo, reason: "invalid email" }); continue; }
     if (!["supervisor", "underwriter", "sales"].includes(role)) { result.skipped.push({ row: lineNo, reason: "invalid role" }); continue; }
-    if (agents.some((a) => a.email && a.email.toLowerCase() === email)) { result.skipped.push({ row: lineNo, reason: "email exists" }); continue; }
+    if (agents.some((a) => a.email && safeLower(a.email) === email)) { result.skipped.push({ row: lineNo, reason: "email exists" }); continue; }
     const id = nextIdForRole(role, agents);
     const agentRole: AgentRole = role === "supervisor" ? "supervisor" : "agent";
     const staffType: StaffType | undefined = role === "supervisor" ? undefined : (role as StaffType);
