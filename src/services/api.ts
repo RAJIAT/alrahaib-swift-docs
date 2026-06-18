@@ -497,6 +497,11 @@ export async function submitUpload(input: {
     createdRequestOriginAgent: req.originAgentId,
     createdRequestBranch: req.branch,
   });
+  try {
+    await logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
+  } catch (e) {
+    console.error("[public upload] step=log_event failed (tolerated)", e);
+  }
   // Upload all bytes to Directus and create matching request_files rows.
   // Ordered kinds (front/back/etc.) upload sequentially; everything else in parallel.
   const ownerUuid = agent.userId;
@@ -518,13 +523,8 @@ export async function submitUpload(input: {
     console.error("[public upload] step=attach_files failed", e);
     throw e;
   }
-  // Audit + notification are best-effort: anonymous sessions usually can't
-  // write to those collections, but the upload itself already succeeded.
-  try {
-    await logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
-  } catch (e) {
-    console.error("[public upload] step=log_event failed (tolerated)", e);
-  }
+  // Notification is best-effort: anonymous sessions may not be able to write
+  // notification rows, but the upload itself already succeeded.
   try {
     notifyNewRequest(req);
   } catch (e) {
