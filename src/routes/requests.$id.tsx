@@ -11,7 +11,7 @@ import { copyToClipboard, getPublicAppOrigin, safeMessage } from "@/lib/utils";
 import {
   getCurrentUser, refreshCurrentUser, getRequest, updateRequestStatus, resolveAssetUrl,
   addRequestNote, resolveRequestNote, subscribeRequests,
-  reassignRequest, listAgents, getAgents, addQuotesToRequest, removeQuoteFromRequest,
+  reassignRequest, listAgents, getAgents, addQuotesToRequest, removeQuoteFromRequest, markRequestSharedWithCustomer,
   type AuthUser, type InsuranceRequest, type RequestStatus, type RequestNoteKind, type Agent,
 } from "@/services/api";
 import { isDirectusAssetUrl } from "@/services/directus";
