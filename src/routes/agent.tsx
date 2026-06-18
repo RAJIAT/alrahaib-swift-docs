@@ -162,6 +162,8 @@ function AgentDashboardContent() {
         : undefined,
     [effectiveAgentId, user],
   );
+  // Build display name directly from user fields first, then fallbacks.
+  // Never let it become empty.
   const agentDisplayName = user ? buildAgentDisplayName(user, linkedAgent?.name) : "";
   const linkedAgentCode = linkedAgent?.id && !UUID_RE.test(linkedAgent.id) ? linkedAgent.id : undefined;
   const uploadLinkCode = user?.agentId && !UUID_RE.test(user.agentId) ? user.agentId : linkedAgentCode;
