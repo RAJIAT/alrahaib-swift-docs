@@ -427,6 +427,24 @@ function emailUsername(value: unknown): string {
   return raw && raw.includes("@") ? raw.split("@")[0] : "";
 }
 
+function readableEmailName(value: unknown): string {
+  const user = emailUsername(value);
+  return user.replace(/[._-]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function buildAgentDisplayName(user: AuthUser, linkedName?: string): string {
+  const firstLast = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+  const profileName = safeText(user.name, "");
+  const cacheName = safeText(linkedName, "");
+  const emailName = readableEmailName(user.email);
+  const candidates = [firstLast, profileName, cacheName, emailName].map((v) => v.trim());
+  for (const candidate of candidates) {
+    if (!candidate || candidate === user.email || UUID_RE.test(candidate)) continue;
+    return candidate;
+  }
+  return emailName || safeText(user.email, "Sales Agent");
+}
+
 function safeStatus(value: unknown): RequestStatus {
   return VALID_STATUSES.includes(value as RequestStatus) ? (value as RequestStatus) : "new";
 }
