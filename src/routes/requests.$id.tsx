@@ -7,7 +7,7 @@ import { DashboardShell } from "@/components/DashboardShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLang } from "@/i18n/LanguageProvider";
 import { isPdfDataUrl } from "@/lib/imageUtils";
-import { copyToClipboard, safeMessage } from "@/lib/utils";
+import { copyToClipboard, getPublicAppOrigin, safeMessage } from "@/lib/utils";
 import {
   getCurrentUser, refreshCurrentUser, getRequest, updateRequestStatus, resolveAssetUrl,
   addRequestNote, resolveRequestNote, subscribeRequests,
@@ -845,7 +845,9 @@ function NotesSection({
   };
 
   const copyReuploadLink = async () => {
-    const url = `${window.location.origin}/r/${encodeURIComponent(req.id)}`;
+    const url = `${getPublicAppOrigin()}/r/${encodeURIComponent(req.id)}`;
+    console.info("[reupload link] request id", req.id);
+    console.info("[reupload link] final url", url);
     try {
       await copyToClipboard(url);
       toast.success(t.details.reuploadLinkCopied);
@@ -1384,7 +1386,7 @@ function QuotesCard({
     }
   };
 
-  const shareLink = `${typeof window !== "undefined" ? window.location.origin : ""}/q/${encodeURIComponent(req.id)}`;
+  const shareLink = `${getPublicAppOrigin()}/q/${encodeURIComponent(req.id)}`;
   const [shareOpen, setShareOpen] = useState(false);
   const [paymentLink, setPaymentLink] = useState("");
 

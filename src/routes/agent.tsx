@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useLang } from "@/i18n/LanguageProvider";
 import { useRequestsLive } from "@/hooks/useRequestsLive";
+import { getPublicAppOrigin } from "@/lib/utils";
 import {
   getCurrentUser,
   refreshCurrentUser,
@@ -518,8 +519,7 @@ export function buildAgentUploadSlug(input: {
 
 function buildAgentUploadUrl(slug: string): string {
   const safeSlug = slug || "agent";
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://app.al-dis.com";
-  return `${origin}/?agent=${encodeURIComponent(safeSlug)}`;
+  return `${getPublicAppOrigin()}/?agent=${encodeURIComponent(safeSlug)}`;
 }
 
 function ShareLinkCard({

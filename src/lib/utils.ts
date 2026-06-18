@@ -5,6 +5,29 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Canonical public origin used for customer-facing shareable links
+ * (reupload `/r/:id` and quote `/q/:id`). Always prefer the production
+ * domain so links pasted into WhatsApp/email work from any device — never
+ * leak internal IPs like 10.8.0.21 or preview/sandbox hostnames.
+ *
+ * Override with `VITE_PUBLIC_APP_URL` only when it points at an https
+ * domain (not a raw IP). Falls back to `https://app.al-dis.com`.
+ */
+export function getPublicAppOrigin(): string {
+  const fallback = "https://app.al-dis.com";
+  const raw =
+    (typeof import.meta !== "undefined" &&
+      (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_PUBLIC_APP_URL) ||
+    "";
+  const cleaned = (raw || "").trim().replace(/\/+$/, "");
+  // Reject empty, http://, raw IPs, and anything that's not the public domain.
+  if (!cleaned) return fallback;
+  if (!/^https:\/\//i.test(cleaned)) return fallback;
+  if (/\d+\.\d+\.\d+\.\d+/.test(cleaned)) return fallback;
+  return cleaned;
+}
+
 /** Best-effort extraction of an error's display message. */
 export function safeMessage(e: unknown, fallback = "Unexpected error"): string {
   if (e instanceof Error && e.message) return e.message;
