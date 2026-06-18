@@ -115,8 +115,12 @@ function RequestDetails() {
   // Sales agents track the request lifecycle too (Sold / Payment link sent /
   // Quote created / Reupload). Only the actual quote-file upload stays
   // underwriter-only (gated inside QuotesCard).
+  // Any authenticated user with a valid role can change status manually at
+  // any stage. We deliberately do NOT gate this on `myStaffType` because the
+  // agents cache may not include the current user's row on first load, which
+  // previously hid the selector for sales/underwriter agents.
   const canChangeStatus =
-    role === "admin" || role === "supervisor" || isUnderwriter || isSalesAgent;
+    role === "admin" || role === "supervisor" || role === "agent";
   const canRunFinalActions =
     role === "admin" || role === "supervisor" || isUnderwriter || isSalesAgent;
   void isSalesAgent;
