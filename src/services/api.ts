@@ -182,7 +182,7 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   const auth = profileToAuth(profile);
   // Warm caches so subsequent sync reads (listAgents/listBranches) have data.
   bootstrapEntities().catch(() => {});
-  logEvent({
+  await logEvent({
     action: "auth.login", entityType: "auth", entityId: auth.id, entityLabel: auth.name,
     actor: { id: auth.id, name: auth.name, role: auth.role, branch: auth.branch ?? null },
   });
@@ -535,7 +535,7 @@ export async function addRequestNote(
     authorId: me.id,
     authorRole: me.role,
   });
-  logEvent({
+  await logEvent({
     action: input.kind === "missing" ? "request.reupload_requested" : "request.note_added",
     entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
     meta: { snippet: input.text.slice(0, 140), authorRole: me.role },
