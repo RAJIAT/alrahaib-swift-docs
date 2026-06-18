@@ -12,11 +12,11 @@
 import {
   dxIsLoggedIn,
   dxRequest,
+  getProfile,
   USER_FIELDS,
   userBranchCode,
   type DxUserRecord,
 } from "./directusClient";
-import { getProfile } from "./directusClient";
 import type { Agent as DemoAgent, Branch as DemoBranch } from "./types";
 
 // ---------------- cache + events ----------------
