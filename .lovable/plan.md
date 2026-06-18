@@ -1,31 +1,32 @@
-## Plan
+Plan to fix the broken Agent dashboard link/name:
 
-1. **Use real `/users/me` fields for the Agent dashboard link**
-   - Extend the cached logged-in user shape to preserve `first_name` and `last_name` from `/users/me`.
-   - Pass `first_name`, `last_name`, `email`, and `agent_code` into the Agent dashboard upload-link helper.
-   - Update `buildAgentUploadSlug(user)` so it builds:
-     - `first_name + last_name + agent_code` when code exists
-     - `first_name + last_name` when code is missing
-     - email username only as a fallback
-   - Remove the generic `agent` fallback and never use UUID values in the displayed/copied/shared URL.
-   - Keep the card visible by falling back to a readable non-UUID field such as email username if names are missing.
+1. Fix the Agent dashboard data source
+- Build one `agentDisplayName` from the real logged-in profile fields first: `firstName + lastName`, then `user.name`, then linked agent cache name, then email username.
+- Use that same name in the welcome header so it shows `أهلاً، Raji atiyah` instead of only `أهلاً،`.
 
-2. **Make one shared final URL inside the card**
-   - Compute one `slug` and one `uploadUrl`.
-   - Use that exact `uploadUrl` for the visible link, badge, Copy button, and Share button.
-   - Add the requested logs:
-     - `[agent upload link] user fields`
-     - `[agent upload link] final slug`
-     - `[agent upload link] final url`
+2. Fix the upload link generation
+- Replace the current client-only `window.location.origin` link calculation with a stable helper that always returns a URL after render.
+- Generate the slug from `firstName + lastName + agent_code` when available.
+- If `agent_code` is missing, generate `raji-atiyah` from the visible user name.
+- Never fall back to `agent`, UUID, `user.id`, `agent.id`, or `profile.id` for the dashboard-visible/copied/shared link.
 
-3. **Fix customer upload slug resolution**
-   - Update `dxResolveUploadAgent(identifier)` so it can resolve readable name slugs like `raji-atiyah`, not only UUIDs or trailing `SLS-####` codes.
-   - When the slug contains no agent code, fetch Sales Agent users with safe public fields and match by slugified `first_name + last_name` and email username.
-   - Preserve old UUID and agent-code links for backward compatibility.
-   - Add the requested resolver logs:
-     - `[upload agent resolver] input`
-     - `[upload agent resolver] resolved agent`
+3. Fix the visible link field and badge
+- Make the visible field show the final URL text, not an empty string.
+- Make the badge show the readable slug/code derived from the same helper.
+- Copy and Share buttons will use the exact same final URL shown on screen.
 
-4. **Submit upload through resolved agent**
-   - Keep `submitUpload` using `dxResolveUploadAgent()` before request creation so customer uploads are assigned to the resolved Sales Agent user ID.
-   - Ensure the expected link `https://app.al-dis.com/?agent=raji-atiyah` resolves to Raji Atiyah and no longer throws `Sales Agent not found for this upload link`.
+4. Preserve upload-page resolution
+- Keep old UUID links resolving for backward compatibility.
+- Ensure readable slugs like `raji-atiyah` and `raji-atiyah-sls-8039` resolve to the correct Sales Agent internally.
+
+5. Add/keep clear diagnostics
+- Log:
+  - `[agent upload link] user fields`
+  - `[agent upload link] final slug`
+  - `[agent upload link] final url`
+  - `[upload agent resolver] input`
+  - `[upload agent resolver] resolved agent`
+
+Technical details:
+- Primary files: `src/routes/agent.tsx`, with possible small resolver adjustment in `src/services/directusRequests.ts` only if needed.
+- Main likely cause: dashboard is passing an empty/invalid name into `ShareLinkCard`; the slug helper returns empty, so the URL div renders blank and the welcome text uses the sparse `user.name` value.

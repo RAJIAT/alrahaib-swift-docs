@@ -162,8 +162,7 @@ function AgentDashboardContent() {
         : undefined,
     [effectiveAgentId, user],
   );
-  const uploadLinkName =
-    user?.name && user.name !== user.email ? user.name : (linkedAgent?.name ?? user?.name ?? "");
+  const agentDisplayName = user ? buildAgentDisplayName(user, linkedAgent?.name) : "";
   const linkedAgentCode = linkedAgent?.id && !UUID_RE.test(linkedAgent.id) ? linkedAgent.id : undefined;
   const uploadLinkCode = user?.agentId && !UUID_RE.test(user.agentId) ? user.agentId : linkedAgentCode;
   const safeItems = useMemo(
@@ -218,7 +217,7 @@ function AgentDashboardContent() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-foreground">
-              {t.agent.welcome}, {user.name}
+              {t.agent.welcome}, {agentDisplayName}
             </div>
             <div className="mt-0.5 text-xs text-muted-foreground">{t.agent.yoursOnly}</div>
           </div>
@@ -235,7 +234,7 @@ function AgentDashboardContent() {
         <ShareLinkCard
           agentId={effectiveAgentId ?? ""}
           agentCode={uploadLinkCode}
-          agentName={uploadLinkName}
+          agentName={agentDisplayName}
           agentEmail={user.email}
           firstName={user.firstName}
           lastName={user.lastName}
@@ -428,6 +427,24 @@ function emailUsername(value: unknown): string {
   return raw && raw.includes("@") ? raw.split("@")[0] : "";
 }
 
+function readableEmailName(value: unknown): string {
+  const user = emailUsername(value);
+  return user.replace(/[._-]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function buildAgentDisplayName(user: AuthUser, linkedName?: string): string {
+  const firstLast = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+  const profileName = safeText(user.name, "");
+  const cacheName = safeText(linkedName, "");
+  const emailName = readableEmailName(user.email);
+  const candidates = [firstLast, profileName, cacheName, emailName].map((v) => v.trim());
+  for (const candidate of candidates) {
+    if (!candidate || candidate === user.email || UUID_RE.test(candidate)) continue;
+    return candidate;
+  }
+  return emailName || safeText(user.email, "Sales Agent");
+}
+
 function safeStatus(value: unknown): RequestStatus {
   return VALID_STATUSES.includes(value as RequestStatus) ? (value as RequestStatus) : "new";
 }
@@ -495,6 +512,12 @@ export function buildAgentUploadSlug(input: {
   return namePart || emailUser || codePart;
 }
 
+function buildAgentUploadUrl(slug: string): string {
+  if (!slug) return "";
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://app.al-dis.com";
+  return `${origin}/?agent=${encodeURIComponent(slug)}`;
+}
+
 function ShareLinkCard({
   agentId,
   agentCode,
@@ -519,9 +542,8 @@ function ShareLinkCard({
   );
 
   const link = useMemo(() => {
-    if (typeof window === "undefined") return "";
-    const finalSlug = slug || slugify(agentName) || slugify(emailUsername(agentEmail));
-    return finalSlug ? `${window.location.origin}/?agent=${encodeURIComponent(finalSlug)}` : "";
+    const finalSlug = slug || slugify(agentName) || slugify(readableEmailName(agentEmail));
+    return buildAgentUploadUrl(finalSlug);
   }, [agentEmail, agentName, slug]);
 
   useEffect(() => {
@@ -607,9 +629,9 @@ function ShareLinkCard({
               : "Send this link to your client to upload documents directly to your account"}
           </div>
         </div>
-        {!!(agentCode || slug) && !UUID_RE.test(String(agentCode || slug)) && (
+        {!!slug && !UUID_RE.test(slug) && (
           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-            {agentCode || slug}
+            {slug}
           </span>
         )}
       </div>
