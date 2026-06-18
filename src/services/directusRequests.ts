@@ -351,24 +351,27 @@ function requestFromRow(
   notes: DxNoteRow[],
   fileRows: DxRequestFileRow[],
 ): DemoRequest {
-  const agent = agentCodeFromUuid(r.agent);
-  const origin = r.origin_agent ? agentCodeFromUuid(r.origin_agent) : null;
-  const uw = r.assigned_underwriter ? agentCodeFromUuid(r.assigned_underwriter) : null;
+  const agentUserId = relationId(r.agent);
+  const originUserId = relationId(r.origin_agent);
+  const assignedUnderwriterUserId = relationId(r.assigned_underwriter);
+  const agent = agentCodeFromUuid(agentUserId);
+  const origin = originUserId ? agentCodeFromUuid(originUserId) : null;
+  const uw = assignedUnderwriterUserId ? agentCodeFromUuid(assignedUnderwriterUserId) : null;
   const myFiles = fileRows.filter((f) => f.request === r.id);
   return {
     id: r.id,
     uuid: r.uuid ?? safeLower(r.id),
     agentId: agent.code,
-    agentUserId: r.agent ?? undefined,
+    agentUserId: agentUserId ?? undefined,
     agentName: agent.name,
     originAgentId: origin?.code,
-    originAgentUserId: r.origin_agent ?? undefined,
+    originAgentUserId: originUserId ?? undefined,
     originAgentName: origin?.name,
     assignedUnderwriterId: uw?.code,
-    assignedUnderwriterUserId: r.assigned_underwriter ?? undefined,
+    assignedUnderwriterUserId: assignedUnderwriterUserId ?? undefined,
     assignedUnderwriterName: uw?.name,
     assignedAt: r.assigned_at ?? undefined,
-    branch: branchCodeFromId(r.branch),
+    branch: branchCodeFromValue(r.branch),
     status: r.status,
     createdAt: r.date_created ?? new Date().toISOString(),
     customerName: r.customer_name ?? undefined,
