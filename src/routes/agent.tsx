@@ -431,8 +431,9 @@ function formatDashboardDate(value: unknown, lang: string): string {
   });
 }
 
-function slugify(s: string): string {
-  return s
+function slugify(s: unknown): string {
+  return safeText(s, "")
+    .toString()
     .toLowerCase()
     .replace(/[\u0600-\u06FF]+/g, "")
     .replace(/[^a-z0-9]+/g, "-")
