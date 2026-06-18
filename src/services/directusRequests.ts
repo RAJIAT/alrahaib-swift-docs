@@ -126,6 +126,20 @@ function agentCodeFromUuid(uuid: string | null | undefined): { code: string; nam
   const a = getAgentsCache().find((x) => x.userId === uuid);
   return { code: a?.id ?? uuid, name: a?.name ?? uuid };
 }
+function relationId(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  if (typeof value === "object") return safeString((value as Record<string, unknown>).id) || null;
+  return safeString(value) || null;
+}
+function relationCode(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    return safeString(obj.agent_code ?? obj.code ?? obj.id) || null;
+  }
+  return safeString(value) || null;
+}
 function uuidFromAgentCode(code: string | undefined): string | null {
   if (!code) return null;
   if (isUuid(code)) return code;
@@ -150,6 +164,12 @@ function agentLookupBranchId(u: DxAgentLookupRow): number | null {
 function branchCodeFromId(id: number | null | undefined): string {
   if (id == null) return "";
   return getBranchesCache().find((b) => b.id === id)?.code ?? "";
+}
+function branchCodeFromValue(value: DxRequestRow["branch"]): string {
+  if (!value) return "";
+  if (typeof value === "object") return safeString(value.code) || branchCodeFromId(Number(value.id));
+  if (typeof value === "number") return branchCodeFromId(value);
+  return value;
 }
 function branchIdFromCode(code: string | undefined | null): number | null {
   if (!code) return null;
