@@ -153,6 +153,18 @@ function AgentDashboardContent() {
     [effectiveAgentId, user?.staffType],
   );
   const isUnderwriter = myStaffType === "underwriter";
+  const linkedAgent = useMemo(
+    () =>
+      user
+        ? listAgents().find(
+            (a) => a.userId === user.id || a.id === user.agentId || a.id === effectiveAgentId,
+          )
+        : undefined,
+    [effectiveAgentId, user],
+  );
+  const uploadLinkName =
+    user?.name && user.name !== user.email ? user.name : (linkedAgent?.name ?? user?.name ?? "");
+  const uploadLinkCode = user?.agentId && !UUID_RE.test(user.agentId) ? user.agentId : linkedAgent?.id;
   const safeItems = useMemo(
     () => (Array.isArray(items) ? items : []).map(normalizeRequestForDashboard),
     [items],
@@ -221,8 +233,8 @@ function AgentDashboardContent() {
       {!isUnderwriter && (
         <ShareLinkCard
           agentId={effectiveAgentId ?? ""}
-          agentCode={user.agentId}
-          agentName={user.name}
+          agentCode={uploadLinkCode}
+          agentName={uploadLinkName}
           agentEmail={user.email}
           firstName={user.firstName}
           lastName={user.lastName}
