@@ -44,10 +44,10 @@ if (typeof window !== "undefined") {
 type DxRequestRow = {
   id: string;
   uuid?: string | null;
-  agent?: string | null;          // user uuid
-  origin_agent?: string | null;   // user uuid
-  assigned_underwriter?: string | null; // user uuid — sticky underwriter for visibility
-  branch?: number | null;
+  agent?: string | { id?: string | null; agent_code?: string | null } | null;
+  origin_agent?: string | { id?: string | null; agent_code?: string | null } | null;
+  assigned_underwriter?: string | { id?: string | null; agent_code?: string | null; first_name?: string | null; last_name?: string | null } | null;
+  branch?: number | string | { id?: number | string | null; code?: string | null } | null;
   status: DemoStatus;
   customer_name?: string | null;
   customer_email?: string | null;
@@ -106,6 +106,14 @@ function isUuid(value: string | undefined | null): value is string {
   return !!value && UUID_RE.test(value);
 }
 
+function safeLower(value: unknown): string {
+  return (value ?? "").toString().toLowerCase();
+}
+
+function safeString(value: unknown): string {
+  return (value ?? "").toString();
+}
+
 function fileObj(row: DxRequestFileRow): DxFileObj | null {
   const f = row.file;
   if (!f) return null;
@@ -117,6 +125,12 @@ function agentCodeFromUuid(uuid: string | null | undefined): { code: string; nam
   if (!uuid) return { code: "", name: "" };
   const a = getAgentsCache().find((x) => x.userId === uuid);
   return { code: a?.id ?? uuid, name: a?.name ?? uuid };
+}
+function relationId(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  if (typeof value === "object") return safeString((value as Record<string, unknown>).id) || null;
+  return safeString(value) || null;
 }
 function uuidFromAgentCode(code: string | undefined): string | null {
   if (!code) return null;
@@ -142,6 +156,12 @@ function agentLookupBranchId(u: DxAgentLookupRow): number | null {
 function branchCodeFromId(id: number | null | undefined): string {
   if (id == null) return "";
   return getBranchesCache().find((b) => b.id === id)?.code ?? "";
+}
+function branchCodeFromValue(value: DxRequestRow["branch"]): string {
+  if (!value) return "";
+  if (typeof value === "object") return safeString(value.code) || branchCodeFromId(Number(value.id));
+  if (typeof value === "number") return branchCodeFromId(value);
+  return value;
 }
 function branchIdFromCode(code: string | undefined | null): number | null {
   if (!code) return null;
@@ -323,24 +343,27 @@ function requestFromRow(
   notes: DxNoteRow[],
   fileRows: DxRequestFileRow[],
 ): DemoRequest {
-  const agent = agentCodeFromUuid(r.agent);
-  const origin = r.origin_agent ? agentCodeFromUuid(r.origin_agent) : null;
-  const uw = r.assigned_underwriter ? agentCodeFromUuid(r.assigned_underwriter) : null;
+  const agentUserId = relationId(r.agent);
+  const originUserId = relationId(r.origin_agent);
+  const assignedUnderwriterUserId = relationId(r.assigned_underwriter);
+  const agent = agentCodeFromUuid(agentUserId);
+  const origin = originUserId ? agentCodeFromUuid(originUserId) : null;
+  const uw = assignedUnderwriterUserId ? agentCodeFromUuid(assignedUnderwriterUserId) : null;
   const myFiles = fileRows.filter((f) => f.request === r.id);
   return {
     id: r.id,
-    uuid: r.uuid ?? r.id.toLowerCase(),
+    uuid: r.uuid ?? safeLower(r.id),
     agentId: agent.code,
-    agentUserId: r.agent ?? undefined,
+    agentUserId: agentUserId ?? undefined,
     agentName: agent.name,
     originAgentId: origin?.code,
-    originAgentUserId: r.origin_agent ?? undefined,
+    originAgentUserId: originUserId ?? undefined,
     originAgentName: origin?.name,
     assignedUnderwriterId: uw?.code,
-    assignedUnderwriterUserId: r.assigned_underwriter ?? undefined,
+    assignedUnderwriterUserId: assignedUnderwriterUserId ?? undefined,
     assignedUnderwriterName: uw?.name,
     assignedAt: r.assigned_at ?? undefined,
-    branch: branchCodeFromId(r.branch),
+    branch: branchCodeFromValue(r.branch),
     status: r.status,
     createdAt: r.date_created ?? new Date().toISOString(),
     customerName: r.customer_name ?? undefined,
@@ -426,7 +449,7 @@ export async function dxGetRequest(id: string): Promise<DemoRequest | null> {
   } catch {
     // Fall back to lookup by id OR uuid (handles legacy rows w/ uuid key).
     try {
-      const filter = `filter[_or][0][id][_eq]=${encodeURIComponent(id)}&filter[_or][1][uuid][_eq]=${encodeURIComponent(id.toLowerCase())}`;
+      const filter = `filter[_or][0][id][_eq]=${encodeURIComponent(id)}&filter[_or][1][uuid][_eq]=${encodeURIComponent(safeLower(id))}`;
       const r = await dxRequest<{ data: DxRequestRow[] }>(`/items/requests?fields=${REQ_FIELDS}&limit=1&${filter}`);
       row = r.data[0];
     } catch (e) {
@@ -520,7 +543,7 @@ export async function dxPatchRequest(id: string, patch: Record<string, unknown>)
   if (!r?.data) {
     return {
       id,
-      uuid: id.toLowerCase(),
+      uuid: safeLower(id),
       agentId: "",
       agentName: "",
       branch: "",
@@ -610,7 +633,7 @@ export async function dxAddNote(
   }
   return {
     id: requestId,
-    uuid: requestId.toLowerCase(),
+    uuid: safeLower(requestId),
     agentId: "",
     agentName: "",
     branch: "",
@@ -762,7 +785,7 @@ export async function dxPublicGetQuote(requestId: string): Promise<PublicQuoteVi
   }
   if (!row) {
     // Fallback by id OR uuid
-    const filter = `filter[_or][0][id][_eq]=${encodeURIComponent(requestId)}&filter[_or][1][uuid][_eq]=${encodeURIComponent(requestId.toLowerCase())}`;
+    const filter = `filter[_or][0][id][_eq]=${encodeURIComponent(requestId)}&filter[_or][1][uuid][_eq]=${encodeURIComponent(safeLower(requestId))}`;
     const r = await fetch(`${base}/items/requests?fields=${reqFields}&limit=1&${filter}`, { headers });
     if (!r.ok) return null;
     const j = await r.json().catch(() => null) as { data?: DxRequestRow[] } | null;
