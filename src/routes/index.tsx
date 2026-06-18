@@ -35,6 +35,32 @@ function UploadPage() {
     return () => { alive = false; };
   }, [agent]);
 
+  // Derive a clean readable fallback from the slug so we never render dots,
+  // a UUID, or the raw agent code. Example:
+  //   raji-atiyah-sls-8039 -> "Raji Atiyah"
+  //   sls-8039             -> "" (just a code, no readable name)
+  const slugFallbackName = useMemo(() => {
+    if (!agent) return "";
+    const raw = agent.trim();
+    // Strip a trailing agent-code segment like "-sls-8039" or "-uw-12".
+    const withoutCode = raw.replace(/-[a-z]+-\d+$/i, "");
+    // If only the code remained, we have no readable name to derive.
+    if (!withoutCode || withoutCode === raw && /^[a-z]+-?\d+$/i.test(raw)) return "";
+    const cleaned = withoutCode
+      .replace(/[^a-zA-Z\u00C0-\u024F\u0600-\u06FF\s-]/g, " ")
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!cleaned) return "";
+    return cleaned
+      .split(" ")
+      .map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w))
+      .join(" ");
+  }, [agent]);
+
+  const agentLabel = dir === "rtl" ? "الوكيل" : "Agent";
+  const agentDisplayName = agentName || slugFallbackName;
+
   // Required documents
   const [registration, setRegistration] = useState<File[]>([]);
   const [emirates, setEmirates] = useState<File[]>([]);
@@ -169,7 +195,7 @@ function UploadPage() {
           <div className="flex items-center gap-2">
             {agent ? (
               <span className="text-xs text-muted-foreground">
-                {`Agent: ${agentName ?? "…"}`}
+                {`${agentLabel}: ${agentDisplayName || (dir === "rtl" ? "جارٍ التحميل…" : "Loading…")}`}
               </span>
             ) : (
               <Link
