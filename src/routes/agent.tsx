@@ -164,7 +164,8 @@ function AgentDashboardContent() {
   );
   const uploadLinkName =
     user?.name && user.name !== user.email ? user.name : (linkedAgent?.name ?? user?.name ?? "");
-  const uploadLinkCode = user?.agentId && !UUID_RE.test(user.agentId) ? user.agentId : linkedAgent?.id;
+  const linkedAgentCode = linkedAgent?.id && !UUID_RE.test(linkedAgent.id) ? linkedAgent.id : undefined;
+  const uploadLinkCode = user?.agentId && !UUID_RE.test(user.agentId) ? user.agentId : linkedAgentCode;
   const safeItems = useMemo(
     () => (Array.isArray(items) ? items : []).map(normalizeRequestForDashboard),
     [items],
@@ -478,7 +479,8 @@ export function buildAgentUploadSlug(input: {
   const firstLast = [input.firstName, input.lastName].filter(Boolean).join(" ").trim();
   const displayName = safeText(firstLast || input.name, "");
   const namePart = displayName && displayName !== input.email ? slugify(displayName) : "";
-  const codePart = input.agentCode ? slugify(input.agentCode) : "";
+  const rawCode = safeText(input.agentCode, "");
+  const codePart = rawCode && !UUID_RE.test(rawCode) ? slugify(rawCode) : "";
   const emailUser = slugify(emailUsername(input.email));
   const candidates = [
     [namePart, codePart].filter(Boolean).join("-"),
