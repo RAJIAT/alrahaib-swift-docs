@@ -149,11 +149,13 @@ export function RequestHistoryTimeline({
   const [filter, setFilter] = useState<FilterKey>("all");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
+  const requestAliasKey = useMemo(() => requestAliases.join("|"), [requestAliases]);
 
   useEffect(() => {
     let alive = true;
+    const aliases = requestAliasKey.split("|").filter(Boolean);
     const load = () => {
-      fetchRequestHistory(requestId, requestAliases).then((rows) => {
+      fetchRequestHistory(requestId, aliases).then((rows) => {
         if (!alive) return;
         setItems(rows);
         setLoading(false);
@@ -165,7 +167,7 @@ export function RequestHistoryTimeline({
       alive = false;
       unsub();
     };
-  }, [requestId, requestAliases]);
+  }, [requestId, requestAliasKey]);
 
   const filtered = useMemo(() => {
     if (filter === "all") return items;
