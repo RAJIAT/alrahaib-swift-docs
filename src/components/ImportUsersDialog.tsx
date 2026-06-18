@@ -7,10 +7,6 @@ import { bulkImportUsers, listBranches, type BulkImportRow } from "@/services/ap
 
 type ParsedRow = BulkImportRow & { _row: number; _ok: boolean; _reason?: string };
 
-function safeLower(value: unknown): string {
-  return (value ?? "").toString().toLowerCase();
-}
-
 export function ImportUsersDialog({
   open, onClose,
 }: {
@@ -48,10 +44,10 @@ export function ImportUsersDialog({
     const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: "" });
     const parsed: ParsedRow[] = json.map((r, i) => {
       const get = (k: string) =>
-        String(r[k] ?? r[safeLower(k)] ?? r[k.toUpperCase()] ?? "").trim();
+        String(r[k] ?? r[k.toLowerCase()] ?? r[k.toUpperCase()] ?? "").trim();
       const name = get("Name");
-      const email = safeLower(get("Email"));
-      const roleRaw = safeLower(get("Role"));
+      const email = get("Email").toLowerCase();
+      const roleRaw = get("Role").toLowerCase();
       const password = get("Password");
       let ok = true;
       let reason: string | undefined;
