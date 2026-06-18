@@ -512,6 +512,12 @@ export function buildAgentUploadSlug(input: {
   return namePart || emailUser || codePart;
 }
 
+function buildAgentUploadUrl(slug: string): string {
+  if (!slug) return "";
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://app.al-dis.com";
+  return `${origin}/?agent=${encodeURIComponent(slug)}`;
+}
+
 function ShareLinkCard({
   agentId,
   agentCode,
@@ -536,9 +542,8 @@ function ShareLinkCard({
   );
 
   const link = useMemo(() => {
-    if (typeof window === "undefined") return "";
-    const finalSlug = slug || slugify(agentName) || slugify(emailUsername(agentEmail));
-    return finalSlug ? `${window.location.origin}/?agent=${encodeURIComponent(finalSlug)}` : "";
+    const finalSlug = slug || slugify(agentName) || slugify(readableEmailName(agentEmail));
+    return buildAgentUploadUrl(finalSlug);
   }, [agentEmail, agentName, slug]);
 
   useEffect(() => {
@@ -624,9 +629,9 @@ function ShareLinkCard({
               : "Send this link to your client to upload documents directly to your account"}
           </div>
         </div>
-        {!!(agentCode || slug) && !UUID_RE.test(String(agentCode || slug)) && (
+        {!!slug && !UUID_RE.test(slug) && (
           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-            {agentCode || slug}
+            {slug}
           </span>
         )}
       </div>
