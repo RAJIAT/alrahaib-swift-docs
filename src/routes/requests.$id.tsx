@@ -185,7 +185,7 @@ function RequestDetails() {
     setReq({ ...req, status: s }); // optimistic
     setSavingAction(action);
     try {
-      const updated = await updateRequestStatus(req.id, s);
+      const updated = await updateRequestStatus(req.id, s, { manual: true });
       setReq(updated);
       toast.success(t.common.statusUpdatedSuccess);
     } catch (err) {
