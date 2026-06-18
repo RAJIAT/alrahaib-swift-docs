@@ -591,8 +591,8 @@ function ShareLinkCard({
     }
   };
 
-  // Never hide the card for Sales Agents. Even with sparse user fields the
-  // slug helper falls back to a generic value so the link is always shown.
+  // Never hide the card for Sales Agents. The slug helper only uses readable
+  // non-UUID fields, so the dashboard never displays the raw Directus user id.
 
   return (
     <div className="mb-5 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary-soft to-card p-4 shadow-card animate-fade-in">
