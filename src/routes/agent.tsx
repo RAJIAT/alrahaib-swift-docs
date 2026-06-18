@@ -153,6 +153,19 @@ function AgentDashboardContent() {
     [effectiveAgentId, user?.staffType],
   );
   const isUnderwriter = myStaffType === "underwriter";
+  const linkedAgent = useMemo(
+    () =>
+      user
+        ? listAgents().find(
+            (a) => a.userId === user.id || a.id === user.agentId || a.id === effectiveAgentId,
+          )
+        : undefined,
+    [effectiveAgentId, user],
+  );
+  const uploadLinkName =
+    user?.name && user.name !== user.email ? user.name : (linkedAgent?.name ?? user?.name ?? "");
+  const linkedAgentCode = linkedAgent?.id && !UUID_RE.test(linkedAgent.id) ? linkedAgent.id : undefined;
+  const uploadLinkCode = user?.agentId && !UUID_RE.test(user.agentId) ? user.agentId : linkedAgentCode;
   const safeItems = useMemo(
     () => (Array.isArray(items) ? items : []).map(normalizeRequestForDashboard),
     [items],
@@ -221,8 +234,8 @@ function AgentDashboardContent() {
       {!isUnderwriter && (
         <ShareLinkCard
           agentId={effectiveAgentId ?? ""}
-          agentCode={user.agentId}
-          agentName={user.name}
+          agentCode={uploadLinkCode}
+          agentName={uploadLinkName}
           agentEmail={user.email}
           firstName={user.firstName}
           lastName={user.lastName}
@@ -410,6 +423,11 @@ function safeLower(value: unknown): string {
   return safeText(value, "").toString().toLowerCase();
 }
 
+function emailUsername(value: unknown): string {
+  const raw = safeText(value, "");
+  return raw && raw.includes("@") ? raw.split("@")[0] : "";
+}
+
 function safeStatus(value: unknown): RequestStatus {
   return VALID_STATUSES.includes(value as RequestStatus) ? (value as RequestStatus) : "new";
 }
@@ -459,9 +477,11 @@ export function buildAgentUploadSlug(input: {
   lastName?: string | null;
 }): string {
   const firstLast = [input.firstName, input.lastName].filter(Boolean).join(" ").trim();
-  const namePart = slugify(firstLast || input.name);
-  const codePart = input.agentCode ? slugify(input.agentCode) : "";
-  const emailUser = input.email ? slugify(String(input.email).split("@")[0]) : "";
+  const displayName = safeText(firstLast || input.name, "");
+  const namePart = displayName && displayName !== input.email ? slugify(displayName) : "";
+  const rawCode = safeText(input.agentCode, "");
+  const codePart = rawCode && !UUID_RE.test(rawCode) ? slugify(rawCode) : "";
+  const emailUser = slugify(emailUsername(input.email));
   const candidates = [
     [namePart, codePart].filter(Boolean).join("-"),
     namePart,
@@ -472,7 +492,7 @@ export function buildAgentUploadSlug(input: {
   for (const c of candidates) {
     if (c && !UUID_RE.test(c)) return c;
   }
-  return "";
+  return namePart || emailUser || codePart;
 }
 
 function ShareLinkCard({
@@ -500,9 +520,9 @@ function ShareLinkCard({
 
   const link = useMemo(() => {
     if (typeof window === "undefined") return "";
-    if (!slug) return "";
-    return `${window.location.origin}/?agent=${encodeURIComponent(slug)}`;
-  }, [slug]);
+    const finalSlug = slug || slugify(agentName) || slugify(emailUsername(agentEmail));
+    return finalSlug ? `${window.location.origin}/?agent=${encodeURIComponent(finalSlug)}` : "";
+  }, [agentEmail, agentName, slug]);
 
   useEffect(() => {
     console.info("[agent upload link] user fields", {
@@ -571,8 +591,8 @@ function ShareLinkCard({
     }
   };
 
-  // Never hide the card for Sales Agents. Even with sparse user fields the
-  // slug helper falls back to a generic value so the link is always shown.
+  // Never hide the card for Sales Agents. The slug helper only uses readable
+  // non-UUID fields, so the dashboard never displays the raw Directus user id.
 
   return (
     <div className="mb-5 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary-soft to-card p-4 shadow-card animate-fade-in">

@@ -91,6 +91,7 @@ type DxRequestFileRow = {
 
 type DxAgentLookupRow = {
   id: string;
+  email?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   agent_code?: string | null;
@@ -238,11 +239,12 @@ export async function dxResolveUploadAgent(identifier: string): Promise<Resolved
   }
 
   // Readable name slug fallback: fetch active sales agents and match by
-  // slugified first_name + last_name (and email username) against the URL slug.
+  // slugified first_name + last_name against the URL slug. Do not request
+  // email here: public upload permissions intentionally expose only safe fields.
   if (!row && slugNorm && !isUuid(key)) {
     try {
-      const r = await dxRequest<{ data: Array<DxAgentLookupRow & { email?: string | null }> }>(
-        `/users?fields=${fields},email&limit=-1&filter[app_role][_eq]=agent&filter[app_active][_eq]=true`,
+      const r = await dxRequest<{ data: DxAgentLookupRow[] }>(
+        `/users?fields=${fields}&limit=-1&filter[app_role][_eq]=agent&filter[app_active][_eq]=true`,
       );
       const norm = (s: string) => s.toLowerCase().replace(/[\u0600-\u06FF]+/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
       const targets = new Set([slugNorm, nameOnlySlug].filter(Boolean));
@@ -252,9 +254,7 @@ export async function dxResolveUploadAgent(identifier: string): Promise<Resolved
         const fullSlug = norm(`${fn} ${ln}`);
         const code = u.agent_code ? norm(u.agent_code) : "";
         const withCode = code ? `${fullSlug}-${code}` : "";
-        const emailUser = u.email ? norm(u.email.split("@")[0]) : "";
-        const emailWithCode = emailUser && code ? `${emailUser}-${code}` : "";
-        const variants = [fullSlug, withCode, emailUser, emailWithCode, code].filter(Boolean);
+        const variants = [fullSlug, withCode, code].filter(Boolean);
         return variants.some((v) => targets.has(v));
       });
       if (match) {
