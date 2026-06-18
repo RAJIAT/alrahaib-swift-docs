@@ -524,7 +524,7 @@ export async function dxPatchRequest(id: string, patch: Record<string, unknown>)
   if (!r?.data) {
     return {
       id,
-      uuid: id.toLowerCase(),
+      uuid: safeLower(id),
       agentId: "",
       agentName: "",
       branch: "",
@@ -614,7 +614,7 @@ export async function dxAddNote(
   }
   return {
     id: requestId,
-    uuid: requestId.toLowerCase(),
+    uuid: safeLower(requestId),
     agentId: "",
     agentName: "",
     branch: "",
@@ -766,7 +766,7 @@ export async function dxPublicGetQuote(requestId: string): Promise<PublicQuoteVi
   }
   if (!row) {
     // Fallback by id OR uuid
-    const filter = `filter[_or][0][id][_eq]=${encodeURIComponent(requestId)}&filter[_or][1][uuid][_eq]=${encodeURIComponent(requestId.toLowerCase())}`;
+    const filter = `filter[_or][0][id][_eq]=${encodeURIComponent(requestId)}&filter[_or][1][uuid][_eq]=${encodeURIComponent(safeLower(requestId))}`;
     const r = await fetch(`${base}/items/requests?fields=${reqFields}&limit=1&${filter}`, { headers });
     if (!r.ok) return null;
     const j = await r.json().catch(() => null) as { data?: DxRequestRow[] } | null;
