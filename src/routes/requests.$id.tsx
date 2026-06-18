@@ -1403,6 +1403,11 @@ function QuotesCard({
   const markShareStatus = async () => {
     const wantsLinkSent = paymentLink.trim().length > 0;
     const target: RequestStatus = wantsLinkSent ? "linkSent" : "quoted";
+    try {
+      await markRequestSharedWithCustomer(req.id, { paymentLinkIncluded: wantsLinkSent });
+    } catch (e) {
+      console.warn("[share quote] failed to write history", e);
+    }
     // Don't downgrade terminal or later states.
     if (req.status === "sold" || req.status === "rejected") return;
     if (target === "quoted" && (req.status === "linkSent" || req.status === "quoted")) return;
