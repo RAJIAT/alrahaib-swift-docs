@@ -65,8 +65,8 @@ function labelFor(action: string, ar: boolean, before?: any, after?: any, meta?:
     }
     case "request.assigned_to_underwriter":
       return ar
-        ? `حوّل السيلز ${before?.agentName ?? "—"} الطلب إلى الأندر رايتر ${after?.agentName ?? "—"}`
-        : `Sales ${before?.agentName ?? "—"} assigned to underwriter ${after?.agentName ?? "—"}`;
+        ? `تم تعيين الطلب إلى الأندر رايتر ${after?.agentName ?? "—"}`
+        : `Request assigned to underwriter ${after?.agentName ?? "—"}`;
     case "request.returned_to_sales":
       return meta?.auto
         ? (ar
@@ -191,8 +191,8 @@ export function RequestHistoryTimeline({ requestId, showAdvanced = false }: { re
             </h2>
             <p className="text-[11px] text-muted-foreground">
               {ar
-                ? "كل الأحداث التي مرّ بها هذا الطلب — للأدمن والمشرف."
-                : "Every event for this request — visible to admin & supervisor."}
+                ? "كل الأحداث التي مرّ بها هذا الطلب."
+                : "Every event for this request."}
             </p>
           </div>
         </div>
