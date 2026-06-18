@@ -1,32 +1,58 @@
-Plan to fix the broken Agent dashboard link/name:
+## Plan
 
-1. Fix the Agent dashboard data source
-- Build one `agentDisplayName` from the real logged-in profile fields first: `firstName + lastName`, then `user.name`, then linked agent cache name, then email username.
-- Use that same name in the welcome header so it shows `أهلاً، Raji atiyah` instead of only `أهلاً،`.
+### 1. Fix customer upload Agent name display
+- Update the public upload page (`/?agent=...`) so it never renders `Agent: …`, empty text, UUIDs, or a slug as the final label.
+- Strengthen the agent resolver to return a clean display name:
+  - Prefer `first_name + last_name`.
+  - Fallback to email username if names are missing.
+  - Use agent code only as optional secondary info, never as the primary name.
+- Include `email` in the safe public agent lookup fields and update the public-upload permission patch so anonymous lookup can read only the safe fields needed for display.
+- Add Arabic/English label handling:
+  - English: `Agent: Raji Atiyah`
+  - Arabic: `الوكيل: Raji Atiyah`
 
-2. Fix the upload link generation
-- Replace the current client-only `window.location.origin` link calculation with a stable helper that always returns a URL after render.
-- Generate the slug from `firstName + lastName + agent_code` when available.
-- If `agent_code` is missing, generate `raji-atiyah` from the visible user name.
-- Never fall back to `agent`, UUID, `user.id`, `agent.id`, or `profile.id` for the dashboard-visible/copied/shared link.
+### 2. Fix Request History event creation and display
+- Make audit writes reliable instead of silently failing:
+  - Surface useful console warnings when `audit_log` creation fails.
+  - Ensure public customer upload creates a `request.created` / customer submitted documents event with anonymous/customer actor.
+  - Ensure transfer to underwriter creates:
+    - `Request assigned to Underwriter [name]`
+    - `Status changed: New → Processing`
+  - Ensure automatic status changes for reupload, quote upload/share, and payment link are recorded.
+  - Ensure manual status changes include `meta.manual = true` and render as `Status changed manually: Old → New`.
+- Fix Request History fetching if the UI is filtering by the wrong ID shape (`REQ-...` vs internal UUID/label) by querying the correct request event identifiers.
+- Keep history readable in EN/AR and avoid raw JSON unless the advanced/admin view is explicitly used.
 
-3. Fix the visible link field and badge
-- Make the visible field show the final URL text, not an empty string.
-- Make the badge show the readable slug/code derived from the same helper.
-- Copy and Share buttons will use the exact same final URL shown on screen.
+### 3. Fix manual status change availability
+- Keep the status selector visible on the Request Details header for all allowed users:
+  - Admin
+  - Supervisor
+  - Sales Agent
+  - Underwriter
+- Ensure it is available at every stage, not only final stages.
+- Confirm selector includes exactly:
+  - New
+  - Under Process / Processing
+  - Missing Info / Reupload
+  - Quoted
+  - Payment Link Sent
+  - Sold
+  - Rejected
+- Keep automatic status updates active, but manual changes should always be possible and should log a clean history event.
 
-4. Preserve upload-page resolution
-- Keep old UUID links resolving for backward compatibility.
-- Ensure readable slugs like `raji-atiyah` and `raji-atiyah-sls-8039` resolve to the correct Sales Agent internally.
+### 4. Directus permission/server patch updates
+- Update or add the required `npx tsx` patch script(s) so the server can grant:
+  - Public safe read fields for agent lookup, including email fallback.
+  - Public/audited customer upload event creation if allowed by the current Directus model.
+  - `audit_log.create` for Agent and Supervisor roles.
+  - `audit_log.read` for Agent/Supervisor/Admin so Request History can read request events for the correct branch/owned request.
+- Final response will include the exact Node/npm/npx/tsx command(s) to run on the server, using `https://app.al-dis.com` for app-facing URLs and no Bun commands.
 
-5. Add/keep clear diagnostics
-- Log:
-  - `[agent upload link] user fields`
-  - `[agent upload link] final slug`
-  - `[agent upload link] final url`
-  - `[upload agent resolver] input`
-  - `[upload agent resolver] resolved agent`
-
-Technical details:
-- Primary files: `src/routes/agent.tsx`, with possible small resolver adjustment in `src/services/directusRequests.ts` only if needed.
-- Main likely cause: dashboard is passing an empty/invalid name into `ShareLinkCard`; the slug helper returns empty, so the URL div renders blank and the welcome text uses the sparse `user.name` value.
+### 5. Validation
+- Run read-only/code checks and targeted tests where available using Node/npm/npx/tsx only.
+- Verify the flow logic end-to-end in code:
+  - Agent link displays readable sales name.
+  - Customer upload logs history.
+  - Transfer to underwriter logs transfer and status.
+  - Manual status change logs manual status history.
+  - Request History shows events for Admin, Supervisor, Sales Agent, and Underwriter.

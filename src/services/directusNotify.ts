@@ -200,8 +200,12 @@ export async function logAudit(input: AuditLogInput): Promise<void> {
   try {
     await dxRequest(`/items/audit_log`, { method: "POST", body: JSON.stringify(body) });
     emit(EVT.audit);
-  } catch {
-    // Best-effort: never block the user's primary action.
+  } catch (e) {
+    // Best-effort: never block the user's primary action — but surface the
+    // failure so we can see when audit writes are silently rejected (e.g.
+    // missing Directus permissions for the current role / anonymous public
+    // upload).
+    console.warn("[audit_log] write failed", { action: input.action, entityId: input.entityId, error: e });
   }
 }
 
@@ -235,8 +239,11 @@ export async function fetchRequestAuditHistory(requestId: string): Promise<Audit
     const r = await dxRequest<{ data: DxAuditRow[] }>(
       `/items/audit_log?fields=${A_FIELDS}&sort=ts&limit=-1&filter[entity_type][_eq]=request&filter[entity_id][_eq]=${encodeURIComponent(requestId)}`,
     );
-    return r.data.map(rowToAudit);
-  } catch {
+    const rows = r.data.map(rowToAudit);
+    console.info("[audit_log] fetchRequestAuditHistory", { requestId, count: rows.length });
+    return rows;
+  } catch (e) {
+    console.warn("[audit_log] fetchRequestAuditHistory failed", { requestId, error: e });
     return [];
   }
 }
