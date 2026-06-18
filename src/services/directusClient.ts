@@ -28,6 +28,8 @@ export type ProfileSnapshot = {
   id: string;        // directus_users.id (uuid)
   email: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   role: "admin" | "supervisor" | "agent";
   branch?: string;
   branchId?: number;
@@ -211,6 +213,8 @@ export function userRecordToProfile(u: DxUserRecord): ProfileSnapshot {
     id: u.id,
     email: u.email,
     name: fullName(u),
+    firstName: (u.first_name ?? "").trim() || undefined,
+    lastName: (u.last_name ?? "").trim() || undefined,
     role: (u.app_role ?? "agent"),
     branch: userBranchCode(u),
     branchId: userBranchId(u),

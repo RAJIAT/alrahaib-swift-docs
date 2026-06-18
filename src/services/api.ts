@@ -93,6 +93,8 @@ export type AuthUser = {
   id: string;
   email: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   role: Role;
   agentId?: string;
   branch?: string;
@@ -172,7 +174,7 @@ export const subscribeBranches = (cb: () => void) => sub(BR_EVT, cb);
 // ---------------------------------------------------------------------------
 
 function profileToAuth(p: ProfileSnapshot): AuthUser {
-  return { id: p.id, email: p.email, name: p.name, role: p.role, agentId: p.agentId, branch: p.branch, branchId: p.branchId, staffType: p.staffType };
+  return { id: p.id, email: p.email, name: p.name, firstName: p.firstName, lastName: p.lastName, role: p.role, agentId: p.agentId, branch: p.branch, branchId: p.branchId, staffType: p.staffType };
 }
 
 export async function login(email: string, password: string): Promise<AuthUser> {
