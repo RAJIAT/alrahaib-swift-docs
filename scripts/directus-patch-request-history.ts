@@ -56,9 +56,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 async function findPolicyId(name: string): Promise<string | null> {
   const names = [name, `App ${name} Policy`, `${name} Policy`];
   const filter = encodeURIComponent(JSON.stringify({ name: { _in: names } }));
-  const r = await api<{ data: Array<{ id: string }> }>(
-    `/policies?filter=${filter}&limit=1`,
-  );
+  const r = await api<{ data: Array<{ id: string }> }>(`/policies?filter=${filter}&limit=1`);
   return r.data?.[0]?.id ?? null;
 }
 
@@ -103,7 +101,9 @@ async function upsertPermission(label: string, row: PermRow): Promise<void> {
       console.log(`   ~ updated ${label} → ${row.collection}.${row.action}`);
       return;
     }
-  } catch { /* fall through to POST */ }
+  } catch {
+    /* fall through to POST */
+  }
   try {
     await api("/permissions", {
       method: "POST",
