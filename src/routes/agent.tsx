@@ -422,6 +422,11 @@ function safeLower(value: unknown): string {
   return safeText(value, "").toString().toLowerCase();
 }
 
+function emailUsername(value: unknown): string {
+  const raw = safeText(value, "");
+  return raw && raw.includes("@") ? raw.split("@")[0] : "";
+}
+
 function safeStatus(value: unknown): RequestStatus {
   return VALID_STATUSES.includes(value as RequestStatus) ? (value as RequestStatus) : "new";
 }
@@ -471,9 +476,10 @@ export function buildAgentUploadSlug(input: {
   lastName?: string | null;
 }): string {
   const firstLast = [input.firstName, input.lastName].filter(Boolean).join(" ").trim();
-  const namePart = slugify(firstLast || input.name);
+  const displayName = safeText(firstLast || input.name, "");
+  const namePart = displayName && displayName !== input.email ? slugify(displayName) : "";
   const codePart = input.agentCode ? slugify(input.agentCode) : "";
-  const emailUser = input.email ? slugify(String(input.email).split("@")[0]) : "";
+  const emailUser = slugify(emailUsername(input.email));
   const candidates = [
     [namePart, codePart].filter(Boolean).join("-"),
     namePart,
@@ -484,7 +490,7 @@ export function buildAgentUploadSlug(input: {
   for (const c of candidates) {
     if (c && !UUID_RE.test(c)) return c;
   }
-  return "";
+  return namePart || emailUser || codePart;
 }
 
 function ShareLinkCard({
@@ -512,9 +518,9 @@ function ShareLinkCard({
 
   const link = useMemo(() => {
     if (typeof window === "undefined") return "";
-    if (!slug) return "";
-    return `${window.location.origin}/?agent=${encodeURIComponent(slug)}`;
-  }, [slug]);
+    const finalSlug = slug || slugify(agentName) || slugify(emailUsername(agentEmail));
+    return finalSlug ? `${window.location.origin}/?agent=${encodeURIComponent(finalSlug)}` : "";
+  }, [agentEmail, agentName, slug]);
 
   useEffect(() => {
     console.info("[agent upload link] user fields", {
