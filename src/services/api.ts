@@ -329,9 +329,11 @@ export async function listRequestsWithDebug(opts?: { agentId?: string; branch?: 
         (r.agentId && want.has(r.agentId)) ||
         (r.agentUserId && want.has(r.agentUserId)) ||
         (r.originAgentId && want.has(r.originAgentId)) ||
-        (r.originAgentUserId && want.has(r.originAgentUserId));
+        (r.originAgentUserId && want.has(r.originAgentUserId)) ||
+        (r.assignedUnderwriterId && want.has(r.assignedUnderwriterId)) ||
+        (r.assignedUnderwriterUserId && want.has(r.assignedUnderwriterUserId));
       if (!ok) {
-        filterDroppedReasons.push(`${r.id}: owner mismatch (agent=${r.agentUserId ?? r.agentId}, origin=${r.originAgentUserId ?? r.originAgentId}, want=${[...want].join("|")})`);
+        filterDroppedReasons.push(`${r.id}: owner mismatch (agent=${r.agentUserId ?? r.agentId}, origin=${r.originAgentUserId ?? r.originAgentId}, assignedUW=${r.assignedUnderwriterUserId ?? r.assignedUnderwriterId}, want=${[...want].join("|")})`);
         return false;
       }
     }
@@ -928,9 +930,17 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
   const previousOwner = agents.find((a) => a.id === req.agentId);
   const shouldCaptureOrigin =
     !req.originAgentId && previousOwner?.staffType === "sales" && target.staffType === "underwriter";
+  // When handing off to an underwriter, also stamp `assigned_underwriter` on
+  // the request so the underwriter keeps visibility even after the request
+  // is later auto-returned to sales (post quote upload, share, etc.).
+  const setAssignedUw =
+    target.staffType === "underwriter" && target.userId
+      ? target.userId
+      : undefined;
   const updated = await dxReassignRequest(req.id, {
     newAgentCode: target.id,
     captureOriginAgentCode: shouldCaptureOrigin ? previousOwner!.id : undefined,
+    setAssignedUnderwriterUuid: setAssignedUw,
   });
 
   const fromType = previousOwner?.staffType;
