@@ -895,6 +895,13 @@ async function ensurePublicUploadPermissions(): Promise<void> {
       fields: ["id", "request", "kind", "file", "uploaded_at", "uploaded_by"],
       _comment: "Link uploaded files to the new request",
     },
+    {
+      collection: "audit_log",
+      action: "create",
+      fields: ["action", "entity_type", "entity_id", "entity_label", "branch", "before", "after", "meta", "actor", "actor_role", "actor_branch"],
+      validation: { entity_type: { _eq: "request" } },
+      _comment: "Write Request History entry for anonymous customer uploads",
+    },
   ];
 
   for (const entry of publicPerms) {
