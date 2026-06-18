@@ -46,6 +46,7 @@ type DxRequestRow = {
   uuid?: string | null;
   agent?: string | null;          // user uuid
   origin_agent?: string | null;   // user uuid
+  assigned_underwriter?: string | null; // user uuid — sticky underwriter for visibility
   branch?: number | null;
   status: DemoStatus;
   customer_name?: string | null;
@@ -324,6 +325,7 @@ function requestFromRow(
 ): DemoRequest {
   const agent = agentCodeFromUuid(r.agent);
   const origin = r.origin_agent ? agentCodeFromUuid(r.origin_agent) : null;
+  const uw = r.assigned_underwriter ? agentCodeFromUuid(r.assigned_underwriter) : null;
   const myFiles = fileRows.filter((f) => f.request === r.id);
   return {
     id: r.id,
@@ -334,6 +336,9 @@ function requestFromRow(
     originAgentId: origin?.code,
     originAgentUserId: r.origin_agent ?? undefined,
     originAgentName: origin?.name,
+    assignedUnderwriterId: uw?.code,
+    assignedUnderwriterUserId: r.assigned_underwriter ?? undefined,
+    assignedUnderwriterName: uw?.name,
     assignedAt: r.assigned_at ?? undefined,
     branch: branchCodeFromId(r.branch),
     status: r.status,
@@ -357,7 +362,7 @@ async function ensureEntitiesCached(): Promise<void> {
 // ---------------- queries ----------------
 
 const REQ_FIELDS =
-  "id,uuid,agent,origin_agent,branch,status,customer_name,customer_email,customer_phone,assigned_at,date_created";
+  "id,uuid,agent,origin_agent,assigned_underwriter,branch,status,customer_name,customer_email,customer_phone,assigned_at,date_created";
 const NOTE_FIELDS =
   "id,request,author,author_role,text,kind,resolved_at,date_created";
 const FILE_FIELDS =
@@ -371,6 +376,7 @@ export async function dxListRequests(opts?: { agentUuid?: string; branchId?: num
       _or: [
         { agent: { _eq: opts.agentUuid } },
         { origin_agent: { _eq: opts.agentUuid } },
+        { assigned_underwriter: { _eq: opts.agentUuid } },
       ],
     });
   }
@@ -551,6 +557,7 @@ export async function dxSetRequestStatus(id: string, status: DemoStatus): Promis
 export async function dxReassignRequest(id: string, opts: {
   newAgentCode: string;
   captureOriginAgentCode?: string;
+  setAssignedUnderwriterUuid?: string | null;
 }): Promise<DemoRequest> {
   const agentUuid = uuidFromAgentCode(opts.newAgentCode);
   if (!agentUuid) throw new Error("Target agent not found in Directus");
@@ -561,6 +568,9 @@ export async function dxReassignRequest(id: string, opts: {
   if (opts.captureOriginAgentCode) {
     const originUuid = uuidFromAgentCode(opts.captureOriginAgentCode);
     if (originUuid) body.origin_agent = originUuid;
+  }
+  if (opts.setAssignedUnderwriterUuid !== undefined) {
+    body.assigned_underwriter = opts.setAssignedUnderwriterUuid;
   }
   return dxPatchRequest(id, body);
 }

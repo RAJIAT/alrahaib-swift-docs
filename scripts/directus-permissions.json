@@ -74,7 +74,7 @@
     {
       "collection": "requests",
       "action": "update",
-      "fields": ["agent", "status", "customer_name", "customer_email", "customer_phone", "assigned_at"],
+      "fields": ["agent", "assigned_underwriter", "status", "customer_name", "customer_email", "customer_phone", "assigned_at"],
       "permissions": { "branch": { "_eq": "$CURRENT_USER.branch" } }
     },
     {
@@ -174,7 +174,8 @@
       "permissions": {
         "_or": [
           { "agent": { "_eq": "$CURRENT_USER" } },
-          { "origin_agent": { "_eq": "$CURRENT_USER" } }
+          { "origin_agent": { "_eq": "$CURRENT_USER" } },
+          { "assigned_underwriter": { "_eq": "$CURRENT_USER" } }
         ]
       }
     },
@@ -193,11 +194,12 @@
     {
       "collection": "requests",
       "action": "update",
-      "fields": ["status", "customer_name", "customer_email", "customer_phone", "agent", "origin_agent", "assigned_at"],
+      "fields": ["status", "customer_name", "customer_email", "customer_phone", "agent", "origin_agent", "assigned_underwriter", "assigned_at"],
       "permissions": {
         "_or": [
           { "agent": { "_eq": "$CURRENT_USER" } },
-          { "origin_agent": { "_eq": "$CURRENT_USER" } }
+          { "origin_agent": { "_eq": "$CURRENT_USER" } },
+          { "assigned_underwriter": { "_eq": "$CURRENT_USER" } }
         ]
       },
       "_comment": "Reassignment writes agent/origin_agent/assigned_at directly; client enforces branch + role rules and Directus restricts the write to the current owner."

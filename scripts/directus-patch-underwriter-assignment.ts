@@ -176,6 +176,7 @@ async function patchPermissions() {
         _or: [
           { agent: { _eq: "$CURRENT_USER" } },
           { origin_agent: { _eq: "$CURRENT_USER" } },
+          { assigned_underwriter: { _eq: "$CURRENT_USER" } },
         ],
       },
     })} Agent → requests.read`,

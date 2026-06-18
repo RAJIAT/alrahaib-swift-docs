@@ -40,6 +40,21 @@ function AgentDashboard() {
   const effectiveAgentId = user?.id;
   const { items, loading, error } = useRequestsLive({ agentId: effectiveAgentId });
 
+  // Underwriter / agent dashboard diagnostics — surfaces logged-in user id,
+  // filter, and result count so visibility issues are easy to debug.
+  useEffect(() => {
+    if (!user) return;
+    console.info("[underwriter/agent dashboard]", {
+      loggedInUserId: user.id,
+      loggedInAgentCode: user.agentId,
+      staffType: user.staffType,
+      queryFilter: { agentId: effectiveAgentId },
+      loading,
+      returnedCount: items.length,
+      statuses: items.map((r) => ({ id: r.id, status: r.status, agent: r.agentId, assignedUW: r.assignedUnderwriterId })),
+    });
+  }, [user, effectiveAgentId, items, loading]);
+
   // Detect newly-arrived customer requests and push a notification to the
   // logged-in agent so the bell + count update without requiring server-side
   // flows. First snapshot is "baseline" (no spam on initial load).
