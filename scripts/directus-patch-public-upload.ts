@@ -142,7 +142,7 @@ async function main() {
     policy: publicPolicy,
     collection: "directus_users",
     action: "read",
-    fields: ["id", "first_name", "last_name", "agent_code", "app_role", "staff_type", "branch", "app_active"],
+    fields: ["id", "email", "first_name", "last_name", "agent_code", "app_role", "staff_type", "branch", "app_active"],
     permissions: {
       _and: [
         { app_role: { _eq: "agent" } },
