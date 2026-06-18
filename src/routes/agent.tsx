@@ -162,6 +162,8 @@ function AgentDashboardContent() {
         : undefined,
     [effectiveAgentId, user],
   );
+  // Build display name directly from user fields first, then fallbacks.
+  // Never let it become empty.
   const agentDisplayName = user ? buildAgentDisplayName(user, linkedAgent?.name) : "";
   const linkedAgentCode = linkedAgent?.id && !UUID_RE.test(linkedAgent.id) ? linkedAgent.id : undefined;
   const uploadLinkCode = user?.agentId && !UUID_RE.test(user.agentId) ? user.agentId : linkedAgentCode;
@@ -442,6 +444,7 @@ function buildAgentDisplayName(user: AuthUser, linkedName?: string): string {
     if (!candidate || candidate === user.email || UUID_RE.test(candidate)) continue;
     return candidate;
   }
+  // NEVER return empty — fallback to email username, then email, then hardcoded.
   return emailName || safeText(user.email, "Sales Agent");
 }
 
@@ -509,13 +512,14 @@ export function buildAgentUploadSlug(input: {
   for (const c of candidates) {
     if (c && !UUID_RE.test(c)) return c;
   }
-  return namePart || emailUser || codePart;
+  // NEVER return empty — fallback to emailUser, then codePart, then hardcoded.
+  return emailUser || codePart || "agent";
 }
 
 function buildAgentUploadUrl(slug: string): string {
-  if (!slug) return "";
+  const safeSlug = slug || "agent";
   const origin = typeof window !== "undefined" ? window.location.origin : "https://app.al-dis.com";
-  return `${origin}/?agent=${encodeURIComponent(slug)}`;
+  return `${origin}/?agent=${encodeURIComponent(safeSlug)}`;
 }
 
 function ShareLinkCard({
