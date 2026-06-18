@@ -162,8 +162,7 @@ function AgentDashboardContent() {
         : undefined,
     [effectiveAgentId, user],
   );
-  const uploadLinkName =
-    user?.name && user.name !== user.email ? user.name : (linkedAgent?.name ?? user?.name ?? "");
+  const agentDisplayName = user ? buildAgentDisplayName(user, linkedAgent?.name) : "";
   const linkedAgentCode = linkedAgent?.id && !UUID_RE.test(linkedAgent.id) ? linkedAgent.id : undefined;
   const uploadLinkCode = user?.agentId && !UUID_RE.test(user.agentId) ? user.agentId : linkedAgentCode;
   const safeItems = useMemo(
@@ -218,7 +217,7 @@ function AgentDashboardContent() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-foreground">
-              {t.agent.welcome}, {user.name}
+              {t.agent.welcome}, {agentDisplayName}
             </div>
             <div className="mt-0.5 text-xs text-muted-foreground">{t.agent.yoursOnly}</div>
           </div>
@@ -235,7 +234,7 @@ function AgentDashboardContent() {
         <ShareLinkCard
           agentId={effectiveAgentId ?? ""}
           agentCode={uploadLinkCode}
-          agentName={uploadLinkName}
+          agentName={agentDisplayName}
           agentEmail={user.email}
           firstName={user.firstName}
           lastName={user.lastName}
