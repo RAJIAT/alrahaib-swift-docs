@@ -459,14 +459,15 @@ export function buildAgentUploadSlug(input: {
   const emailUser = input.email ? slugify(String(input.email).split("@")[0]) : "";
   const candidates = [
     [namePart, codePart].filter(Boolean).join("-"),
+    namePart,
     [emailUser, codePart].filter(Boolean).join("-"),
-    codePart,
     emailUser,
+    codePart,
   ];
   for (const c of candidates) {
     if (c && !UUID_RE.test(c)) return c;
   }
-  return "";
+  return "agent";
 }
 
 function ShareLinkCard({
@@ -489,13 +490,23 @@ function ShareLinkCard({
   );
 
   const link = useMemo(() => {
-    if (typeof window === "undefined" || !slug) return "";
-    return `${window.location.origin}/?agent=${encodeURIComponent(slug)}`;
+    if (typeof window === "undefined") return "";
+    const s = slug || "agent";
+    return `${window.location.origin}/?agent=${encodeURIComponent(s)}`;
   }, [slug]);
 
   useEffect(() => {
-    if (link) console.info("[agent upload link]", link);
-  }, [link]);
+    console.info("[agent upload link] user fields", {
+      first_name: (agentName || "").split(" ")[0],
+      last_name: (agentName || "").split(" ").slice(1).join(" "),
+      name: agentName,
+      email: agentEmail,
+      agent_code: agentCode,
+      agentId,
+    });
+    console.info("[agent upload link] final slug", slug);
+    console.info("[agent upload link] final url", link);
+  }, [link, slug, agentName, agentEmail, agentCode, agentId]);
 
   const writeToClipboard = async (text: string) => {
     if (navigator.clipboard && window.isSecureContext) {
@@ -551,7 +562,8 @@ function ShareLinkCard({
     }
   };
 
-  if (!agentId || !link) return null;
+  // Never hide the card for Sales Agents. Even with sparse user fields the
+  // slug helper falls back to a generic value so the link is always shown.
 
   return (
     <div className="mb-5 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary-soft to-card p-4 shadow-card animate-fade-in">
@@ -566,7 +578,7 @@ function ShareLinkCard({
               : "Send this link to your client to upload documents directly to your account"}
           </div>
         </div>
-        {(agentCode || slug) && !UUID_RE.test(String(agentCode || slug)) && (
+        {!!(agentCode || slug) && !UUID_RE.test(String(agentCode || slug)) && (
           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
             {agentCode || slug}
           </span>
