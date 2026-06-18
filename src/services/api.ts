@@ -413,13 +413,22 @@ export async function resolveAssetUrl(stored: string): Promise<{ url: string; mi
   return { url: stored, mime: m?.[1] ?? "" };
 }
 
-export async function updateRequestStatus(id: string, status: RequestStatus): Promise<InsuranceRequest> {
+export async function updateRequestStatus(
+  id: string,
+  status: RequestStatus,
+  opts?: { manual?: boolean },
+): Promise<InsuranceRequest> {
   const current = await dxGetRequest(id);
   if (!current) throw new Error("Request not found");
   const before = current.status;
   if (before === status) return current;
   const updated = await dxSetRequestStatus(current.id, status);
-  logEvent({ action: "request.status_changed", entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch, before: { status: before }, after: { status } });
+  logEvent({
+    action: "request.status_changed",
+    entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
+    before: { status: before }, after: { status },
+    meta: opts?.manual ? { manual: true } : undefined,
+  });
   notifyRequestStatus(updated, before);
   return updated;
 }
@@ -964,8 +973,15 @@ export async function reassignRequest(requestId: string, newAgentId: string): Pr
     fromType === "sales" && toType === "underwriter" &&
     (updated.status === "new" || updated.status === "reupload")
   ) {
+    const prevStatus = updated.status;
     try {
       withStatus = await dxSetRequestStatus(updated.id, "processing");
+      logEvent({
+        action: "request.status_changed",
+        entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
+        before: { status: prevStatus }, after: { status: "processing" },
+        meta: { auto: true, reason: "assigned_to_underwriter" },
+      });
     } catch (e) {
       console.warn("[reassign] auto status flip to processing failed", e);
     }
