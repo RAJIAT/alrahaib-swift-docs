@@ -54,7 +54,7 @@ function UploadPage() {
     if (!cleaned) return "";
     return cleaned
       .split(" ")
-      .map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w))
+      .map((w: string) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w))
       .join(" ");
   }, [agent]);
 
