@@ -433,6 +433,22 @@ export async function updateRequestStatus(
   return updated;
 }
 
+export async function markRequestSharedWithCustomer(
+  id: string,
+  meta?: Record<string, unknown>,
+): Promise<void> {
+  const current = await dxGetRequest(id);
+  if (!current) throw new Error("Request not found");
+  await logEvent({
+    action: "request.shared_with_customer",
+    entityType: "request",
+    entityId: current.id,
+    entityLabel: current.id,
+    branch: current.branch,
+    meta,
+  });
+}
+
 export async function submitUpload(input: {
   agentId: string;
   customerName?: string;
