@@ -124,6 +124,10 @@ export function canManageAgents(u: AuthUser | null | undefined) { return u?.role
 export function canDeleteAgents(u: AuthUser | null | undefined) { return u?.role === "admin"; }
 export function canSeeAllBranches(u: AuthUser | null | undefined) { return u?.role === "admin"; }
 
+function safeLower(value: unknown): string {
+  return (value ?? "").toString().toLowerCase();
+}
+
 // Settings
 export function getApprovalRequired(): boolean { return getSettingsCached().requireAdminApproval; }
 export async function setApprovalRequired(v: boolean) {
@@ -382,7 +386,7 @@ export async function createEmptyRequest(): Promise<InsuranceRequest> {
   const id = `REQ-${Date.now()}`;
   const req = await dxCreateRequest({
     id,
-    uuid: id.toLowerCase(),
+    uuid: safeLower(id),
     agentCode: agent?.id ?? me.agentId ?? me.id,
     agentUserId: me.id,
     branchCode: me.branch ?? agent?.branch ?? "",
@@ -447,7 +451,7 @@ export async function submitUpload(input: {
   let req;
   try {
     req = await dxCreateRequest({
-      id, uuid: id.toLowerCase(),
+      id, uuid: safeLower(id),
       agentCode: agent.agentCode,
       agentUserId: agent.userId,
       branchCode: agent.branchCode,
