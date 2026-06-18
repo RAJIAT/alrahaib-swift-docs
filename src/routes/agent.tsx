@@ -350,14 +350,24 @@ function AgentDashboardContent() {
   );
 }
 
-function Chip({ label, value, tone }: { label: string; value: number; tone: "primary" | "info" | "success" }) {
+function Chip({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "primary" | "info" | "success";
+}) {
   const tones = {
     primary: "bg-primary-soft text-primary",
     info: "bg-info/10 text-info",
     success: "bg-success/10 text-success",
   };
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${tones[tone]}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${tones[tone]}`}
+    >
       <span className="opacity-80">{label}</span>
       <span className="font-bold">{value}</span>
     </span>
@@ -373,7 +383,15 @@ type DashboardRequest = {
   assignedUnderwriterUserId?: string;
 };
 
-const VALID_STATUSES: RequestStatus[] = ["new", "processing", "reupload", "quoted", "linkSent", "sold", "rejected"];
+const VALID_STATUSES: RequestStatus[] = [
+  "new",
+  "processing",
+  "reupload",
+  "quoted",
+  "linkSent",
+  "sold",
+  "rejected",
+];
 
 function safeText(value: unknown, fallback = "—"): string {
   if (typeof value === "string") return value.trim() || fallback;
@@ -389,7 +407,9 @@ function safeStatus(value: unknown): RequestStatus {
   return VALID_STATUSES.includes(value as RequestStatus) ? (value as RequestStatus) : "new";
 }
 
-function normalizeRequestForDashboard(req: Partial<InsuranceRequest> | null | undefined): DashboardRequest {
+function normalizeRequestForDashboard(
+  req: Partial<InsuranceRequest> | null | undefined,
+): DashboardRequest {
   const id = safeText(req?.id, "REQ-UNKNOWN");
   return {
     id,
