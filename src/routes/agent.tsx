@@ -223,6 +223,7 @@ function AgentDashboardContent() {
           agentId={effectiveAgentId ?? ""}
           agentCode={user.agentId}
           agentName={user.name}
+          agentEmail={user.email}
         />
       )}
       {/* Status filter tabs */}
