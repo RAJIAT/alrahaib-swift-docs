@@ -181,16 +181,22 @@ export type ResolvedUploadAgent = {
 export async function dxResolveUploadAgent(identifier: string): Promise<ResolvedUploadAgent> {
   await ensureEntitiesCached();
   const key = identifier.trim();
+  console.info("[upload agent resolver] input", { identifier, key });
   // Accept readable slugs like "raja-niaz-sls-2308" by extracting the
   // trailing agent code (e.g. "SLS-2308"). Fall back to the full key for
   // legacy UUID / agent_code links.
   const slugMatch = /([A-Za-z]+-\d+)$/i.exec(key);
   const codeFromSlug = slugMatch?.[1]?.toUpperCase();
   const candidates = Array.from(new Set([key, codeFromSlug ?? "", key.toUpperCase()].filter(Boolean)));
+  const slugNorm = key.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const nameOnlySlug = slugNorm.replace(/-[a-z]+-\d+$/i, "");
   const cached = getAgentsCache().find((a) =>
     candidates.some((c) => a.id === c || a.userId === c || a.id?.toUpperCase() === c),
   );
   if (cached) {
+    console.info("[upload agent resolver] resolved agent", {
+      source: "cache", userId: cached.userId, agentCode: cached.id, name: cached.name,
+    });
     return {
       userId: cached.userId,
       agentCode: cached.id,
@@ -231,11 +237,40 @@ export async function dxResolveUploadAgent(identifier: string): Promise<Resolved
     }
   }
 
+  // Readable name slug fallback: fetch active sales agents and match by
+  // slugified first_name + last_name (and email username) against the URL slug.
+  if (!row && slugNorm && !isUuid(key)) {
+    try {
+      const r = await dxRequest<{ data: Array<DxAgentLookupRow & { email?: string | null }> }>(
+        `/users?fields=${fields},email&limit=-1&filter[app_role][_eq]=agent&filter[app_active][_eq]=true`,
+      );
+      const norm = (s: string) => s.toLowerCase().replace(/[\u0600-\u06FF]+/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      const targets = new Set([slugNorm, nameOnlySlug].filter(Boolean));
+      const match = r.data.find((u) => {
+        const fn = (u.first_name ?? "").trim();
+        const ln = (u.last_name ?? "").trim();
+        const fullSlug = norm(`${fn} ${ln}`);
+        const code = u.agent_code ? norm(u.agent_code) : "";
+        const withCode = code ? `${fullSlug}-${code}` : "";
+        const emailUser = u.email ? norm(u.email.split("@")[0]) : "";
+        const emailWithCode = emailUser && code ? `${emailUser}-${code}` : "";
+        const variants = [fullSlug, withCode, emailUser, emailWithCode, code].filter(Boolean);
+        return variants.some((v) => targets.has(v));
+      });
+      if (match) {
+        row = match;
+        source = "direct-agent-code";
+      }
+    } catch (e) {
+      console.warn("[upload debug] name-slug agent lookup failed", { agentParam: key, error: e });
+    }
+  }
+
   if (row) {
     if (row.app_role && row.app_role !== "agent") throw new Error("Upload link does not point to an agent user");
     if (row.app_active === false) throw new Error("Upload link points to an inactive agent user");
     const branchCode = agentLookupBranchCode(row);
-    return {
+    const resolved: ResolvedUploadAgent = {
       userId: row.id,
       agentCode: row.agent_code || row.id,
       name: agentLookupName(row),
@@ -244,11 +279,15 @@ export async function dxResolveUploadAgent(identifier: string): Promise<Resolved
       staffType: row.staff_type ?? undefined,
       source,
     };
+    console.info("[upload agent resolver] resolved agent", resolved);
+    return resolved;
   }
 
   if (isUuid(key)) {
+    console.info("[upload agent resolver] resolved agent", { source: "raw-uuid", userId: key });
     return { userId: key, agentCode: key, name: key, branchCode: "", branchId: null, source: "raw-uuid" };
   }
+  console.warn("[upload agent resolver] resolved agent", { result: "not-found", key });
   throw new Error("Sales Agent not found for this upload link");
 }
 
