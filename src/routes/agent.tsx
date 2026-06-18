@@ -443,6 +443,32 @@ function slugify(s: unknown): string {
     .replace(/^-+|-+$/g, "");
 }
 
+// Build a readable, non-UUID slug for the customer upload link. We NEVER
+// expose the raw Directus user id in any agent-facing or customer-facing
+// link. Inputs are tried in priority order: name+code, email-username+code,
+// code alone, then email-username alone. A UUID input is rejected so an
+// accidental `agentId` value can never leak.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function buildAgentUploadSlug(input: {
+  name?: string | null;
+  email?: string | null;
+  agentCode?: string | null;
+}): string {
+  const namePart = slugify(input.name);
+  const codePart = input.agentCode ? slugify(input.agentCode) : "";
+  const emailUser = input.email ? slugify(String(input.email).split("@")[0]) : "";
+  const candidates = [
+    [namePart, codePart].filter(Boolean).join("-"),
+    [emailUser, codePart].filter(Boolean).join("-"),
+    codePart,
+    emailUser,
+  ];
+  for (const c of candidates) {
+    if (c && !UUID_RE.test(c)) return c;
+  }
+  return "";
+}
+
 function ShareLinkCard({
   agentId,
   agentCode,
@@ -457,23 +483,19 @@ function ShareLinkCard({
   const { t, lang } = useLang();
   const [copied, setCopied] = useState(false);
 
-  const slug = useMemo(() => {
-    const namePart = slugify(agentName);
-    const codePart = agentCode ? slugify(agentCode) : "";
-    const joined = [namePart, codePart].filter(Boolean).join("-");
-    if (joined) return joined;
-    // Fallback: email username + code, so we never expose the raw UUID.
-    const emailUser = agentEmail ? slugify(agentEmail.split("@")[0]) : "";
-    const emailJoined = [emailUser, codePart].filter(Boolean).join("-");
-    if (emailJoined) return emailJoined;
-    return codePart || "";
-  }, [agentName, agentCode, agentEmail]);
+  const slug = useMemo(
+    () => buildAgentUploadSlug({ name: agentName, email: agentEmail, agentCode }),
+    [agentName, agentCode, agentEmail],
+  );
 
   const link = useMemo(() => {
-    if (typeof window === "undefined") return "";
-    const param = slug || agentId; // last-resort backward compat
-    return `${window.location.origin}/?agent=${encodeURIComponent(param)}`;
-  }, [slug, agentId]);
+    if (typeof window === "undefined" || !slug) return "";
+    return `${window.location.origin}/?agent=${encodeURIComponent(slug)}`;
+  }, [slug]);
+
+  useEffect(() => {
+    if (link) console.info("[agent upload link]", link);
+  }, [link]);
 
   const writeToClipboard = async (text: string) => {
     if (navigator.clipboard && window.isSecureContext) {
@@ -496,6 +518,10 @@ function ShareLinkCard({
 
   const copy = async () => {
     try {
+      if (!link) {
+        toast.error(lang === "ar" ? "تعذر إنشاء الرابط" : "Link unavailable");
+        return;
+      }
       await writeToClipboard(link);
       setCopied(true);
       toast.success(lang === "ar" ? "تم نسخ الرابط" : "Link copied");
@@ -506,6 +532,10 @@ function ShareLinkCard({
   };
 
   const share = async () => {
+    if (!link) {
+      toast.error(lang === "ar" ? "تعذر إنشاء الرابط" : "Link unavailable");
+      return;
+    }
     const shareText =
       lang === "ar"
         ? `مرحباً، فضلاً ارفع مستنداتك من خلال الرابط التالي:\n${link}`
@@ -521,7 +551,7 @@ function ShareLinkCard({
     }
   };
 
-  if (!agentId) return null;
+  if (!agentId || !link) return null;
 
   return (
     <div className="mb-5 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary-soft to-card p-4 shadow-card animate-fade-in">
@@ -536,7 +566,7 @@ function ShareLinkCard({
               : "Send this link to your client to upload documents directly to your account"}
           </div>
         </div>
-        {(agentCode || slug) && (
+        {(agentCode || slug) && !UUID_RE.test(String(agentCode || slug)) && (
           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
             {agentCode || slug}
           </span>
