@@ -517,9 +517,9 @@ export function buildAgentUploadSlug(input: {
 }
 
 function buildAgentUploadUrl(slug: string): string {
-  if (!slug) return "";
+  const safeSlug = slug || "agent";
   const origin = typeof window !== "undefined" ? window.location.origin : "https://app.al-dis.com";
-  return `${origin}/?agent=${encodeURIComponent(slug)}`;
+  return `${origin}/?agent=${encodeURIComponent(safeSlug)}`;
 }
 
 function ShareLinkCard({
