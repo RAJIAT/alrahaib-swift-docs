@@ -81,7 +81,10 @@ function AgentDashboardContent() {
     setUser(u);
     // Re-verify role server-side; if tampered, send to login.
     refreshCurrentUser().then((fresh) => {
-      if (!fresh || fresh.role !== "agent") { navigate({ to: "/login" }); return; }
+      if (!fresh || fresh.role !== "agent") {
+        navigate({ to: "/login" });
+        return;
+      }
       setUser(fresh);
     });
   }, [navigate]);
@@ -135,19 +138,25 @@ function AgentDashboardContent() {
     if (!recent.length) return;
     for (const r of recent) {
       toast.success(
-        lang === "ar"
-          ? `طلب جديد ${safeText(r?.id)}`
-          : `New request ${safeText(r?.id)}`,
+        lang === "ar" ? `طلب جديد ${safeText(r?.id)}` : `New request ${safeText(r?.id)}`,
       );
     }
   }, [items, loading, user, lang]);
 
   const myStaffType = useMemo(
-    () => user?.staffType ?? (effectiveAgentId ? listAgents().find((a) => a.id === effectiveAgentId || a.userId === effectiveAgentId)?.staffType : undefined),
+    () =>
+      user?.staffType ??
+      (effectiveAgentId
+        ? listAgents().find((a) => a.id === effectiveAgentId || a.userId === effectiveAgentId)
+            ?.staffType
+        : undefined),
     [effectiveAgentId, user?.staffType],
   );
   const isUnderwriter = myStaffType === "underwriter";
-  const safeItems = useMemo(() => (Array.isArray(items) ? items : []).map(normalizeRequestForDashboard), [items]);
+  const safeItems = useMemo(
+    () => (Array.isArray(items) ? items : []).map(normalizeRequestForDashboard),
+    [items],
+  );
 
   const counts = useMemo(
     () => ({
@@ -178,7 +187,11 @@ function AgentDashboardContent() {
     { key: "linkSent", label: t.status.linkSent, tone: "bg-info text-info-foreground" },
     { key: "sold", label: t.status.sold, tone: "bg-success text-success-foreground" },
     { key: "reupload", label: t.status.reupload, tone: "bg-purple text-purple-foreground" },
-    { key: "rejected", label: t.status.rejected, tone: "bg-destructive text-destructive-foreground" },
+    {
+      key: "rejected",
+      label: t.status.rejected,
+      tone: "bg-destructive text-destructive-foreground",
+    },
   ];
 
   const Chevron = dir === "rtl" ? ChevronLeft : ChevronRight;
