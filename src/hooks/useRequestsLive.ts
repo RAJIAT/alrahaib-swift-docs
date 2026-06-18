@@ -5,8 +5,8 @@ import { listRequests, subscribeRequests, type InsuranceRequest } from "@/servic
 // immediately on agent / supervisor / admin dashboards without manual refresh.
 const POLL_INTERVAL_MS = 4_000;
 
-function requestSig(r: InsuranceRequest): string {
-  const images = r.images ?? {
+function requestSig(r: Partial<InsuranceRequest> | null | undefined): string {
+  const images = r?.images ?? {
     registration: [],
     license: [],
     emirates: [],
@@ -22,7 +22,7 @@ function requestSig(r: InsuranceRequest): string {
     (Array.isArray(images.missingAttachments) ? images.missingAttachments.length : 0) +
     (images.inspection ? 1 : 0) +
     (r.quotes?.length ?? 0);
-  return `${r.id ?? ""}:${r.status ?? "new"}:${r.assignedAt ?? ""}:${imageCount}:${r.notes?.length ?? 0}`;
+  return `${r?.id ?? ""}:${r?.status ?? "new"}:${r?.assignedAt ?? ""}:${imageCount}:${r?.notes?.length ?? 0}`;
 }
 
 export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
@@ -55,12 +55,13 @@ export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
       listRequests(Object.keys(filter).length ? filter : undefined)
         .then((rs) => {
           if (!alive) return;
+          const safeRows = Array.isArray(rs) ? rs.filter(Boolean) : [];
           setError(null);
           // Include file/note counts too, so customer uploads update open dashboards without refresh.
-          const sig = `${rs.length}|` + rs.map(requestSig).join(",");
+          const sig = `${safeRows.length}|` + safeRows.map(requestSig).join(",");
           if (sig !== sigRef.current) {
             sigRef.current = sig;
-            setItems(rs);
+            setItems(safeRows as InsuranceRequest[]);
           }
           setLoading(false);
         })
