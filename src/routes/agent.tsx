@@ -223,6 +223,7 @@ function AgentDashboardContent() {
           agentId={effectiveAgentId ?? ""}
           agentCode={user.agentId}
           agentName={user.name}
+          agentEmail={user.email}
         />
       )}
       {/* Status filter tabs */}
@@ -446,10 +447,12 @@ function ShareLinkCard({
   agentId,
   agentCode,
   agentName,
+  agentEmail,
 }: {
   agentId: string;
   agentCode?: string;
   agentName: string;
+  agentEmail?: string;
 }) {
   const { t, lang } = useLang();
   const [copied, setCopied] = useState(false);
@@ -458,13 +461,19 @@ function ShareLinkCard({
     const namePart = slugify(agentName);
     const codePart = agentCode ? slugify(agentCode) : "";
     const joined = [namePart, codePart].filter(Boolean).join("-");
-    return joined || agentCode || agentId;
-  }, [agentName, agentCode, agentId]);
+    if (joined) return joined;
+    // Fallback: email username + code, so we never expose the raw UUID.
+    const emailUser = agentEmail ? slugify(agentEmail.split("@")[0]) : "";
+    const emailJoined = [emailUser, codePart].filter(Boolean).join("-");
+    if (emailJoined) return emailJoined;
+    return codePart || "";
+  }, [agentName, agentCode, agentEmail]);
 
   const link = useMemo(() => {
     if (typeof window === "undefined") return "";
-    return `${window.location.origin}/?agent=${encodeURIComponent(slug)}`;
-  }, [slug]);
+    const param = slug || agentId; // last-resort backward compat
+    return `${window.location.origin}/?agent=${encodeURIComponent(param)}`;
+  }, [slug, agentId]);
 
   const writeToClipboard = async (text: string) => {
     if (navigator.clipboard && window.isSecureContext) {
@@ -527,9 +536,11 @@ function ShareLinkCard({
               : "Send this link to your client to upload documents directly to your account"}
           </div>
         </div>
-        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-          {agentCode ?? slug}
-        </span>
+        {(agentCode || slug) && (
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+            {agentCode || slug}
+          </span>
+        )}
       </div>
 
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
