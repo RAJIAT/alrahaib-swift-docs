@@ -522,6 +522,7 @@ export const translations = {
       password: "Password",
       submit: "Sign in",
       invalid: "Invalid credentials",
+      deactivated: "Your account has been deactivated. Please contact the administrator.",
     },
     nav: {
       requests: "Requests",
