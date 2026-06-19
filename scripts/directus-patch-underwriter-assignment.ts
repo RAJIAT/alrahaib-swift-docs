@@ -109,6 +109,7 @@ async function patchPermissions() {
     "first_name",
     "last_name",
     "email",
+    "status",
     "app_role",
     "staff_type",
     "branch",
@@ -146,14 +147,17 @@ async function patchPermissions() {
   ];
   const agentReadFields = [
     "id",
+    "email",
     "first_name",
     "last_name",
+    "status",
     "agent_code",
     "app_role",
     "staff_type",
     "branch",
     "assigned_underwriter",
     "assigned_underwriter_code",
+    "pending_approval",
     "app_active",
   ];
 
