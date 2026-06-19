@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Pencil, Plus, Power, Send, Trash2, Upload, Users } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/DashboardShell";
@@ -27,6 +27,7 @@ function AdminAgents() {
   const { t, dir } = useLang();
   const navigate = useNavigate();
   const [user, setUser] = useState<AuthUser | null>(null);
+  const userRef = useRef<AuthUser | null>(null);
   const [allAgents, setAllAgents] = useState<Agent[]>([]);
   const [rawCount, setRawCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -72,7 +73,7 @@ function AdminAgents() {
   useEffect(() => {
     let alive = true;
     const refresh = () => {
-      const scopedUser = user;
+      const scopedUser = userRef.current;
       if (!scopedUser) return;
       getAgents().then((list) => {
         if (!alive) return;
@@ -95,6 +96,7 @@ function AdminAgents() {
     enforceActiveSession(["admin", "supervisor"]).then((fresh) => {
       if (!alive) return;
       if (!fresh || (fresh.role !== "admin" && fresh.role !== "supervisor")) { navigate({ to: "/login" }); return; }
+      userRef.current = fresh;
       setUser(fresh);
       getBranches().catch(() => {});
       getAgents().then((list) => {
