@@ -52,6 +52,11 @@ type DxRequestRow = {
   customer_name?: string | null;
   customer_email?: string | null;
   customer_phone?: string | null;
+  quote_confirmed?: boolean | null;
+  quote_confirmed_at?: string | null;
+  payment_link?: string | null;
+  payment_message?: string | null;
+  payment_link_sent_at?: string | null;
   assigned_at?: string | null;
   date_created?: string | null;
 };
@@ -420,6 +425,11 @@ function requestFromRow(
     customerName: r.customer_name ?? undefined,
     customerEmail: r.customer_email ?? undefined,
     customerPhone: r.customer_phone ?? undefined,
+    quoteConfirmed: r.quote_confirmed === true,
+    quoteConfirmedAt: r.quote_confirmed_at ?? undefined,
+    paymentLink: r.payment_link ?? undefined,
+    paymentMessage: r.payment_message ?? undefined,
+    paymentLinkSentAt: r.payment_link_sent_at ?? undefined,
     notes: notes.filter((n) => n.request === r.id).map(noteFromRow),
     images: buildImages(myFiles),
     quotes: buildQuotes(myFiles),
@@ -436,7 +446,7 @@ async function ensureEntitiesCached(): Promise<void> {
 // ---------------- queries ----------------
 
 const REQ_FIELDS =
-  "id,uuid,agent,origin_agent,assigned_underwriter,branch,status,customer_name,customer_email,customer_phone,assigned_at,date_created";
+  "id,uuid,agent,origin_agent,assigned_underwriter,branch,status,customer_name,customer_email,customer_phone,quote_confirmed,quote_confirmed_at,payment_link,payment_message,payment_link_sent_at,assigned_at,date_created";
 const NOTE_FIELDS =
   "id,request,author,author_role,text,kind,resolved_at,date_created";
 const FILE_FIELDS =
@@ -807,6 +817,11 @@ export type PublicQuoteView = {
   customerEmail?: string;
   customerPhone?: string;
   createdAt: string;
+  quoteConfirmed?: boolean;
+  quoteConfirmedAt?: string;
+  paymentLink?: string;
+  paymentMessage?: string;
+  paymentLinkSentAt?: string;
   quotes: DemoQuote[];
 };
 
@@ -819,7 +834,7 @@ export type PublicQuoteView = {
 export async function dxPublicGetQuote(requestId: string): Promise<PublicQuoteView | null> {
   const base = (import.meta.env.VITE_DIRECTUS_URL as string | undefined)?.replace(/\/$/, "");
   if (!base) throw new Error("VITE_DIRECTUS_URL is not configured.");
-  const reqFields = "id,customer_name,customer_email,customer_phone,date_created";
+  const reqFields = "id,customer_name,customer_email,customer_phone,quote_confirmed,quote_confirmed_at,payment_link,payment_message,payment_link_sent_at,date_created";
   const fileFields = "id,request,kind,uploaded_at,file.id,file.filename_download,file.type,file.filesize";
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   // Try direct row first.
@@ -854,6 +869,11 @@ export async function dxPublicGetQuote(requestId: string): Promise<PublicQuoteVi
       customerEmail: row.customer_email ?? undefined,
       customerPhone: row.customer_phone ?? undefined,
       createdAt: row.date_created ?? new Date().toISOString(),
+      quoteConfirmed: row.quote_confirmed === true,
+      quoteConfirmedAt: row.quote_confirmed_at ?? undefined,
+      paymentLink: row.payment_link ?? undefined,
+      paymentMessage: row.payment_message ?? undefined,
+      paymentLinkSentAt: row.payment_link_sent_at ?? undefined,
       quotes: [],
     };
   }
@@ -879,6 +899,28 @@ export async function dxPublicGetQuote(requestId: string): Promise<PublicQuoteVi
     customerEmail: row.customer_email ?? undefined,
     customerPhone: row.customer_phone ?? undefined,
     createdAt: row.date_created ?? new Date().toISOString(),
+    quoteConfirmed: row.quote_confirmed === true,
+    quoteConfirmedAt: row.quote_confirmed_at ?? undefined,
+    paymentLink: row.payment_link ?? undefined,
+    paymentMessage: row.payment_message ?? undefined,
+    paymentLinkSentAt: row.payment_link_sent_at ?? undefined,
     quotes,
   };
+}
+
+export async function dxPublicConfirmQuote(requestId: string): Promise<PublicQuoteView | null> {
+  const base = (import.meta.env.VITE_DIRECTUS_URL as string | undefined)?.replace(/\/$/, "");
+  if (!base) throw new Error("VITE_DIRECTUS_URL is not configured.");
+  const now = new Date().toISOString();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const res = await fetch(`${base}/items/requests/${encodeURIComponent(requestId)}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ quote_confirmed: true, quote_confirmed_at: now }),
+  });
+  if (res.status === 403 || res.status === 401) {
+    throw new Error("Public quote confirmation is not allowed. Run scripts/directus-patch-public-quote.ts");
+  }
+  if (!res.ok) throw new Error(await res.text().catch(() => "Failed to confirm quote"));
+  return dxPublicGetQuote(requestId);
 }

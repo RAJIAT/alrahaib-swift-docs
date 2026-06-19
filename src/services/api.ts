@@ -54,6 +54,8 @@ import {
   dxAttachFilesSequential,
   dxAttachFilesParallel,
   dxDeleteRequestFile,
+  dxPatchRequest,
+  dxPublicConfirmQuote,
 } from "./directusRequests";
 import {
   ensureSettingsLoaded,
@@ -460,6 +462,50 @@ export async function markRequestSharedWithCustomer(
   });
 }
 
+export async function confirmQuoteByCustomer(id: string): Promise<void> {
+  const updated = await dxPublicConfirmQuote(id);
+  await logEvent({
+    action: "request.quote_confirmed",
+    entityType: "request",
+    entityId: updated?.id ?? id,
+    entityLabel: updated?.id ?? id,
+    actor: { id: null, name: "Customer", role: "anonymous", branch: null },
+  });
+}
+
+export async function sendPaymentLinkToCustomer(
+  id: string,
+  input: { paymentLink: string; message?: string },
+): Promise<InsuranceRequest> {
+  const current = await dxGetRequest(id);
+  if (!current) throw new Error("Request not found");
+  if (!current.quoteConfirmed) throw new Error("Quote must be confirmed by customer before sending payment link");
+  const link = input.paymentLink.trim();
+  if (!link) throw new Error("Payment link is required");
+  const beforeStatus = current.status;
+  const updated = await dxPatchRequest(current.id, {
+    payment_link: link,
+    payment_message: input.message?.trim() || null,
+    payment_link_sent_at: new Date().toISOString(),
+    status: "linkSent",
+  });
+  await logEvent({
+    action: "request.payment_link_sent",
+    entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
+    meta: { hasMessage: !!input.message?.trim() },
+  });
+  if (beforeStatus !== "linkSent") {
+    await logEvent({
+      action: "request.status_changed",
+      entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
+      before: { status: beforeStatus }, after: { status: "linkSent" },
+      meta: { auto: true, reason: "payment_link_sent" },
+    });
+  }
+  notifyRequestStatus(updated, beforeStatus);
+  return updated;
+}
+
 export async function submitUpload(input: {
   agentId: string;
   customerName?: string;
@@ -847,7 +893,7 @@ async function logEvent(input: {
   before?: unknown;
   after?: unknown;
   meta?: Record<string, unknown>;
-  actor?: { id: string; name: string; role: Role | "anonymous"; branch?: string | null };
+  actor?: { id: string | null; name: string | null; role: Role | "anonymous"; branch?: string | null };
 }): Promise<void> {
   const u = input.actor ?? getCurrentUser();
   await logAudit({

@@ -12,6 +12,7 @@ import {
   getCurrentUser, refreshCurrentUser, getRequest, updateRequestStatus, resolveAssetUrl,
   addRequestNote, resolveRequestNote, subscribeRequests,
   reassignRequest, listAgents, getAgents, addQuotesToRequest, removeQuoteFromRequest, markRequestSharedWithCustomer,
+  sendPaymentLinkToCustomer,
   type AuthUser, type InsuranceRequest, type RequestStatus, type RequestNoteKind, type Agent,
 } from "@/services/api";
 import { isDirectusAssetUrl } from "@/services/directus";
@@ -379,6 +380,23 @@ function RequestDetails() {
               </div>
             </div>
           )}
+
+          <div className="mt-4 rounded-2xl border border-border bg-card p-5 shadow-card">
+            <h3 className="mb-3 text-sm font-bold text-foreground">{lang === "ar" ? "حالة عرض السعر" : "Quote status"}</h3>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              {req.quoteConfirmed ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4 text-success" />
+                  <span className="font-medium text-foreground">{lang === "ar" ? "تم تأكيد العرض من العميل" : "Quote confirmed by customer"}</span>
+                  {req.quoteConfirmedAt && (
+                    <span>· {new Date(req.quoteConfirmedAt).toLocaleString(lang === "ar" ? "ar-AE" : "en-GB", { dateStyle: "medium", timeStyle: "short" })}</span>
+                  )}
+                </>
+              ) : (
+                <span>{lang === "ar" ? "لم يؤكد العميل العرض بعد" : "Customer has not confirmed the quote yet"}</span>
+              )}
+            </div>
+          </div>
 
           {/* Image cards: registration (front + back), license, emirates (front + back) */}
           <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -1392,28 +1410,22 @@ function QuotesCard({
 
   const shareLink = `${getPublicAppOrigin()}/q/${encodeURIComponent(req.id)}`;
   const [shareOpen, setShareOpen] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentLink, setPaymentLink] = useState("");
-
-  const composedShareLink = (() => {
-    const trimmed = paymentLink.trim();
-    if (!trimmed) return shareLink;
-    return `${shareLink}#pay=${encodeURIComponent(trimmed)}`;
-  })();
+  const [paymentMessage, setPaymentMessage] = useState("");
+  const [sendingPayment, setSendingPayment] = useState(false);
 
   const markShareStatus = async () => {
-    const wantsLinkSent = paymentLink.trim().length > 0;
-    const target: RequestStatus = wantsLinkSent ? "linkSent" : "quoted";
     try {
-      await markRequestSharedWithCustomer(req.id, { paymentLinkIncluded: wantsLinkSent });
+      await markRequestSharedWithCustomer(req.id, { quoteOnly: true });
     } catch (e) {
       console.warn("[share quote] failed to write history", e);
     }
     // Don't downgrade terminal or later states.
     if (req.status === "sold" || req.status === "rejected") return;
-    if (target === "quoted" && (req.status === "linkSent" || req.status === "quoted")) return;
-    if (target === "linkSent" && req.status === "linkSent") return;
+    if (req.status === "linkSent" || req.status === "quoted") return;
     try {
-      const updated = await updateRequestStatus(req.id, target);
+      const updated = await updateRequestStatus(req.id, "quoted");
       onUpdated(updated);
     } catch (e) {
       console.warn("[share quote] failed to update status", e);
@@ -1422,7 +1434,7 @@ function QuotesCard({
 
   const copyShareLink = async () => {
     try {
-      await copyToClipboard(composedShareLink);
+      await copyToClipboard(shareLink);
       toast.success(ar ? "تم نسخ رابط المشاركة" : "Share link copied");
     } catch (e) {
       toast.error(safeMessage(e, ar ? "تعذر نسخ الرابط" : "Could not copy link"));
@@ -1436,11 +1448,10 @@ function QuotesCard({
       return;
     }
     const subject = encodeURIComponent(ar ? `عرض السعر — ${req.id}` : `Insurance quote — ${req.id}`);
-    const pay = paymentLink.trim();
     const body = encodeURIComponent(
       (ar
-        ? `مرحباً ${req.customerName ?? ""}،\n\nيمكنك الاطلاع على عرض السعر من الرابط التالي:\n${composedShareLink}${pay ? `\n\nرابط الدفع:\n${pay}` : ""}`
-        : `Hello ${req.customerName ?? ""},\n\nYou can view your quote here:\n${composedShareLink}${pay ? `\n\nPayment link:\n${pay}` : ""}`),
+        ? `مرحباً ${req.customerName ?? ""}،\n\nيمكنك الاطلاع على عرض السعر من الرابط التالي:\n${shareLink}`
+        : `Hello ${req.customerName ?? ""},\n\nYou can view your quote here:\n${shareLink}`),
     );
     // Open the user's mail client. We do NOT claim "sent" — no SMTP is wired.
     window.open(
@@ -1457,16 +1468,30 @@ function QuotesCard({
       toast.error(ar ? "لا يوجد رقم هاتف للعميل" : "No customer phone on file");
       return;
     }
-    const pay = paymentLink.trim();
     const msg = ar
-      ? `مرحباً ${req.customerName ?? ""}، عرض السعر جاهز. يمكنك الاطلاع عليه هنا: ${composedShareLink}${pay ? `\nرابط الدفع: ${pay}` : ""}`
-      : `Hello ${req.customerName ?? ""}, your insurance quote is ready. You can view it here: ${composedShareLink}${pay ? `\nPayment link: ${pay}` : ""}`;
+      ? `مرحباً ${req.customerName ?? ""}، عرض السعر جاهز. يمكنك الاطلاع عليه هنا: ${shareLink}`
+      : `Hello ${req.customerName ?? ""}, your insurance quote is ready. You can view it here: ${shareLink}`;
     window.open(`https://wa.me/${digits}?text=${encodeURIComponent(msg)}`, "_blank", "noopener");
     await markShareStatus();
   };
   const openShareLink = async () => {
-    window.open(composedShareLink, "_blank", "noopener");
+    window.open(shareLink, "_blank", "noopener");
     await markShareStatus();
+  };
+
+  const submitPaymentLink = async () => {
+    if (sendingPayment) return;
+    setSendingPayment(true);
+    try {
+      const updated = await sendPaymentLinkToCustomer(req.id, { paymentLink, message: paymentMessage });
+      onUpdated(updated);
+      setPaymentOpen(false);
+      toast.success(ar ? "تم إرسال رابط الدفع" : "Payment link sent");
+    } catch (e) {
+      toast.error(safeMessage(e, ar ? "تعذر إرسال رابط الدفع" : "Could not send payment link"));
+    } finally {
+      setSendingPayment(false);
+    }
   };
 
   return (
@@ -1654,24 +1679,6 @@ function QuotesCard({
                   </button>
                 </div>
                 <p dir="ltr" className="mb-3 truncate rounded-lg border border-border bg-surface px-2 py-1.5 text-[11px] text-muted-foreground" title={shareLink}>{shareLink}</p>
-                <div className="mb-3">
-                  <label className="mb-1 block text-[11px] font-semibold text-foreground">
-                    {ar ? "رابط الدفع (اختياري)" : "Payment Link (optional)"}
-                  </label>
-                  <input
-                    type="url"
-                    dir="ltr"
-                    value={paymentLink}
-                    onChange={(e) => setPaymentLink(e.target.value)}
-                    placeholder="https://…"
-                    className="h-9 w-full rounded-lg border border-input bg-surface px-2.5 text-xs text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  />
-                  <p className="mt-1 text-[10px] text-muted-foreground">
-                    {ar
-                      ? "إذا أُضيف رابط دفع: ستصبح الحالة «تم إرسال رابط الدفع». بدونه: «تم إرسال عرض السعر»."
-                      : "If a payment link is added, status becomes “Payment link sent”. Otherwise, status becomes “Quoted”."}
-                  </p>
-                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => { setShareOpen(false); whatsappShareLink(); }}
@@ -1704,9 +1711,63 @@ function QuotesCard({
                 </div>
                 <p className="mt-3 text-[10px] text-muted-foreground">
                   {ar
-                    ? "اختر طريقة المشاركة لإرسال الرابط للعميل. لن نُحدِّث الحالة كـ«تم الإرسال» إلا بعد اختيارك."
-                    : "Pick a channel to share the link with the customer. Status flips to “link sent” only after you act."}
+                    ? "اختر طريقة المشاركة لإرسال عرض السعر فقط. رابط الدفع يُرسل بعد تأكيد العميل للعرض."
+                    : "Pick a channel to share the quote only. Payment link is sent after the customer confirms the quote."}
                 </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {quotes.length > 0 && req.quoteConfirmed && (isSales || isAdmin || isSup || isUW) && (
+        <div className="mt-4 rounded-xl border border-primary/30 bg-primary-soft/30 p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-foreground">
+                {ar ? "إرسال رابط الدفع" : "Send Payment Link"}
+              </p>
+              {req.paymentLinkSentAt && (
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {ar ? "تم الإرسال" : "Sent"} · {fmt(req.paymentLinkSentAt)}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => { setPaymentLink(req.paymentLink ?? ""); setPaymentMessage(req.paymentMessage ?? ""); setPaymentOpen(true); }}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-soft transition active:scale-95"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              {ar ? "إرسال رابط الدفع" : "Send Payment Link"}
+            </button>
+          </div>
+          {paymentOpen && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+              onClick={() => setPaymentOpen(false)}
+            >
+              <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-card" onClick={(e) => e.stopPropagation()}>
+                <div className="mb-3 flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-foreground">{ar ? "إرسال رابط الدفع" : "Send Payment Link"}</h4>
+                  <button type="button" onClick={() => setPaymentOpen(false)} aria-label="close" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <label className="mb-3 block">
+                  <span className="mb-1 block text-[11px] font-semibold text-foreground">{ar ? "رابط الدفع" : "Payment Link"}</span>
+                  <input type="url" dir="ltr" value={paymentLink} onChange={(e) => setPaymentLink(e.target.value)} placeholder="https://…" className="h-10 w-full rounded-lg border border-input bg-surface px-3 text-xs text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-semibold text-foreground">{ar ? "رسالة اختيارية" : "Optional message"}</span>
+                  <textarea value={paymentMessage} onChange={(e) => setPaymentMessage(e.target.value)} rows={3} className="w-full rounded-lg border border-input bg-surface px-3 py-2 text-xs text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
+                </label>
+                <button type="button" onClick={submitPaymentLink} disabled={sendingPayment || !paymentLink.trim()} className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-soft transition active:scale-95 disabled:opacity-50">
+                  {sendingPayment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  {ar ? "إرسال رابط الدفع" : "Send Payment Link"}
+                </button>
               </div>
             </div>
           )}
