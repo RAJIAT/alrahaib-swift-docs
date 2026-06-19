@@ -365,7 +365,10 @@ export async function dxUpdateUser(userId: string, patch: DxUpdateUserPatch): Pr
       : null;
   }
   if (patch.pendingApproval !== undefined) body.pending_approval = patch.pendingApproval;
-  if (patch.active !== undefined) body.app_active = patch.active;
+  if (patch.active !== undefined) {
+    body.app_active = patch.active;
+    body.status = patch.active ? "active" : "suspended";
+  }
   if (patch.removalReason !== undefined) body.app_removal_reason = patch.removalReason;
   if (patch.removalRequestedBy !== undefined) body.app_removal_requested_by = patch.removalRequestedBy;
   if (patch.removalRequestedAt !== undefined) body.app_removal_requested_at = patch.removalRequestedAt;
