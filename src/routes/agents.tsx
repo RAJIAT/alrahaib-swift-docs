@@ -12,7 +12,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import {
   approveAgent,
   canDeleteAgents,
-  createAgent, deleteAgent, enforceActiveSession, getAgents, getBranches, getCurrentUser, listBranches,
+  createAgent, deleteAgent, enforceActiveSession, getAgents, getBranches, listBranches,
   requestAgentRemoval,
   subscribeAgents, updateAgent, type Agent, type AgentRole, type AuthUser, type StaffType,
 } from "@/services/api";
