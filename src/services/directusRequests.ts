@@ -439,8 +439,8 @@ function requestFromRow(
 // ---------------- entity cache warmup ----------------
 
 async function ensureEntitiesCached(): Promise<void> {
-  if (!getBranchesCache().length) { try { await refreshBranches(); } catch {} }
-  if (!getAgentsCache().length)    { try { await refreshAgents();   } catch {} }
+  if (!getBranchesCache().length) { try { await refreshBranches(); } catch { /* keep stale */ } }
+  if (!getAgentsCache().length)    { try { await refreshAgents();   } catch { /* keep stale */ } }
 }
 
 // ---------------- queries ----------------
