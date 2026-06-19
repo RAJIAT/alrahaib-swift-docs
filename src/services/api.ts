@@ -219,6 +219,9 @@ export async function refreshCurrentUser(): Promise<AuthUser | null> {
     const { USER_FIELDS } = await import("./directusClient");
     const me = await dxRequest<{ data: DxUserRecord }>(`/users/me?fields=${USER_FIELDS}`);
     if (me.data.app_active === false || me.data.pending_approval === true) {
+      if (typeof window !== "undefined") {
+        try { sessionStorage.setItem("aib:auth-deactivated", "1"); } catch { /* ignore */ }
+      }
       await dxLogout();
       return null;
     }
@@ -227,7 +230,15 @@ export async function refreshCurrentUser(): Promise<AuthUser | null> {
     const { setProfile } = await import("./directusClient");
     setProfile(profile);
     return profileToAuth(profile);
-  } catch {
+  } catch (err) {
+    // If Directus rejects the session as unauthorised (token revoked, user
+    // disabled at the auth layer), clear the cached profile and force re-login.
+    const status = (err as { status?: number } | null)?.status;
+    if (status === 401 || status === 403) {
+      await dxLogout();
+      return null;
+    }
+    // Network / transient — keep cached so offline UX still works.
     return getCurrentUser();
   }
 }

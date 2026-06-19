@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
@@ -17,6 +17,18 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // If the user was bounced back here because their account was deactivated
+    // mid-session, surface the localized message immediately.
+    try {
+      if (typeof window !== "undefined" && sessionStorage.getItem("aib:auth-deactivated") === "1") {
+        sessionStorage.removeItem("aib:auth-deactivated");
+        setError(t.auth.deactivated);
+      }
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,9 +49,11 @@ function LoginPage() {
       const u = await login(finalEmail, finalPassword);
       navigate({ to: u.role === "admin" || u.role === "supervisor" ? "/admin" : "/agent" });
     } catch (err) {
-      const e = err as { status?: number; message?: string };
+      const e = err as { status?: number; message?: string; code?: string };
       console.error("[login] failed", e);
-      if (e?.status === 401 || e?.status === 403) {
+      if (e?.code === "ACCOUNT_DEACTIVATED" || e?.message === "ACCOUNT_DEACTIVATED") {
+        setError(t.auth.deactivated);
+      } else if (e?.status === 401 || e?.status === 403) {
         setError(t.auth.invalid);
       } else {
         setError(e?.message || t.auth.invalid);

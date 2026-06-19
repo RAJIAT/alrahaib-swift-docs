@@ -243,11 +243,15 @@ export async function dxLogin(email: string, password: string): Promise<ProfileS
   const me = await dxRequest<{ data: DxUserRecord }>(`/users/me?fields=${USER_FIELDS}`);
   if (me.data.app_active === false) {
     await dxLogout();
-    throw new Error("Your account is disabled");
+    const err = new Error("ACCOUNT_DEACTIVATED");
+    (err as Error & { code?: string }).code = "ACCOUNT_DEACTIVATED";
+    throw err;
   }
   if (me.data.pending_approval === true) {
     await dxLogout();
-    throw new Error("Your account is pending approval");
+    const err = new Error("ACCOUNT_PENDING_APPROVAL");
+    (err as Error & { code?: string }).code = "ACCOUNT_PENDING_APPROVAL";
+    throw err;
   }
   const profile = userRecordToProfile(me.data);
   setProfile(profile);

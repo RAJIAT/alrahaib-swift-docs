@@ -103,6 +103,7 @@ export const translations = {
       password: "كلمة المرور",
       submit: "دخول",
       invalid: "بيانات الدخول غير صحيحة",
+      deactivated: "تم تعطيل حسابك، يرجى التواصل مع الإدارة.",
     },
     nav: {
       requests: "الطلبات",
@@ -521,6 +522,7 @@ export const translations = {
       password: "Password",
       submit: "Sign in",
       invalid: "Invalid credentials",
+      deactivated: "Your account has been deactivated. Please contact the administrator.",
     },
     nav: {
       requests: "Requests",
