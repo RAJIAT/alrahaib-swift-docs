@@ -31,7 +31,7 @@ export function DashboardShell({
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const verify = async () => {
       // Verify session against Directus and refresh cached profile.
       const u = await enforceActiveSession(allowed).catch(() => null);
       if (cancelled) return;
@@ -40,8 +40,18 @@ export function DashboardShell({
       if (!u || !allowed.includes(u.role)) {
         navigate({ to: "/login" });
       }
-    })();
-    return () => { cancelled = true; };
+    };
+    verify();
+    const intervalId = window.setInterval(() => {
+      if (!document.hidden) verify();
+    }, 30_000);
+    const onVisibility = () => { if (!document.hidden) verify(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
