@@ -23,7 +23,10 @@ export function DashboardShell({
   const navigate = useNavigate();
   // Defer reading localStorage until after mount to avoid SSR hydration mismatch.
   const [mounted, setMounted] = useState(false);
-  const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null);
+  // Seed from the cached profile so children render immediately while we
+  // re-verify the session in the background. Without this seed the whole
+  // dashboard (including the staff table) waits for /users/me to resolve.
+  const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(() => getCurrentUser());
   const [open, setOpen] = useState(false);
   const path = useRouterState({ select: (s) => s.location.pathname });
 
@@ -31,12 +34,15 @@ export function DashboardShell({
 
   useEffect(() => {
     let cancelled = false;
+    // Reveal the shell on the next tick using the cached profile so the
+    // page paints right away. The live verification still runs below and
+    // will redirect / clear state if the session is no longer valid.
+    setMounted(true);
     const verify = async () => {
       // Verify session against Directus and refresh cached profile.
       const u = await enforceActiveSession(allowed).catch(() => null);
       if (cancelled) return;
       setUser(u);
-      setMounted(true);
       if (!u || !allowed.includes(u.role)) {
         navigate({ to: "/login" });
       }
