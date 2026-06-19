@@ -9,8 +9,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { useRequestsLive } from "@/hooks/useRequestsLive";
 import { getPublicAppOrigin } from "@/lib/utils";
 import {
-  getCurrentUser,
-  refreshCurrentUser,
+  enforceActiveSession,
   listAgents,
   type AuthUser,
   type InsuranceRequest,
@@ -74,20 +73,16 @@ function AgentDashboardContent() {
   const [filter, setFilter] = useState<StatusFilter>("all");
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u || u.role !== "agent") {
-      navigate({ to: "/login" });
-      return;
-    }
-    setUser(u);
-    // Re-verify role server-side; if tampered, send to login.
-    refreshCurrentUser().then((fresh) => {
+    let alive = true;
+    enforceActiveSession("agent").then((fresh) => {
+      if (!alive) return;
       if (!fresh || fresh.role !== "agent") {
         navigate({ to: "/login" });
         return;
       }
       setUser(fresh);
     });
+    return () => { alive = false; };
   }, [navigate]);
 
   // Always scope the dashboard by the logged-in Directus user id. Do not rely

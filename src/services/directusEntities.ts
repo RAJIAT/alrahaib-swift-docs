@@ -13,6 +13,7 @@ import {
   dxIsLoggedIn,
   dxRequest,
   getProfile,
+  isDeactivatedUserRecord,
   USER_FIELDS,
   userBranchCode,
   type DxUserRecord,
@@ -92,7 +93,7 @@ function userToAgent(u: DxUserRecord): DemoAgent | null {
     name: fullName(u),
     email: u.email,
     branch: userBranchCode(u),
-    active: u.app_active !== false,
+    active: !isDeactivatedUserRecord(u),
     role,
     staffType: u.staff_type ?? undefined,
     supervisorId: u.supervisor ?? undefined,
@@ -365,7 +366,10 @@ export async function dxUpdateUser(userId: string, patch: DxUpdateUserPatch): Pr
       : null;
   }
   if (patch.pendingApproval !== undefined) body.pending_approval = patch.pendingApproval;
-  if (patch.active !== undefined) body.app_active = patch.active;
+  if (patch.active !== undefined) {
+    body.app_active = patch.active;
+    body.status = patch.active ? "active" : "suspended";
+  }
   if (patch.removalReason !== undefined) body.app_removal_reason = patch.removalReason;
   if (patch.removalRequestedBy !== undefined) body.app_removal_requested_by = patch.removalRequestedBy;
   if (patch.removalRequestedAt !== undefined) body.app_removal_requested_at = patch.removalRequestedAt;

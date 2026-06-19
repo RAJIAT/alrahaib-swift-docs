@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Pencil, Plus, Power, Send, Trash2, Upload, Users } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardShell } from "@/components/DashboardShell";
@@ -12,7 +12,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import {
   approveAgent,
   canDeleteAgents,
-  createAgent, deleteAgent, getAgents, getBranches, getCurrentUser, listBranches, refreshCurrentUser,
+  createAgent, deleteAgent, enforceActiveSession, getAgents, getBranches, listBranches,
   requestAgentRemoval,
   subscribeAgents, updateAgent, type Agent, type AgentRole, type AuthUser, type StaffType,
 } from "@/services/api";
@@ -26,7 +26,8 @@ type TabKey = "supervisor" | "underwriter" | "sales";
 function AdminAgents() {
   const { t, dir } = useLang();
   const navigate = useNavigate();
-  const [user, setUser] = useState<AuthUser | null>(() => getCurrentUser());
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const userRef = useRef<AuthUser | null>(null);
   const [allAgents, setAllAgents] = useState<Agent[]>([]);
   const [rawCount, setRawCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -70,35 +71,43 @@ function AdminAgents() {
   }, [allAgents, effectiveTab, branchFilter, isAdmin]);
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u || (u.role !== "admin" && u.role !== "supervisor")) { navigate({ to: "/login" }); return; }
-    setUser(u);
     let alive = true;
     const refresh = () => {
+      const scopedUser = userRef.current;
+      if (!scopedUser) return;
       getAgents().then((list) => {
         if (!alive) return;
         setRawCount(list.length);
-        const visible = u.role === "supervisor"
+        const visible = scopedUser.role === "supervisor"
           ? list.filter((a) => {
               // Supervisors see every user in their own branch, plus anyone
               // they personally created (covers legacy rows where the branch
               // FK might be unset). If the supervisor profile has no branch
               // yet (cache still warming), don't drop everyone — show all
               // rows the server returned and let Directus enforce visibility.
-              if (!u.branch) return true;
-              return a.branch === u.branch || a.createdByUserId === u.id;
+              if (!scopedUser.branch) return true;
+              return a.branch === scopedUser.branch || a.createdByUserId === scopedUser.id;
             })
           : list;
         setAllAgents(visible);
         setLoading(false);
       });
     };
-    refreshCurrentUser().then((fresh) => {
+    enforceActiveSession(["admin", "supervisor"]).then((fresh) => {
       if (!alive) return;
       if (!fresh || (fresh.role !== "admin" && fresh.role !== "supervisor")) { navigate({ to: "/login" }); return; }
+      userRef.current = fresh;
       setUser(fresh);
       getBranches().catch(() => {});
-      refresh();
+      getAgents().then((list) => {
+        if (!alive) return;
+        setRawCount(list.length);
+        const visible = fresh.role === "supervisor"
+          ? list.filter((a) => !fresh.branch || a.branch === fresh.branch || a.createdByUserId === fresh.id)
+          : list;
+        setAllAgents(visible);
+        setLoading(false);
+      }).catch(() => { if (alive) setLoading(false); });
     });
     const off = subscribeAgents(refresh);
     return () => { alive = false; off(); };

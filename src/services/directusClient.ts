@@ -17,6 +17,7 @@ export function dxBase(): string {
 
 const TOKENS_KEY = "aib:dx:tokens:v2";
 const PROFILE_KEY = "aib:dx:profile:v2";
+const DEACTIVATED_FLAG_KEY = "aib:auth-deactivated";
 
 export type TokenSet = {
   access_token: string;
@@ -78,6 +79,42 @@ export function setProfile(p: ProfileSnapshot | null) {
   if (typeof window === "undefined") return;
   if (p) localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
   else localStorage.removeItem(PROFILE_KEY);
+}
+
+export function markAccountDeactivated() {
+  if (typeof window === "undefined") return;
+  try { sessionStorage.setItem(DEACTIVATED_FLAG_KEY, "1"); } catch { /* ignore */ }
+}
+
+export function consumeAccountDeactivatedFlag(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const fromSession = sessionStorage.getItem(DEACTIVATED_FLAG_KEY) === "1";
+    const fromUrl = new URLSearchParams(window.location.search).get("deactivated") === "1";
+    sessionStorage.removeItem(DEACTIVATED_FLAG_KEY);
+    return fromSession || fromUrl;
+  } catch {
+    return false;
+  }
+}
+
+export function clearAuthCache() {
+  refreshPromise = null;
+  saveTokens(null);
+  setProfile(null);
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(TOKENS_KEY);
+    localStorage.removeItem(PROFILE_KEY);
+  } catch { /* ignore */ }
+}
+
+export function redirectToLoginForDeactivatedAccount() {
+  if (typeof window === "undefined") return;
+  markAccountDeactivated();
+  if (window.location.pathname !== "/login") {
+    window.location.replace("/login?deactivated=1");
+  }
 }
 
 // ---------- token refresh ----------
@@ -146,6 +183,10 @@ export async function dxRequest<T = unknown>(path: string, init: RequestInit = {
   const res = await fetch(`${URL_BASE}${path}`, { ...init, headers });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    if (res.status === 403) {
+      markAccountDeactivated();
+      throw createAccountDeactivatedError();
+    }
     throw buildError(res.status, body);
   }
   if (res.status === 204) return undefined as T;
@@ -187,15 +228,24 @@ export const USER_FIELDS = [
 ].join(",");
 
 function isFalseLike(value: unknown): boolean {
-  return value === false || value === 0 || value === "false" || value === "0";
+  if (typeof value === "string") return ["false", "0", "f", "no", "off", "inactive", "disabled"].includes(value.trim().toLowerCase());
+  return value === false || value === 0;
 }
 
 function isTrueLike(value: unknown): boolean {
-  return value === true || value === 1 || value === "true" || value === "1";
+  if (typeof value === "string") return ["true", "1", "t", "yes", "on", "active", "enabled"].includes(value.trim().toLowerCase());
+  return value === true || value === 1;
 }
 
 export function isDeactivatedUserRecord(u: Pick<DxUserRecord, "app_active" | "status">): boolean {
-  return isFalseLike(u.app_active) || (!!u.status && u.status !== "active");
+  const status = typeof u.status === "string" ? u.status.trim().toLowerCase() : "";
+  return isFalseLike(u.app_active) || (!!status && status !== "active");
+}
+
+function createAccountDeactivatedError(): Error & { code: string } {
+  const err = new Error("ACCOUNT_DEACTIVATED") as Error & { code: string };
+  err.code = "ACCOUNT_DEACTIVATED";
+  return err;
 }
 
 function fullName(u: { first_name?: string | null; last_name?: string | null; email: string }) {
@@ -258,17 +308,15 @@ export async function dxLogin(email: string, password: string): Promise<ProfileS
   } catch (e) {
     await dxLogout();
     if ((e as DirectusError | null)?.status === 403) {
-      const err = new Error("ACCOUNT_DEACTIVATED");
-      (err as Error & { code?: string }).code = "ACCOUNT_DEACTIVATED";
-      throw err;
+      markAccountDeactivated();
+      throw createAccountDeactivatedError();
     }
     throw e;
   }
   if (isDeactivatedUserRecord(me.data)) {
     await dxLogout();
-    const err = new Error("ACCOUNT_DEACTIVATED");
-    (err as Error & { code?: string }).code = "ACCOUNT_DEACTIVATED";
-    throw err;
+    markAccountDeactivated();
+    throw createAccountDeactivatedError();
   }
   if (me.data.pending_approval === true) {
     await dxLogout();
@@ -283,8 +331,7 @@ export async function dxLogin(email: string, password: string): Promise<ProfileS
 
 export async function dxLogout(): Promise<void> {
   const t = getTokens();
-  saveTokens(null);
-  setProfile(null);
+  clearAuthCache();
   if (!t || !URL_BASE) return;
   await fetch(`${URL_BASE}/auth/logout`, {
     method: "POST",

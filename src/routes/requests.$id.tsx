@@ -9,7 +9,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { isPdfDataUrl } from "@/lib/imageUtils";
 import { copyToClipboard, getPublicAppOrigin, safeMessage } from "@/lib/utils";
 import {
-  getCurrentUser, refreshCurrentUser, getRequest, updateRequestStatus, resolveAssetUrl,
+  getCurrentUser, enforceActiveSession, getRequest, updateRequestStatus, resolveAssetUrl,
   addRequestNote, resolveRequestNote, subscribeRequests,
   reassignRequest, listAgents, getAgents, addQuotesToRequest, removeQuoteFromRequest, markRequestSharedWithCustomer,
   sendPaymentLinkToCustomer,
@@ -104,8 +104,7 @@ function RequestDetails() {
   const [zoomFilename, setZoomFilename] = useState<string>("file");
   const [zipping, setZipping] = useState(false);
 
-  // Read role once on mount; avoids re-running auth checks every render.
-  const [user] = useState<AuthUser | null>(() => getCurrentUser());
+  const [user, setUser] = useState<AuthUser | null>(null);
   const role = user?.role ?? "agent";
   const myStaffType = useMemo(() => {
     if (!user?.agentId) return undefined;
@@ -127,14 +126,12 @@ function RequestDetails() {
   void isSalesAgent;
 
   useEffect(() => {
-    if (!user) { navigate({ to: "/login" }); return; }
-    refreshCurrentUser().then((fresh) => {
-      if (!fresh) navigate({ to: "/login" });
-    });
     let alive = true;
+    let authorized = false;
     let lastSig = "";
     let lastMissing = -1; // -1 = not yet known
     const refreshRequest = () => {
+      if (!authorized) return;
       getRequest(id).then((r) => {
         if (!alive || !r) { if (alive) setLoading(false); return; }
         const sig = reqSignature(r);
@@ -158,8 +155,15 @@ function RequestDetails() {
         setLoading(false);
       }).catch(() => { if (alive) setLoading(false); });
     };
-    refreshRequest();
-    const unsubscribe = subscribeRequests(refreshRequest);
+    let unsubscribe = () => {};
+    enforceActiveSession(["admin", "supervisor", "agent"]).then((fresh) => {
+      if (!alive) return;
+      if (!fresh) { navigate({ to: "/login" }); return; }
+      authorized = true;
+      setUser(fresh);
+      refreshRequest();
+      unsubscribe = subscribeRequests(refreshRequest);
+    });
 
     // Cross-browser refresh: customer uploads happen in another browser, so
     // same-tab events never fire here. Poll every 4s while the tab is visible.
@@ -280,6 +284,8 @@ function RequestDetails() {
 
   const Back = dir === "rtl" ? ArrowRight : ArrowLeft;
   const backTo = role === "agent" ? "/agent" : "/admin";
+
+  if (!user) return null;
 
   return (
     <DashboardShell role={["admin", "supervisor", "agent"]} title={t.details.title}>

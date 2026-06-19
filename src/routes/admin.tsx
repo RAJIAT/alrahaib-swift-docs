@@ -9,7 +9,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { useRequestsLive } from "@/hooks/useRequestsLive";
 import {
   approveAgentRemoval, dismissAgentRemoval,
-  getCurrentUser, refreshCurrentUser, listAgents, getAgents, listBranches,
+  enforceActiveSession, listAgents, getAgents, listBranches,
   subscribeAgents, getApprovalRequired, setApprovalRequired, subscribeSettings,
   type Agent, type AuthUser, type RequestStatus,
 } from "@/services/api";
@@ -23,13 +23,13 @@ export const Route = createFileRoute("/admin")({
 function AdminDashboard() {
   const { t, dir, lang } = useLang();
   const navigate = useNavigate();
-  const [user] = useState<AuthUser | null>(() => getCurrentUser());
+  const [user, setUser] = useState<AuthUser | null>(null);
 
   const isSupervisor = user?.role === "supervisor";
   const lockedBranch = isSupervisor ? user?.branch ?? "" : "";
 
   const { items, loading } = useRequestsLive(
-    isSupervisor && lockedBranch ? { branch: lockedBranch } : undefined,
+    !user ? {} : isSupervisor ? { branch: lockedBranch } : undefined,
   );
 
   const [agentF, setAgentF] = useState("");
@@ -54,13 +54,9 @@ function AdminDashboard() {
   );
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u || (u.role !== "admin" && u.role !== "supervisor")) {
-      navigate({ to: "/login" });
-      return;
-    }
-    refreshCurrentUser().then((fresh) => {
-      if (!fresh || (fresh.role !== "admin" && fresh.role !== "supervisor")) navigate({ to: "/login" });
+    enforceActiveSession(["admin", "supervisor"]).then((fresh) => {
+      if (!fresh || (fresh.role !== "admin" && fresh.role !== "supervisor")) { navigate({ to: "/login" }); return; }
+      setUser(fresh);
     });
     getAgents().then(setAgents).catch(() => {});
     const off = subscribeAgents(() => setAgents(listAgents()));

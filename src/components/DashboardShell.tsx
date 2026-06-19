@@ -6,7 +6,7 @@ import { Logo } from "@/components/Logo";
 import { NotificationBell } from "@/components/NotificationBell";
 
 import { useLang } from "@/i18n/LanguageProvider";
-import { canManageAgents, getCurrentUser, listAgents, logout, refreshCurrentUser, type Role } from "@/services/api";
+import { canManageAgents, enforceActiveSession, getCurrentUser, listAgents, logout, type Role } from "@/services/api";
 
 type NavItem = { to: string; label: string; icon: ReactNode };
 
@@ -31,18 +31,27 @@ export function DashboardShell({
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const verify = async () => {
       // Verify session against Directus and refresh cached profile.
-      const fresh = await refreshCurrentUser().catch(() => null);
+      const u = await enforceActiveSession(allowed).catch(() => null);
       if (cancelled) return;
-      const u = fresh ?? getCurrentUser();
       setUser(u);
       setMounted(true);
       if (!u || !allowed.includes(u.role)) {
         navigate({ to: "/login" });
       }
-    })();
-    return () => { cancelled = true; };
+    };
+    verify();
+    const intervalId = window.setInterval(() => {
+      if (!document.hidden) verify();
+    }, 30_000);
+    const onVisibility = () => { if (!document.hidden) verify(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

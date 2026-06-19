@@ -6,7 +6,7 @@ import { DashboardShell } from "@/components/DashboardShell";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useLang } from "@/i18n/LanguageProvider";
-import { getCurrentUser, type AuthUser } from "@/services/api";
+import { enforceActiveSession, type AuthUser } from "@/services/api";
 import {
   clearAudit, fetchAudit, subscribeAudit,
   type AuditEntry, type AuditAction, type AuditEntityType,
@@ -42,7 +42,7 @@ function AuditPage() {
   const { dir, t } = useLang();
   const { ACTION_FILTERS, ENTITY_FILTERS } = useFilterOptions(t);
   const navigate = useNavigate();
-  const [user, setUser] = useState<AuthUser | null>(() => getCurrentUser());
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [action, setAction] = useState<"" | AuditAction>("");
   const [entityType, setEntityType] = useState<"" | AuditEntityType>("");
@@ -50,23 +50,26 @@ function AuditPage() {
   const Back = dir === "rtl" ? ArrowRight : ArrowLeft;
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u || (u.role !== "admin" && u.role !== "supervisor")) {
-      navigate({ to: "/login" });
-      return;
-    }
-    setUser(u);
+    let alive = true;
+    let scopedUser: AuthUser | null = null;
     const refresh = () => {
+      if (!scopedUser) return;
       fetchAudit({
-        branch: u.role === "supervisor" ? u.branch : undefined,
+        branch: scopedUser.role === "supervisor" ? scopedUser.branch : undefined,
         action: action || undefined,
         entityType: entityType || undefined,
         limit: 500,
-      }).then((rows) => setEntries(rows)).catch(() => {});
+      }).then((rows) => { if (alive) setEntries(rows); }).catch(() => {});
     };
-    refresh();
+    enforceActiveSession(["admin", "supervisor"]).then((fresh) => {
+      if (!alive) return;
+      if (!fresh || (fresh.role !== "admin" && fresh.role !== "supervisor")) { navigate({ to: "/login" }); return; }
+      scopedUser = fresh;
+      setUser(fresh);
+      refresh();
+    });
     const off = subscribeAudit(refresh);
-    return () => off();
+    return () => { alive = false; off(); };
   }, [navigate, action, entityType]);
 
   const isSupervisor = user?.role === "supervisor";

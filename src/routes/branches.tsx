@@ -8,7 +8,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useLang } from "@/i18n/LanguageProvider";
 import {
   getBranches, createBranch, updateBranch, deleteBranch,
-  getCurrentUser, subscribeBranches, listBranchObjects,
+  enforceActiveSession, subscribeBranches, listBranchObjects,
   type AuthUser,
 } from "@/services/api";
 import type { DxBranch } from "@/services/directus";
@@ -30,7 +30,7 @@ const EMPTY: FormState = { name: "", code: "", address: "", phone: "", is_active
 function BranchesPage() {
   const { dir } = useLang();
   const navigate = useNavigate();
-  const [user, setUser] = useState<AuthUser | null>(() => getCurrentUser());
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [items, setItems] = useState<DxBranch[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<DxBranch | null>(null);
@@ -40,21 +40,21 @@ function BranchesPage() {
   const [toDelete, setToDelete] = useState<DxBranch | null>(null);
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u || u.role !== "admin") {
-      navigate({ to: "/login" });
-      return;
-    }
-    setUser(u);
+    let alive = true;
     const refresh = () => {
       getBranches()
-        .then((rows) => { setItems(rows); setLoading(false); })
-        .catch(() => setLoading(false));
+        .then((rows) => { if (alive) { setItems(rows); setLoading(false); } })
+        .catch(() => { if (alive) setLoading(false); });
     };
-    refresh();
-    setItems(listBranchObjects());
+    enforceActiveSession("admin").then((fresh) => {
+      if (!alive) return;
+      if (!fresh || fresh.role !== "admin") { navigate({ to: "/login" }); return; }
+      setUser(fresh);
+      refresh();
+      setItems(listBranchObjects());
+    });
     const off = subscribeBranches(() => setItems(listBranchObjects()));
-    return () => off();
+    return () => { alive = false; off(); };
   }, [navigate]);
 
   const openAdd = () => { setForm(EMPTY); setAdding(true); setEditing(null); };
