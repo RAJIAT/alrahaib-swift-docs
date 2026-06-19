@@ -29,7 +29,7 @@ function AdminDashboard() {
   const lockedBranch = isSupervisor ? user?.branch ?? "" : "";
 
   const { items, loading } = useRequestsLive(
-    !user ? {} : isSupervisor && lockedBranch ? { branch: lockedBranch } : undefined,
+    !user ? {} : isSupervisor ? { branch: lockedBranch } : undefined,
   );
 
   const [agentF, setAgentF] = useState("");
