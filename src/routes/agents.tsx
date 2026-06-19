@@ -12,7 +12,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import {
   approveAgent,
   canDeleteAgents,
-  createAgent, deleteAgent, enforceActiveSession, getAgents, getBranches, listBranches,
+  createAgent, deleteAgent, getAgents, getBranches, getCurrentUser, listAgents, listBranches,
   requestAgentRemoval,
   subscribeAgents, updateAgent, type Agent, type AgentRole, type AuthUser, type StaffType,
 } from "@/services/api";
@@ -26,11 +26,16 @@ type TabKey = "supervisor" | "underwriter" | "sales";
 function AdminAgents() {
   const { t, dir } = useLang();
   const navigate = useNavigate();
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const userRef = useRef<AuthUser | null>(null);
-  const [allAgents, setAllAgents] = useState<Agent[]>([]);
+  // DashboardShell already enforces the live session before rendering children,
+  // so we can trust the cached profile synchronously and skip a second
+  // /users/me round-trip that was making the staff list look frozen.
+  const initialUser = getCurrentUser();
+  const initialAgents = listAgents();
+  const [user, setUser] = useState<AuthUser | null>(initialUser);
+  const userRef = useRef<AuthUser | null>(initialUser);
+  const [allAgents, setAllAgents] = useState<Agent[]>(initialAgents);
   const [rawCount, setRawCount] = useState<number>(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialAgents.length === 0);
   const [tab, setTab] = useState<TabKey>("underwriter");
   const [branchFilter, setBranchFilter] = useState<string>("");
   const [dialog, setDialog] = useState<{ open: boolean; mode: "create" | "edit"; target?: Agent }>({
@@ -72,45 +77,39 @@ function AdminAgents() {
 
   useEffect(() => {
     let alive = true;
+    const applyList = (scopedUser: AuthUser | null, list: Agent[]) => {
+      if (!alive) return;
+      setRawCount(list.length);
+      const visible = scopedUser?.role === "supervisor"
+        ? list.filter((a) =>
+            !scopedUser.branch || a.branch === scopedUser.branch || a.createdByUserId === scopedUser.id,
+          )
+        : list;
+      setAllAgents(visible);
+      setLoading(false);
+    };
     const refresh = () => {
       const scopedUser = userRef.current;
       if (!scopedUser) return;
-      getAgents().then((list) => {
-        if (!alive) return;
-        setRawCount(list.length);
-        const visible = scopedUser.role === "supervisor"
-          ? list.filter((a) => {
-              // Supervisors see every user in their own branch, plus anyone
-              // they personally created (covers legacy rows where the branch
-              // FK might be unset). If the supervisor profile has no branch
-              // yet (cache still warming), don't drop everyone — show all
-              // rows the server returned and let Directus enforce visibility.
-              if (!scopedUser.branch) return true;
-              return a.branch === scopedUser.branch || a.createdByUserId === scopedUser.id;
-            })
-          : list;
-        setAllAgents(visible);
-        setLoading(false);
-      });
+      getAgents().then((list) => applyList(scopedUser, list)).catch(() => {});
     };
-    enforceActiveSession(["admin", "supervisor"]).then((fresh) => {
-      if (!alive) return;
-      if (!fresh || (fresh.role !== "admin" && fresh.role !== "supervisor")) { navigate({ to: "/login" }); return; }
-      userRef.current = fresh;
-      setUser(fresh);
-      getBranches().catch(() => {});
-      getAgents().then((list) => {
-        if (!alive) return;
-        setRawCount(list.length);
-        const visible = fresh.role === "supervisor"
-          ? list.filter((a) => !fresh.branch || a.branch === fresh.branch || a.createdByUserId === fresh.id)
-          : list;
-        setAllAgents(visible);
-        setLoading(false);
-      }).catch(() => { if (alive) setLoading(false); });
-    });
+    // Gate: cached profile must be admin/supervisor (DashboardShell will
+    // redirect otherwise). If it's missing we still let DashboardShell handle
+    // the redirect — don't compete with it here.
+    if (!initialUser) return;
+    if (initialUser.role !== "admin" && initialUser.role !== "supervisor") {
+      navigate({ to: "/login" });
+      return;
+    }
+    // Kick off the data fetch immediately — in parallel with anything the
+    // shell is doing — so the table fills as soon as Directus responds.
+    getBranches().catch(() => {});
+    getAgents()
+      .then((list) => applyList(initialUser, list))
+      .catch(() => { if (alive) setLoading(false); });
     const off = subscribeAgents(refresh);
     return () => { alive = false; off(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
   const onCreate = async (v: AgentFormValues) => {
