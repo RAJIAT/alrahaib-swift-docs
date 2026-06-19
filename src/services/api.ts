@@ -868,6 +868,8 @@ export async function deleteAgent(id: string): Promise<void> {
   // intact and the user disappears from active lists.
   try {
     const updated = await dxUpdateUser(before.userId!, { active: false, pendingApproval: false });
+    try { await dxRequest(`/users/${before.userId}`, { method: "PATCH", body: JSON.stringify({ status: "suspended" }) }); }
+    catch { /* app_active is the portal guard; Directus status suspend is best-effort */ }
     logEvent({
       action: "agent.deactivated",
       entityType: "agent",
