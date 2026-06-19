@@ -31,7 +31,7 @@ function AdminAgents() {
   // /users/me round-trip that was making the staff list look frozen.
   const initialUser = getCurrentUser();
   const initialAgents = listAgents();
-  const [user, setUser] = useState<AuthUser | null>(initialUser);
+  const [user] = useState<AuthUser | null>(initialUser);
   const userRef = useRef<AuthUser | null>(initialUser);
   const [allAgents, setAllAgents] = useState<Agent[]>(initialAgents);
   const [rawCount, setRawCount] = useState<number>(0);
