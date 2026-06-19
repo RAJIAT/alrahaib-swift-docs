@@ -10,6 +10,7 @@ import { useRequestsLive } from "@/hooks/useRequestsLive";
 import { getPublicAppOrigin } from "@/lib/utils";
 import {
   enforceActiveSession,
+  getCurrentUser,
   listAgents,
   type AuthUser,
   type InsuranceRequest,
@@ -69,7 +70,10 @@ class AgentDashboardRenderBoundary extends Component<
 function AgentDashboardContent() {
   const { t, dir, lang } = useLang();
   const navigate = useNavigate();
-  const [user, setUser] = useState<AuthUser | null>(null);
+  // Hydrate from cached profile so the dashboard renders immediately. The
+  // background enforceActiveSession() still verifies the session and forces
+  // a logout if the account is deactivated.
+  const [user, setUser] = useState<AuthUser | null>(() => getCurrentUser());
   const [filter, setFilter] = useState<StatusFilter>("all");
 
   useEffect(() => {
