@@ -5,6 +5,7 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
 import { useLang } from "@/i18n/LanguageProvider";
 import { login } from "@/services/api";
+import { consumeAccountDeactivatedFlag } from "@/services/directusClient";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -21,12 +22,7 @@ function LoginPage() {
   useEffect(() => {
     // If the user was bounced back here because their account was deactivated
     // mid-session, surface the localized message immediately.
-    try {
-      if (typeof window !== "undefined" && sessionStorage.getItem("aib:auth-deactivated") === "1") {
-        sessionStorage.removeItem("aib:auth-deactivated");
-        setError(t.auth.deactivated);
-      }
-    } catch { /* ignore */ }
+    if (consumeAccountDeactivatedFlag()) setError(t.auth.deactivated);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

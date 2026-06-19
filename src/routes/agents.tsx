@@ -12,7 +12,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import {
   approveAgent,
   canDeleteAgents,
-  createAgent, deleteAgent, getAgents, getBranches, getCurrentUser, listBranches, refreshCurrentUser,
+  createAgent, deleteAgent, enforceActiveSession, getAgents, getBranches, getCurrentUser, listBranches,
   requestAgentRemoval,
   subscribeAgents, updateAgent, type Agent, type AgentRole, type AuthUser, type StaffType,
 } from "@/services/api";
@@ -93,7 +93,7 @@ function AdminAgents() {
         setLoading(false);
       });
     };
-    refreshCurrentUser().then((fresh) => {
+    enforceActiveSession(["admin", "supervisor"]).then((fresh) => {
       if (!alive) return;
       if (!fresh || (fresh.role !== "admin" && fresh.role !== "supervisor")) { navigate({ to: "/login" }); return; }
       setUser(fresh);

@@ -9,7 +9,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { useRequestsLive } from "@/hooks/useRequestsLive";
 import {
   approveAgentRemoval, dismissAgentRemoval,
-  getCurrentUser, refreshCurrentUser, listAgents, getAgents, listBranches,
+  getCurrentUser, enforceActiveSession, listAgents, getAgents, listBranches,
   subscribeAgents, getApprovalRequired, setApprovalRequired, subscribeSettings,
   type Agent, type AuthUser, type RequestStatus,
 } from "@/services/api";
@@ -59,7 +59,7 @@ function AdminDashboard() {
       navigate({ to: "/login" });
       return;
     }
-    refreshCurrentUser().then((fresh) => {
+    enforceActiveSession(["admin", "supervisor"]).then((fresh) => {
       if (!fresh || (fresh.role !== "admin" && fresh.role !== "supervisor")) navigate({ to: "/login" });
     });
     getAgents().then(setAgents).catch(() => {});

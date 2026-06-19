@@ -9,7 +9,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { isPdfDataUrl } from "@/lib/imageUtils";
 import { copyToClipboard, getPublicAppOrigin, safeMessage } from "@/lib/utils";
 import {
-  getCurrentUser, refreshCurrentUser, getRequest, updateRequestStatus, resolveAssetUrl,
+  getCurrentUser, enforceActiveSession, getRequest, updateRequestStatus, resolveAssetUrl,
   addRequestNote, resolveRequestNote, subscribeRequests,
   reassignRequest, listAgents, getAgents, addQuotesToRequest, removeQuoteFromRequest, markRequestSharedWithCustomer,
   sendPaymentLinkToCustomer,
@@ -128,7 +128,7 @@ function RequestDetails() {
 
   useEffect(() => {
     if (!user) { navigate({ to: "/login" }); return; }
-    refreshCurrentUser().then((fresh) => {
+    enforceActiveSession(["admin", "supervisor", "agent"]).then((fresh) => {
       if (!fresh) navigate({ to: "/login" });
     });
     let alive = true;

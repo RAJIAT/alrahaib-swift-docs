@@ -20,9 +20,12 @@ import type {
 import {
   dxLogin,
   dxLogout,
+  clearAuthCache,
   getProfile as dxGetProfile,
   dxRequest,
   isDeactivatedUserRecord,
+  markAccountDeactivated,
+  redirectToLoginForDeactivatedAccount,
   userRecordToProfile,
   type DxUserRecord,
   type ProfileSnapshot,
@@ -222,10 +225,9 @@ export async function refreshCurrentUser(): Promise<AuthUser | null> {
     const { USER_FIELDS } = await import("./directusClient");
     const me = await dxRequest<{ data: DxUserRecord }>(`/users/me?fields=${USER_FIELDS}`);
     if (isDeactivatedUserRecord(me.data) || me.data.pending_approval === true) {
-      if (typeof window !== "undefined") {
-        try { sessionStorage.setItem("aib:auth-deactivated", "1"); } catch { /* ignore */ }
-      }
+      markAccountDeactivated();
       await dxLogout();
+      redirectToLoginForDeactivatedAccount();
       return null;
     }
     const profile = userRecordToProfile(me.data);
@@ -238,15 +240,26 @@ export async function refreshCurrentUser(): Promise<AuthUser | null> {
     // disabled at the auth layer), clear the cached profile and force re-login.
     const status = (err as { status?: number } | null)?.status;
     if (status === 401 || status === 403) {
-      if (status === 403 && typeof window !== "undefined") {
-        try { sessionStorage.setItem("aib:auth-deactivated", "1"); } catch { /* ignore */ }
-      }
+      if (status === 403) markAccountDeactivated();
       await dxLogout();
       return null;
     }
     // Network / transient — keep cached so offline UX still works.
     return getCurrentUser();
   }
+}
+
+export async function enforceActiveSession(allowedRoles?: Role | Role[]): Promise<AuthUser | null> {
+  const allowed = allowedRoles ? (Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles]) : null;
+  const fresh = await refreshCurrentUser();
+  if (!fresh) {
+    clearAuthCache();
+    return null;
+  }
+  if (allowed && !allowed.includes(fresh.role)) {
+    return null;
+  }
+  return fresh;
 }
 
 // ---------------------------------------------------------------------------

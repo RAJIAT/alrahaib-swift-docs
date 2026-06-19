@@ -10,7 +10,7 @@ import { useRequestsLive } from "@/hooks/useRequestsLive";
 import { getPublicAppOrigin } from "@/lib/utils";
 import {
   getCurrentUser,
-  refreshCurrentUser,
+  enforceActiveSession,
   listAgents,
   type AuthUser,
   type InsuranceRequest,
@@ -80,8 +80,8 @@ function AgentDashboardContent() {
       return;
     }
     setUser(u);
-    // Re-verify role server-side; if tampered, send to login.
-    refreshCurrentUser().then((fresh) => {
+    // Re-verify active session server-side; if deactivated/tampered, send to login.
+    enforceActiveSession("agent").then((fresh) => {
       if (!fresh || fresh.role !== "agent") {
         navigate({ to: "/login" });
         return;
