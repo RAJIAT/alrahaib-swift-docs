@@ -77,7 +77,7 @@ async function main() {
   const supervisorPolicy = await findPolicyId("Supervisor");
 
   const supervisorReadFields = [
-    "id", "first_name", "last_name", "email",
+    "id", "first_name", "last_name", "email", "status",
     "app_role", "staff_type", "branch", "agent_code",
     "supervisor", "assigned_underwriter", "assigned_underwriter_code",
     "pending_approval", "app_active", "app_created_by_role",
