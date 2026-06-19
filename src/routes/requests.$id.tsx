@@ -127,9 +127,11 @@ function RequestDetails() {
 
   useEffect(() => {
     let alive = true;
+    let authorized = false;
     let lastSig = "";
     let lastMissing = -1; // -1 = not yet known
     const refreshRequest = () => {
+      if (!authorized) return;
       getRequest(id).then((r) => {
         if (!alive || !r) { if (alive) setLoading(false); return; }
         const sig = reqSignature(r);
@@ -157,6 +159,7 @@ function RequestDetails() {
     enforceActiveSession(["admin", "supervisor", "agent"]).then((fresh) => {
       if (!alive) return;
       if (!fresh) { navigate({ to: "/login" }); return; }
+      authorized = true;
       setUser(fresh);
       refreshRequest();
       unsubscribe = subscribeRequests(refreshRequest);
