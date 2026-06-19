@@ -9,7 +9,6 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { useRequestsLive } from "@/hooks/useRequestsLive";
 import { getPublicAppOrigin } from "@/lib/utils";
 import {
-  getCurrentUser,
   enforceActiveSession,
   listAgents,
   type AuthUser,
