@@ -23,13 +23,13 @@ export const Route = createFileRoute("/admin")({
 function AdminDashboard() {
   const { t, dir, lang } = useLang();
   const navigate = useNavigate();
-  const [user] = useState<AuthUser | null>(() => getCurrentUser());
+  const [user, setUser] = useState<AuthUser | null>(null);
 
   const isSupervisor = user?.role === "supervisor";
   const lockedBranch = isSupervisor ? user?.branch ?? "" : "";
 
   const { items, loading } = useRequestsLive(
-    isSupervisor && lockedBranch ? { branch: lockedBranch } : undefined,
+    !user ? {} : isSupervisor && lockedBranch ? { branch: lockedBranch } : undefined,
   );
 
   const [agentF, setAgentF] = useState("");
@@ -54,13 +54,9 @@ function AdminDashboard() {
   );
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u || (u.role !== "admin" && u.role !== "supervisor")) {
-      navigate({ to: "/login" });
-      return;
-    }
     enforceActiveSession(["admin", "supervisor"]).then((fresh) => {
-      if (!fresh || (fresh.role !== "admin" && fresh.role !== "supervisor")) navigate({ to: "/login" });
+      if (!fresh || (fresh.role !== "admin" && fresh.role !== "supervisor")) { navigate({ to: "/login" }); return; }
+      setUser(fresh);
     });
     getAgents().then(setAgents).catch(() => {});
     const off = subscribeAgents(() => setAgents(listAgents()));
