@@ -22,6 +22,7 @@ import {
   dxLogout,
   clearAuthCache,
   getProfile as dxGetProfile,
+  dxIsLoggedIn,
   dxRequest,
   isDeactivatedUserRecord,
   markAccountDeactivated,
@@ -221,6 +222,10 @@ export function getCurrentUser(): AuthUser | null {
  * profile snapshot. Returns null if the session is no longer valid.
  */
 export async function refreshCurrentUser(): Promise<AuthUser | null> {
+  if (!dxIsLoggedIn()) {
+    clearAuthCache();
+    return null;
+  }
   try {
     const { USER_FIELDS } = await import("./directusClient");
     const me = await dxRequest<{ data: DxUserRecord }>(`/users/me?fields=${USER_FIELDS}`);
@@ -244,8 +249,8 @@ export async function refreshCurrentUser(): Promise<AuthUser | null> {
       await dxLogout();
       return null;
     }
-    // Network / transient — keep cached so offline UX still works.
-    return getCurrentUser();
+    clearAuthCache();
+    return null;
   }
 }
 
