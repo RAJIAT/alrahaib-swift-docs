@@ -801,8 +801,26 @@ export async function deleteAgent(id: string): Promise<void> {
   if (me?.role === "supervisor") {
     throw new Error("Supervisors must request removal from the admin");
   }
-  await dxDeleteUser(before.userId!);
-  logEvent({ action: "agent.deleted", entityType: "agent", entityId: before.id, entityLabel: before.name, branch: before.branch, before });
+  // Soft-delete: Directus users are referenced by directus_files.uploaded_by,
+  // requests, audit logs, etc. A hard DELETE violates FK constraints and
+  // would also wipe historical records. Deactivate instead so history stays
+  // intact and the user disappears from active lists.
+  try {
+    const updated = await dxUpdateUser(before.userId!, { active: false, pendingApproval: false });
+    logEvent({
+      action: "agent.deactivated",
+      entityType: "agent",
+      entityId: updated.id,
+      entityLabel: updated.name,
+      branch: updated.branch,
+      before,
+      after: updated,
+      meta: { reason: "soft_delete_via_delete_action" },
+    });
+  } catch (err) {
+    // Last-resort fallback: only if soft-deactivate itself fails, surface error.
+    throw err instanceof Error ? err : new Error(String(err));
+  }
 }
 
 // ---------------------------------------------------------------------------
