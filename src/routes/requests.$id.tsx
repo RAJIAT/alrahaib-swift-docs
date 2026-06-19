@@ -104,16 +104,10 @@ function RequestDetails() {
   const [zoomFilename, setZoomFilename] = useState<string>("file");
   const [zipping, setZipping] = useState(false);
 
-  const [user, setUser] = useState<AuthUser | null>(null);
   // Hydrate from cached profile on mount so the page can fetch the request
   // and start rendering immediately. Background enforceActiveSession() below
   // still verifies the session and redirects on deactivation.
-  useEffect(() => {
-    const cached = getCurrentUser();
-    if (cached) setUser(cached);
-    // run once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const [user, setUser] = useState<AuthUser | null>(() => getCurrentUser());
   const role = user?.role ?? "agent";
   const myStaffType = useMemo(() => {
     if (!user?.agentId) return undefined;
