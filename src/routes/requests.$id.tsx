@@ -1612,7 +1612,7 @@ function QuotesCard({
         </div>
       )}
 
-      {quotes.length > 0 && (isSales || isAdmin || isSup) && (
+      {quotes.length > 0 && (isSales || isAdmin || isSup || isUW) && (
         <div className="mt-4 rounded-xl border border-border bg-muted/30 p-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="min-w-0 flex-1">
