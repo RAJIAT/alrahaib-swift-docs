@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Loader2, AlertTriangle, FileText, Download, ExternalLink, ShieldCheck } from "lucide-react";
+import { Loader2, AlertTriangle, FileText, Download, ExternalLink, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
 import { useLang } from "@/i18n/LanguageProvider";
+import { confirmQuoteByCustomer } from "@/services/api";
 import { dxPublicGetQuote, type PublicQuoteView } from "@/services/directusRequests";
 
 export const Route = createFileRoute("/q/$requestId")({
@@ -16,15 +17,7 @@ function QuoteSharePage() {
   const [req, setReq] = useState<PublicQuoteView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [paymentLink, setPaymentLink] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const hash = window.location.hash.replace(/^#/, "");
-    const params = new URLSearchParams(hash);
-    const pay = params.get("pay");
-    if (pay) setPaymentLink(pay);
-  }, []);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -70,6 +63,21 @@ function QuoteSharePage() {
   const quotes = req.quotes ?? [];
   const fmt = (iso: string) =>
     new Date(iso).toLocaleString(ar ? "ar-AE" : "en-GB", { dateStyle: "medium", timeStyle: "short" });
+
+  const confirmQuote = async () => {
+    if (!req || confirming || req.quoteConfirmed) return;
+    setConfirming(true);
+    setError(null);
+    try {
+      await confirmQuoteByCustomer(req.id);
+      const fresh = await dxPublicGetQuote(req.id);
+      if (fresh) setReq(fresh);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to confirm quote");
+    } finally {
+      setConfirming(false);
+    }
+  };
 
   const downloadQuote = (q: { url: string; name: string; type: string }) => {
     const a = document.createElement("a");
@@ -178,16 +186,45 @@ function QuoteSharePage() {
           )}
         </section>
 
-        {paymentLink && (
+        {quotes.length > 0 && (
+          <section className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-card">
+            {req.quoteConfirmed ? (
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" />
+                <div>
+                  <h2 className="text-sm font-bold text-foreground">
+                    {ar ? "تم تأكيد العرض" : "Quote confirmed"}
+                  </h2>
+                  {req.quoteConfirmedAt && (
+                    <p className="mt-1 text-xs text-muted-foreground">{fmt(req.quoteConfirmedAt)}</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={confirmQuote}
+                disabled={confirming}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-soft transition active:scale-95 disabled:opacity-60"
+              >
+                {confirming ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {ar ? "تأكيد العرض" : "Confirm Quote"}
+              </button>
+            )}
+          </section>
+        )}
+
+        {req.quoteConfirmed && req.paymentLink && (
           <section className="mt-6 rounded-2xl border border-primary/30 bg-primary-soft/40 p-5 shadow-card">
             <h2 className="mb-2 text-sm font-bold text-foreground">
               {ar ? "رابط الدفع" : "Payment link"}
             </h2>
+            {req.paymentMessage && <p className="mb-2 text-sm text-foreground">{req.paymentMessage}</p>}
             <p className="mb-3 text-xs text-muted-foreground">
               {ar ? "اضغط الرابط لإتمام عملية الدفع بأمان." : "Tap the link to complete your payment securely."}
             </p>
             <a
-              href={paymentLink}
+              href={req.paymentLink}
               target="_blank"
               rel="noreferrer"
               dir="ltr"

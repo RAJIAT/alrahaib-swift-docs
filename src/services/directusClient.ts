@@ -186,6 +186,18 @@ export const USER_FIELDS = [
   "app_removal_reason", "app_removal_requested_by", "app_removal_requested_at",
 ].join(",");
 
+function isFalseLike(value: unknown): boolean {
+  return value === false || value === 0 || value === "false" || value === "0";
+}
+
+function isTrueLike(value: unknown): boolean {
+  return value === true || value === 1 || value === "true" || value === "1";
+}
+
+export function isDeactivatedUserRecord(u: Pick<DxUserRecord, "app_active" | "status">): boolean {
+  return isFalseLike(u.app_active) || (!!u.status && u.status !== "active");
+}
+
 function fullName(u: { first_name?: string | null; last_name?: string | null; email: string }) {
   const fn = (u.first_name ?? "").trim();
   const ln = (u.last_name ?? "").trim();
@@ -240,8 +252,19 @@ export async function dxLogin(email: string, password: string): Promise<ProfileS
     refresh_token: j.data.refresh_token,
     expires_at: Date.now() + j.data.expires - 30_000,
   });
-  const me = await dxRequest<{ data: DxUserRecord }>(`/users/me?fields=${USER_FIELDS}`);
-  if (me.data.app_active === false) {
+  let me: { data: DxUserRecord };
+  try {
+    me = await dxRequest<{ data: DxUserRecord }>(`/users/me?fields=${USER_FIELDS}`);
+  } catch (e) {
+    await dxLogout();
+    if ((e as DirectusError | null)?.status === 403) {
+      const err = new Error("ACCOUNT_DEACTIVATED");
+      (err as Error & { code?: string }).code = "ACCOUNT_DEACTIVATED";
+      throw err;
+    }
+    throw e;
+  }
+  if (isDeactivatedUserRecord(me.data)) {
     await dxLogout();
     const err = new Error("ACCOUNT_DEACTIVATED");
     (err as Error & { code?: string }).code = "ACCOUNT_DEACTIVATED";

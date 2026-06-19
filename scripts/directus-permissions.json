@@ -74,7 +74,7 @@
     {
       "collection": "requests",
       "action": "update",
-      "fields": ["agent", "assigned_underwriter", "status", "customer_name", "customer_email", "customer_phone", "assigned_at"],
+      "fields": ["agent", "assigned_underwriter", "status", "customer_name", "customer_email", "customer_phone", "quote_confirmed", "quote_confirmed_at", "payment_link", "payment_message", "payment_link_sent_at", "assigned_at"],
       "permissions": { "branch": { "_eq": "$CURRENT_USER.branch" } }
     },
     {
@@ -194,7 +194,7 @@
     {
       "collection": "requests",
       "action": "update",
-      "fields": ["status", "customer_name", "customer_email", "customer_phone", "agent", "origin_agent", "assigned_underwriter", "assigned_at"],
+      "fields": ["status", "customer_name", "customer_email", "customer_phone", "quote_confirmed", "quote_confirmed_at", "payment_link", "payment_message", "payment_link_sent_at", "agent", "origin_agent", "assigned_underwriter", "assigned_at"],
       "permissions": {
         "_or": [
           { "agent": { "_eq": "$CURRENT_USER" } },

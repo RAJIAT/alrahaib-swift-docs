@@ -37,6 +37,8 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "request.quote_uploaded": FileText,
   "request.quote_removed": FileX,
   "request.shared_with_customer": Send,
+  "request.quote_confirmed": CheckCircle2,
+  "request.payment_link_sent": Send,
 };
 
 function statusLabel(key: any, ar: boolean): string {
@@ -104,7 +106,11 @@ function labelFor(action: string, ar: boolean, before?: any, after?: any, meta?:
     case "request.quote_removed":
       return ar ? `تم حذف عرض سعر: ${meta?.name ?? ""}` : `Quote removed: ${meta?.name ?? ""}`;
     case "request.shared_with_customer":
-      return ar ? "تمت مشاركة عرض السعر مع العميل" : "Shared with customer";
+      return ar ? "تمت مشاركة عرض السعر مع العميل" : "Quote shared with customer";
+    case "request.quote_confirmed":
+      return ar ? "أكد العميل عرض السعر" : "Quote confirmed by customer";
+    case "request.payment_link_sent":
+      return ar ? "تم إرسال رابط الدفع" : "Payment link sent";
     default:
       return action;
   }
@@ -120,7 +126,7 @@ function categoryOf(action: string): FilterKey {
     action === "request.reassigned"
   )
     return "transfer";
-  if (action.startsWith("request.document_") || action === "request.reupload_requested" || action.startsWith("request.quote_")) return "docs";
+  if (action.startsWith("request.document_") || action === "request.reupload_requested" || action.startsWith("request.quote_") || action === "request.payment_link_sent") return "docs";
   if (action === "request.note_added") return "notes";
   return "all";
 }

@@ -28,6 +28,8 @@ export type AuditAction =
   | "request.quote_uploaded"
   | "request.quote_removed"
   | "request.shared_with_customer"
+  | "request.quote_confirmed"
+  | "request.payment_link_sent"
   | "agent.created"
   | "agent.pending_created"
   | "agent.approved"

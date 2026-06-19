@@ -22,6 +22,7 @@ import {
   dxLogout,
   getProfile as dxGetProfile,
   dxRequest,
+  isDeactivatedUserRecord,
   userRecordToProfile,
   type DxUserRecord,
   type ProfileSnapshot,
@@ -54,6 +55,8 @@ import {
   dxAttachFilesSequential,
   dxAttachFilesParallel,
   dxDeleteRequestFile,
+  dxPatchRequest,
+  dxPublicConfirmQuote,
 } from "./directusRequests";
 import {
   ensureSettingsLoaded,
@@ -218,7 +221,7 @@ export async function refreshCurrentUser(): Promise<AuthUser | null> {
   try {
     const { USER_FIELDS } = await import("./directusClient");
     const me = await dxRequest<{ data: DxUserRecord }>(`/users/me?fields=${USER_FIELDS}`);
-    if (me.data.app_active === false || me.data.pending_approval === true) {
+    if (isDeactivatedUserRecord(me.data) || me.data.pending_approval === true) {
       if (typeof window !== "undefined") {
         try { sessionStorage.setItem("aib:auth-deactivated", "1"); } catch { /* ignore */ }
       }
@@ -235,6 +238,9 @@ export async function refreshCurrentUser(): Promise<AuthUser | null> {
     // disabled at the auth layer), clear the cached profile and force re-login.
     const status = (err as { status?: number } | null)?.status;
     if (status === 401 || status === 403) {
+      if (status === 403 && typeof window !== "undefined") {
+        try { sessionStorage.setItem("aib:auth-deactivated", "1"); } catch { /* ignore */ }
+      }
       await dxLogout();
       return null;
     }
@@ -458,6 +464,50 @@ export async function markRequestSharedWithCustomer(
     branch: current.branch,
     meta,
   });
+}
+
+export async function confirmQuoteByCustomer(id: string): Promise<void> {
+  const updated = await dxPublicConfirmQuote(id);
+  await logEvent({
+    action: "request.quote_confirmed",
+    entityType: "request",
+    entityId: updated?.id ?? id,
+    entityLabel: updated?.id ?? id,
+    actor: { id: null, name: "Customer", role: "anonymous", branch: null },
+  });
+}
+
+export async function sendPaymentLinkToCustomer(
+  id: string,
+  input: { paymentLink: string; message?: string },
+): Promise<InsuranceRequest> {
+  const current = await dxGetRequest(id);
+  if (!current) throw new Error("Request not found");
+  if (!current.quoteConfirmed) throw new Error("Quote must be confirmed by customer before sending payment link");
+  const link = input.paymentLink.trim();
+  if (!link) throw new Error("Payment link is required");
+  const beforeStatus = current.status;
+  const updated = await dxPatchRequest(current.id, {
+    payment_link: link,
+    payment_message: input.message?.trim() || null,
+    payment_link_sent_at: new Date().toISOString(),
+    status: "linkSent",
+  });
+  await logEvent({
+    action: "request.payment_link_sent",
+    entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
+    meta: { hasMessage: !!input.message?.trim() },
+  });
+  if (beforeStatus !== "linkSent") {
+    await logEvent({
+      action: "request.status_changed",
+      entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
+      before: { status: beforeStatus }, after: { status: "linkSent" },
+      meta: { auto: true, reason: "payment_link_sent" },
+    });
+  }
+  notifyRequestStatus(updated, beforeStatus);
+  return updated;
 }
 
 export async function submitUpload(input: {
@@ -818,6 +868,8 @@ export async function deleteAgent(id: string): Promise<void> {
   // intact and the user disappears from active lists.
   try {
     const updated = await dxUpdateUser(before.userId!, { active: false, pendingApproval: false });
+    try { await dxRequest(`/users/${before.userId}`, { method: "PATCH", body: JSON.stringify({ status: "suspended" }) }); }
+    catch { /* app_active is the portal guard; Directus status suspend is best-effort */ }
     logEvent({
       action: "agent.deactivated",
       entityType: "agent",
@@ -847,7 +899,7 @@ async function logEvent(input: {
   before?: unknown;
   after?: unknown;
   meta?: Record<string, unknown>;
-  actor?: { id: string; name: string; role: Role | "anonymous"; branch?: string | null };
+  actor?: { id: string | null; name: string | null; role: Role | "anonymous"; branch?: string | null };
 }): Promise<void> {
   const u = input.actor ?? getCurrentUser();
   await logAudit({

@@ -140,6 +140,7 @@ const collections: CollectionDef[] = [
           options: {
             choices: [
               { text: "New", value: "new" },
+              { text: "Quoted", value: "quoted" },
               { text: "Link sent", value: "linkSent" },
               { text: "Processing", value: "processing" },
               { text: "Sold", value: "sold" },
@@ -153,6 +154,11 @@ const collections: CollectionDef[] = [
       { field: "customer_name", type: "string", meta: { interface: "input" } },
       { field: "customer_email", type: "string", meta: { interface: "input" } },
       { field: "customer_phone", type: "string", meta: { interface: "input" } },
+      { field: "quote_confirmed", type: "boolean", meta: { interface: "boolean", note: "Customer confirmed quote from public quote page." }, schema: { default_value: false } },
+      { field: "quote_confirmed_at", type: "timestamp", meta: { interface: "datetime" } },
+      { field: "payment_link", type: "string", meta: { interface: "input" } },
+      { field: "payment_message", type: "text", meta: { interface: "input-multiline" } },
+      { field: "payment_link_sent_at", type: "timestamp", meta: { interface: "datetime" } },
       { field: "assigned_at", type: "timestamp", meta: { interface: "datetime" } },
       { field: "date_created", type: "timestamp", meta: { special: ["date-created"], interface: "datetime", readonly: true, hidden: true } },
       { field: "date_updated", type: "timestamp", meta: { special: ["date-updated"], interface: "datetime", readonly: true, hidden: true } },

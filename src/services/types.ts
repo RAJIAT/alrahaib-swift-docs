@@ -82,6 +82,11 @@ export type InsuranceRequest = {
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
+  quoteConfirmed?: boolean;
+  quoteConfirmedAt?: string;
+  paymentLink?: string;
+  paymentMessage?: string;
+  paymentLinkSentAt?: string;
   notes: Note[];
   images: {
     registration: string[];
