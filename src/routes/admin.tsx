@@ -9,7 +9,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { useRequestsLive } from "@/hooks/useRequestsLive";
 import {
   approveAgentRemoval, dismissAgentRemoval,
-  getCurrentUser, enforceActiveSession, listAgents, getAgents, listBranches,
+  enforceActiveSession, listAgents, getAgents, listBranches,
   subscribeAgents, getApprovalRequired, setApprovalRequired, subscribeSettings,
   type Agent, type AuthUser, type RequestStatus,
 } from "@/services/api";
