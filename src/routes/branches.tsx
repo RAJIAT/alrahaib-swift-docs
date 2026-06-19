@@ -8,7 +8,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useLang } from "@/i18n/LanguageProvider";
 import {
   getBranches, createBranch, updateBranch, deleteBranch,
-  enforceActiveSession, getCurrentUser, subscribeBranches, listBranchObjects,
+  enforceActiveSession, subscribeBranches, listBranchObjects,
   type AuthUser,
 } from "@/services/api";
 import type { DxBranch } from "@/services/directus";
