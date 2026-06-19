@@ -105,6 +105,15 @@ function RequestDetails() {
   const [zipping, setZipping] = useState(false);
 
   const [user, setUser] = useState<AuthUser | null>(null);
+  // Hydrate from cached profile on mount so the page can fetch the request
+  // and start rendering immediately. Background enforceActiveSession() below
+  // still verifies the session and redirects on deactivation.
+  useEffect(() => {
+    const cached = getCurrentUser();
+    if (cached) setUser(cached);
+    // run once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const role = user?.role ?? "agent";
   const myStaffType = useMemo(() => {
     if (!user?.agentId) return undefined;
@@ -127,7 +136,10 @@ function RequestDetails() {
 
   useEffect(() => {
     let alive = true;
-    let authorized = false;
+    // Don't block the first paint on enforceActiveSession — start fetching
+    // the request immediately from the cached session. The session check
+    // still runs in parallel and redirects to /login on failure.
+    let authorized = !!getCurrentUser();
     let lastSig = "";
     let lastMissing = -1; // -1 = not yet known
     const refreshRequest = () => {
@@ -156,13 +168,21 @@ function RequestDetails() {
       }).catch(() => { if (alive) setLoading(false); });
     };
     let unsubscribe = () => {};
+    // Kick off the initial fetch + realtime subscription immediately when we
+    // already have a cached session; otherwise wait for the session check.
+    if (authorized) {
+      refreshRequest();
+      unsubscribe = subscribeRequests(refreshRequest);
+    }
     enforceActiveSession(["admin", "supervisor", "agent"]).then((fresh) => {
       if (!alive) return;
       if (!fresh) { navigate({ to: "/login" }); return; }
-      authorized = true;
       setUser(fresh);
-      refreshRequest();
-      unsubscribe = subscribeRequests(refreshRequest);
+      if (!authorized) {
+        authorized = true;
+        refreshRequest();
+        unsubscribe = subscribeRequests(refreshRequest);
+      }
     });
 
     // Cross-browser refresh: customer uploads happen in another browser, so
