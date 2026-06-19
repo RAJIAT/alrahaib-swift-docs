@@ -445,8 +445,10 @@ async function ensureEntitiesCached(): Promise<void> {
 
 // ---------------- queries ----------------
 
+const REQ_BASE_FIELDS =
+  "id,uuid,agent,origin_agent,assigned_underwriter,branch,status,customer_name,customer_email,customer_phone,assigned_at,date_created";
 const REQ_FIELDS =
-  "id,uuid,agent,origin_agent,assigned_underwriter,branch,status,customer_name,customer_email,customer_phone,quote_confirmed,quote_confirmed_at,payment_link,payment_message,payment_link_sent_at,assigned_at,date_created";
+  `${REQ_BASE_FIELDS},quote_confirmed,quote_confirmed_at,payment_link,payment_message,payment_link_sent_at`;
 const NOTE_FIELDS =
   "id,request,author,author_role,text,kind,resolved_at,date_created";
 const FILE_FIELDS =
@@ -468,12 +470,19 @@ export async function dxListRequests(opts?: { agentUuid?: string; branchId?: num
     andClauses.push({ branch: { _eq: opts.branchId } });
   }
   const filterObj = andClauses.length ? { _and: andClauses } : undefined;
-  const qs =
-    `?fields=${REQ_FIELDS}&limit=-1&sort=-date_created` +
+  const qsFor = (fields: string) =>
+    `?fields=${fields}&limit=-1&sort=-date_created` +
     (filterObj ? `&filter=${encodeURIComponent(JSON.stringify(filterObj))}` : "");
-  const url = `/items/requests${qs}`;
+  let url = `/items/requests${qsFor(REQ_FIELDS)}`;
   console.info("[agent dashboard debug] dxListRequests URL", url);
-  const r = await dxRequest<{ data: DxRequestRow[] }>(url);
+  let r: { data: DxRequestRow[] };
+  try {
+    r = await dxRequest<{ data: DxRequestRow[] }>(url);
+  } catch (e) {
+    if (!/quote_confirmed|payment_link|payment_message/i.test((e as Error)?.message ?? "")) throw e;
+    url = `/items/requests${qsFor(REQ_BASE_FIELDS)}`;
+    r = await dxRequest<{ data: DxRequestRow[] }>(url);
+  }
   console.info("[agent dashboard debug] dxListRequests raw rows", r.data.map((x) => ({ id: x.id, agent: x.agent, origin_agent: x.origin_agent, branch: x.branch })));
   const ids = r.data.map((x) => x.id);
   let notes: DxNoteRow[] = [];
@@ -507,9 +516,17 @@ export async function dxGetRequest(id: string): Promise<DemoRequest | null> {
       `/items/requests/${encodeURIComponent(id)}?fields=${REQ_FIELDS}`,
     );
     row = direct.data;
-  } catch {
+  } catch (firstError) {
+    if (/quote_confirmed|payment_link|payment_message/i.test((firstError as Error)?.message ?? "")) {
+      try {
+        const direct = await dxRequest<{ data: DxRequestRow }>(
+          `/items/requests/${encodeURIComponent(id)}?fields=${REQ_BASE_FIELDS}`,
+        );
+        row = direct.data;
+      } catch { /* fall back below */ }
+    }
     // Fall back to lookup by id OR uuid (handles legacy rows w/ uuid key).
-    try {
+    if (!row) try {
       const filter = `filter[_or][0][id][_eq]=${encodeURIComponent(id)}&filter[_or][1][uuid][_eq]=${encodeURIComponent(safeLower(id))}`;
       const r = await dxRequest<{ data: DxRequestRow[] }>(`/items/requests?fields=${REQ_FIELDS}&limit=1&${filter}`);
       row = r.data[0];
@@ -567,10 +584,19 @@ export async function dxCreateRequest(input: DxCreateRequestInput): Promise<Demo
     agentCodeInput: input.agentCode,
     branchCodeInput: input.branchCode,
   });
-  const r = await dxRequest<{ data: DxRequestRow }>(
-    `/items/requests?fields=${REQ_FIELDS}`,
-    { method: "POST", body: JSON.stringify(body) },
-  );
+  let r: { data: DxRequestRow } | undefined;
+  try {
+    r = await dxRequest<{ data: DxRequestRow }>(
+      `/items/requests?fields=${REQ_FIELDS}`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  } catch (e) {
+    if (!/quote_confirmed|payment_link|payment_message/i.test((e as Error)?.message ?? "")) throw e;
+    r = await dxRequest<{ data: DxRequestRow }>(
+      `/items/requests?fields=${REQ_BASE_FIELDS}`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+  }
   emit();
   // Anonymous (public uploader) sessions may not have READ on `requests`, so
   // Directus can return an empty body even though the row was created. Fall
@@ -592,10 +618,20 @@ export async function dxCreateRequest(input: DxCreateRequestInput): Promise<Demo
 }
 
 export async function dxPatchRequest(id: string, patch: Record<string, unknown>): Promise<DemoRequest> {
-  const r = await dxRequest<{ data: DxRequestRow } | undefined>(
-    `/items/requests/${encodeURIComponent(id)}?fields=${REQ_FIELDS}`,
-    { method: "PATCH", body: JSON.stringify(patch) },
-  );
+  let r: { data: DxRequestRow } | undefined;
+  try {
+    r = await dxRequest<{ data: DxRequestRow } | undefined>(
+      `/items/requests/${encodeURIComponent(id)}?fields=${REQ_FIELDS}`,
+      { method: "PATCH", body: JSON.stringify(patch) },
+    );
+  } catch (e) {
+    const includesNewFields = ["quote_confirmed", "quote_confirmed_at", "payment_link", "payment_message", "payment_link_sent_at"].some((k) => k in patch);
+    if (includesNewFields || !/quote_confirmed|payment_link|payment_message/i.test((e as Error)?.message ?? "")) throw e;
+    r = await dxRequest<{ data: DxRequestRow } | undefined>(
+      `/items/requests/${encodeURIComponent(id)}?fields=${REQ_BASE_FIELDS}`,
+      { method: "PATCH", body: JSON.stringify(patch) },
+    );
+  }
   emit();
   // After a PATCH that hands a row to someone else (e.g. underwriter reassigns
   // back to sales), the caller may lose READ access. Directus then returns

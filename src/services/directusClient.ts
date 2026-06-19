@@ -252,7 +252,18 @@ export async function dxLogin(email: string, password: string): Promise<ProfileS
     refresh_token: j.data.refresh_token,
     expires_at: Date.now() + j.data.expires - 30_000,
   });
-  const me = await dxRequest<{ data: DxUserRecord }>(`/users/me?fields=${USER_FIELDS}`);
+  let me: { data: DxUserRecord };
+  try {
+    me = await dxRequest<{ data: DxUserRecord }>(`/users/me?fields=${USER_FIELDS}`);
+  } catch (e) {
+    await dxLogout();
+    if ((e as DirectusError | null)?.status === 403) {
+      const err = new Error("ACCOUNT_DEACTIVATED");
+      (err as Error & { code?: string }).code = "ACCOUNT_DEACTIVATED";
+      throw err;
+    }
+    throw e;
+  }
   if (isDeactivatedUserRecord(me.data)) {
     await dxLogout();
     const err = new Error("ACCOUNT_DEACTIVATED");

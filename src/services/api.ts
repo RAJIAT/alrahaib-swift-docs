@@ -22,6 +22,7 @@ import {
   dxLogout,
   getProfile as dxGetProfile,
   dxRequest,
+  isDeactivatedUserRecord,
   userRecordToProfile,
   type DxUserRecord,
   type ProfileSnapshot,
@@ -220,7 +221,7 @@ export async function refreshCurrentUser(): Promise<AuthUser | null> {
   try {
     const { USER_FIELDS } = await import("./directusClient");
     const me = await dxRequest<{ data: DxUserRecord }>(`/users/me?fields=${USER_FIELDS}`);
-    if (me.data.app_active === false || me.data.pending_approval === true) {
+    if (isDeactivatedUserRecord(me.data) || me.data.pending_approval === true) {
       if (typeof window !== "undefined") {
         try { sessionStorage.setItem("aib:auth-deactivated", "1"); } catch { /* ignore */ }
       }
@@ -237,6 +238,9 @@ export async function refreshCurrentUser(): Promise<AuthUser | null> {
     // disabled at the auth layer), clear the cached profile and force re-login.
     const status = (err as { status?: number } | null)?.status;
     if (status === 401 || status === 403) {
+      if (status === 403 && typeof window !== "undefined") {
+        try { sessionStorage.setItem("aib:auth-deactivated", "1"); } catch { /* ignore */ }
+      }
       await dxLogout();
       return null;
     }

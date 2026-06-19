@@ -32,7 +32,7 @@ function reqSignature(r: InsuranceRequest | null): string {
   const veh = r.images.vehicleMedia?.length ?? 0;
   const quotes = r.quotes?.length ?? 0;
   const inspection = r.images.inspection ? 1 : 0;
-  return `${r.status}|n${notes}|r${registration}|l${license}|e${emirates}|m${missing}|a${atts}|v${veh}|i${inspection}|q${quotes}`;
+  return `${r.status}|qc${r.quoteConfirmed ? 1 : 0}|qca${r.quoteConfirmedAt ?? ""}|pl${r.paymentLinkSentAt ?? ""}|n${notes}|r${registration}|l${license}|e${emirates}|m${missing}|a${atts}|v${veh}|i${inspection}|q${quotes}`;
 }
 
 // Download a Directus asset using the bearer token, then trigger a save dialog.
@@ -1293,6 +1293,11 @@ function QuotesCard({
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [sendingToUW, setSendingToUW] = useState(false);
   const [agents, setAgents] = useState<Agent[]>(() => listAgents());
+  const [shareOpen, setShareOpen] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentLink, setPaymentLink] = useState("");
+  const [paymentMessage, setPaymentMessage] = useState("");
+  const [sendingPayment, setSendingPayment] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -1409,11 +1414,6 @@ function QuotesCard({
   };
 
   const shareLink = `${getPublicAppOrigin()}/q/${encodeURIComponent(req.id)}`;
-  const [shareOpen, setShareOpen] = useState(false);
-  const [paymentOpen, setPaymentOpen] = useState(false);
-  const [paymentLink, setPaymentLink] = useState("");
-  const [paymentMessage, setPaymentMessage] = useState("");
-  const [sendingPayment, setSendingPayment] = useState(false);
 
   const markShareStatus = async () => {
     try {

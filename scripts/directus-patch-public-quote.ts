@@ -99,6 +99,11 @@ async function ensureAgentPolicy(): Promise<string | null> {
   return p?.id ?? null;
 }
 
+async function ensureSupervisorPolicy(): Promise<string | null> {
+  const p = (await findPolicyByName("App Supervisor Policy")) ?? (await findPolicyByName("Supervisor"));
+  return p?.id ?? null;
+}
+
 // ----- upsert permissions (idempotent via filter) -----
 
 type PermRow = {
@@ -156,6 +161,19 @@ async function upsertPermission(row: PermRow): Promise<void> {
       throw e;
     }
   }
+}
+
+async function ensureRequestField(field: string, type: string, meta: Record<string, unknown>, schema?: Record<string, unknown>): Promise<void> {
+  try {
+    await api(`/fields/requests/${field}`);
+    console.log(`   = requests.${field}`);
+    return;
+  } catch { /* create below */ }
+  await api("/fields/requests", {
+    method: "POST",
+    body: JSON.stringify({ field, type, meta, ...(schema ? { schema } : {}) }),
+  });
+  console.log(`   + requests.${field}`);
 }
 
 // ----- flow management -----
@@ -293,6 +311,13 @@ async function createFlow(f: typeof QUOTE_NOTIFY_FLOW): Promise<void> {
 async function main() {
   console.log(`🔧 Public quote + notify patch on ${URL_BASE}`);
 
+  console.log("\n🧱 Quote confirmation + payment fields…");
+  await ensureRequestField("quote_confirmed", "boolean", { interface: "boolean", note: "Customer confirmed quote from public quote page." }, { default_value: false });
+  await ensureRequestField("quote_confirmed_at", "timestamp", { interface: "datetime" });
+  await ensureRequestField("payment_link", "string", { interface: "input" });
+  await ensureRequestField("payment_message", "text", { interface: "input-multiline" });
+  await ensureRequestField("payment_link_sent_at", "timestamp", { interface: "datetime" });
+
   console.log("\n🔐 Public policy permissions…");
   const publicPolicy = await ensurePublicPolicy();
   console.log(`   = Public policy id: ${publicPolicy}`);
@@ -301,8 +326,16 @@ async function main() {
     policy: publicPolicy,
     collection: "requests",
     action: "read",
-    fields: ["id", "uuid", "customer_name", "customer_email", "customer_phone", "date_created", "status"],
+    fields: ["id", "uuid", "customer_name", "customer_email", "customer_phone", "quote_confirmed", "quote_confirmed_at", "payment_link", "payment_message", "payment_link_sent_at", "date_created", "status"],
     permissions: {},
+  });
+  await upsertPermission({
+    policy: publicPolicy,
+    collection: "requests",
+    action: "update",
+    fields: ["quote_confirmed", "quote_confirmed_at"],
+    permissions: {},
+    validation: { quote_confirmed: { _eq: true } },
   });
   await upsertPermission({
     policy: publicPolicy,
@@ -318,9 +351,24 @@ async function main() {
     fields: ["id", "filename_download", "type", "filesize"],
     permissions: {},
   });
+  await upsertPermission({
+    policy: publicPolicy,
+    collection: "audit_log",
+    action: "create",
+    fields: ["action", "entity_type", "entity_id", "entity_label", "branch", "before", "after", "meta", "actor", "actor_role", "actor_branch"],
+    validation: { entity_type: { _eq: "request" } },
+  });
 
   const agentPolicy = await ensureAgentPolicy();
   if (agentPolicy) {
+    console.log("\n🔐 Agent policy: requests.update quote/payment fields…");
+    await upsertPermission({
+      policy: agentPolicy,
+      collection: "requests",
+      action: "update",
+      fields: ["status", "customer_name", "customer_email", "customer_phone", "quote_confirmed", "quote_confirmed_at", "payment_link", "payment_message", "payment_link_sent_at", "agent", "origin_agent", "assigned_underwriter", "assigned_at"],
+      permissions: { _or: [{ agent: { _eq: "$CURRENT_USER" } }, { origin_agent: { _eq: "$CURRENT_USER" } }, { assigned_underwriter: { _eq: "$CURRENT_USER" } }] },
+    });
     console.log("\n🔐 Agent policy: notifications.create (best-effort fallback)…");
     await upsertPermission({
       policy: agentPolicy,
@@ -328,6 +376,18 @@ async function main() {
       action: "create",
       fields: ["recipient", "kind", "title", "body", "link", "read"],
       validation: {},
+    });
+  }
+
+  const supervisorPolicy = await ensureSupervisorPolicy();
+  if (supervisorPolicy) {
+    console.log("\n🔐 Supervisor policy: requests.update quote/payment fields…");
+    await upsertPermission({
+      policy: supervisorPolicy,
+      collection: "requests",
+      action: "update",
+      fields: ["agent", "assigned_underwriter", "status", "customer_name", "customer_email", "customer_phone", "quote_confirmed", "quote_confirmed_at", "payment_link", "payment_message", "payment_link_sent_at", "assigned_at"],
+      permissions: { branch: { _eq: "$CURRENT_USER.branch" } },
     });
   }
 
