@@ -8,7 +8,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useLang } from "@/i18n/LanguageProvider";
 import {
   getBranches, createBranch, updateBranch, deleteBranch,
-  getCurrentUser, subscribeBranches, listBranchObjects,
+  enforceActiveSession, getCurrentUser, subscribeBranches, listBranchObjects,
   type AuthUser,
 } from "@/services/api";
 import type { DxBranch } from "@/services/directus";
@@ -46,6 +46,10 @@ function BranchesPage() {
       return;
     }
     setUser(u);
+    enforceActiveSession("admin").then((fresh) => {
+      if (!fresh || fresh.role !== "admin") { navigate({ to: "/login" }); return; }
+      setUser(fresh);
+    });
     const refresh = () => {
       getBranches()
         .then((rows) => { setItems(rows); setLoading(false); })
