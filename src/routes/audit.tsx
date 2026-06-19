@@ -6,7 +6,7 @@ import { DashboardShell } from "@/components/DashboardShell";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useLang } from "@/i18n/LanguageProvider";
-import { getCurrentUser, type AuthUser } from "@/services/api";
+import { enforceActiveSession, getCurrentUser, type AuthUser } from "@/services/api";
 import {
   clearAudit, fetchAudit, subscribeAudit,
   type AuditEntry, type AuditAction, type AuditEntityType,
@@ -56,6 +56,10 @@ function AuditPage() {
       return;
     }
     setUser(u);
+    enforceActiveSession(["admin", "supervisor"]).then((fresh) => {
+      if (!fresh || (fresh.role !== "admin" && fresh.role !== "supervisor")) { navigate({ to: "/login" }); return; }
+      setUser(fresh);
+    });
     const refresh = () => {
       fetchAudit({
         branch: u.role === "supervisor" ? u.branch : undefined,
