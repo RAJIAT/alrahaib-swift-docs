@@ -183,6 +183,10 @@ export async function dxRequest<T = unknown>(path: string, init: RequestInit = {
   const res = await fetch(`${URL_BASE}${path}`, { ...init, headers });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    if (res.status === 403) {
+      markAccountDeactivated();
+      throw createAccountDeactivatedError();
+    }
     throw buildError(res.status, body);
   }
   if (res.status === 204) return undefined as T;
