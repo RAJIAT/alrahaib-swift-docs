@@ -585,6 +585,16 @@ export async function submitUpload(input: {
   });
   try {
     await logEvent({ action: "request.created", entityType: "request", entityId: id, entityLabel: id, branch: req.branch });
+    if (input.clientType) {
+      await logEvent({
+        action: "request.client_type_selected",
+        entityType: "request",
+        entityId: id,
+        entityLabel: id,
+        branch: req.branch,
+        meta: { clientType: input.clientType },
+      });
+    }
   } catch (e) {
     console.error("[public upload] step=log_event failed (tolerated)", e);
   }
