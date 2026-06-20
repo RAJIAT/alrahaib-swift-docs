@@ -413,6 +413,11 @@ export const translations = {
       uploadFiles: "ارفع الملفات هنا",
       notFound: "الطلب غير موجود",
       filesHint: "صور / PDF / مستندات — حد أقصى 5MB لكل ملف",
+      individualSection: "إعادة رفع المستندات (عميل فردي)",
+      corporateSection: "إعادة رفع المستندات (عميل شركات)",
+      otherFiles: "ملفات إضافية",
+      clientTypeBadgeIndividual: "عميل فردي",
+      clientTypeBadgeCorporate: "عميل شركات",
     },
     footer: {
       rights: (year: number) => `© ${year} الدبلوماسي لخدمات التأمين ش.ذ.م.م. جميع الحقوق محفوظة.`,
@@ -832,6 +837,11 @@ export const translations = {
       uploadFiles: "Upload files here",
       notFound: "Request not found",
       filesHint: "Images / PDF / docs — max 5MB per file",
+      individualSection: "Re-upload documents (Individual)",
+      corporateSection: "Re-upload documents (Corporate)",
+      otherFiles: "Other files",
+      clientTypeBadgeIndividual: "Individual",
+      clientTypeBadgeCorporate: "Corporate",
     },
     footer: {
       rights: (year: number) => `© ${year} Al Diplomacy Insurance Services LLC. All rights reserved.`,
