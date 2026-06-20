@@ -201,19 +201,64 @@ export async function dxRequest<T = unknown>(path: string, init: RequestInit = {
   }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    // Only treat 403 as "account deactivated" for authenticated requests.
-    // Public/anonymous flows (customer upload, reupload, quote selection)
-    // can legitimately receive 403 when a field/permission is missing and
-    // must NOT be redirected to the login screen as deactivated.
-    if (res.status === 403 && getTokens()) {
-      markAccountDeactivated();
-      throw createAccountDeactivatedError();
+    // Authenticated 401: session expired (refresh already attempted above).
+    if (res.status === 401 && getTokens()) {
+      const err = new Error("SESSION_EXPIRED") as DirectusError & { code: string };
+      err.status = 401;
+      err.code = "SESSION_EXPIRED";
+      err.body = body;
+      throw err;
+    }
+    // Authenticated 403: do NOT assume the account is deactivated. A 403 from
+    // Directus most often means the current user lacks the field/collection
+    // permission for this specific action. Only flip to ACCOUNT_DEACTIVATED
+    // after a live /users/me check confirms it. Otherwise surface a normal
+    // permission error so the UI can show the right message.
+    if (res.status === 403 && getTokens() && !/\/users\/me/.test(path)) {
+      try {
+        const deactivated = await verifyAccountDeactivated();
+        if (deactivated) {
+          markAccountDeactivated();
+          throw createAccountDeactivatedError();
+        }
+      } catch (e) {
+        if ((e as Error & { code?: string })?.code === "ACCOUNT_DEACTIVATED") throw e;
+        // /users/me failed — fall through and surface as a permission error.
+      }
+      const err = new Error("PERMISSION_DENIED") as DirectusError & { code: string };
+      err.status = 403;
+      err.code = "PERMISSION_DENIED";
+      err.body = body;
+      throw err;
     }
     throw buildError(res.status, body);
   }
   if (res.status === 204) return undefined as T;
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;
+}
+
+/**
+ * Live deactivation check. Calls /users/me directly with the current bearer
+ * (no refresh, no recursion into dxRequest) and returns true ONLY when the
+ * record confirms app_active=false or status≠active. A failed/forbidden
+ * /users/me call returns false — we won't log the user out on uncertainty.
+ */
+async function verifyAccountDeactivated(): Promise<boolean> {
+  if (!URL_BASE) return false;
+  const t = getTokens();
+  if (!t?.access_token) return false;
+  try {
+    const res = await fetch(`${URL_BASE}/users/me?fields=app_active,status`, {
+      headers: { Authorization: `Bearer ${t.access_token}` },
+    });
+    if (!res.ok) return false;
+    const j = (await res.json()) as { data?: { app_active?: unknown; status?: unknown } };
+    if (!j?.data) return false;
+    return isDeactivatedUserRecord(j.data as Pick<DxUserRecord, "app_active" | "status">);
+  } catch {
+    return false;
+  }
 }
 
 // ---------- auth ----------
