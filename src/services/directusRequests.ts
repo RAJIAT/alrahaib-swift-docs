@@ -955,6 +955,7 @@ export async function dxPublicGetQuote(requestId: string): Promise<PublicQuoteVi
     createdAt: row.date_created ?? new Date().toISOString(),
     quoteConfirmed: row.quote_confirmed === true,
     quoteConfirmedAt: row.quote_confirmed_at ?? undefined,
+    selectedQuoteId: row.selected_quote ?? undefined,
     paymentLink: row.payment_link ?? undefined,
     paymentMessage: row.payment_message ?? undefined,
     paymentLinkSentAt: row.payment_link_sent_at ?? undefined,
@@ -962,19 +963,34 @@ export async function dxPublicGetQuote(requestId: string): Promise<PublicQuoteVi
   };
 }
 
-export async function dxPublicConfirmQuote(requestId: string): Promise<PublicQuoteView | null> {
+export async function dxPublicConfirmQuote(requestId: string, selectedQuoteId?: string): Promise<PublicQuoteView | null> {
   const base = (import.meta.env.VITE_DIRECTUS_URL as string | undefined)?.replace(/\/$/, "");
   if (!base) throw new Error("VITE_DIRECTUS_URL is not configured.");
   const now = new Date().toISOString();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const payload: Record<string, unknown> = { quote_confirmed: true, quote_confirmed_at: now };
+  if (selectedQuoteId) payload.selected_quote = selectedQuoteId;
   const res = await fetch(`${base}/items/requests/${encodeURIComponent(requestId)}`, {
     method: "PATCH",
     headers,
-    body: JSON.stringify({ quote_confirmed: true, quote_confirmed_at: now }),
+    body: JSON.stringify(payload),
   });
   if (res.status === 403 || res.status === 401) {
     throw new Error("Public quote confirmation is not allowed. Run scripts/directus-patch-public-quote.ts");
   }
-  if (!res.ok) throw new Error(await res.text().catch(() => "Failed to confirm quote"));
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    // If the column doesn't exist on this Directus instance yet, retry without it.
+    if (selectedQuoteId && /selected_quote/i.test(body)) {
+      const res2 = await fetch(`${base}/items/requests/${encodeURIComponent(requestId)}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ quote_confirmed: true, quote_confirmed_at: now }),
+      });
+      if (!res2.ok) throw new Error(body || "Failed to confirm quote");
+    } else {
+      throw new Error(body || "Failed to confirm quote");
+    }
+  }
   return dxPublicGetQuote(requestId);
 }
