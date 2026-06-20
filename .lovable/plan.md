@@ -51,6 +51,7 @@ This plan covers the corporate upload flow and all 6 items from the uploaded fee
   - Server records `selected_quote_id`, `quote_confirmed = true`, `quote_confirmed_at`, status → `quoted` (kept) and unlocks the staff "Send Payment Link" action.
 - New Directus fields on `requests`: `selected_quote_id` (uuid, nullable). Patch script grants public update of just this field on the matching row.
 - Staff side (`src/routes/requests.$id.tsx`): "Share Quote with Customer" copies the `/q/:id` link without error; once customer confirms, show the selected quote highlighted and enable Send Payment Link.
+- **Payment Link gating (strict):** the "Send Payment Link" action is hidden/disabled until `quote_confirmed === true` AND `selected_quote_id` is set by the customer on `/q/:id`. It is never shown inside the "Share Quote with Customer" step, and never on `quote.shared` alone. Applies to Sales, Underwriter, Admin, Supervisor — EN and AR.
 
 ---
 
@@ -62,6 +63,7 @@ This plan covers the corporate upload flow and all 6 items from the uploaded fee
   - Persist `refresh_token` and rotate on each refresh.
 - `enforceActiveSession` no longer clears the session on a transient network error — only on a confirmed deactivated/`401 invalid_credentials` response.
 - If refresh truly fails, show a toast: EN `Your session has expired. Please sign in again.` / AR `انتهت جلستك، يرجى تسجيل الدخول مرة أخرى.` before redirecting to `/login`.
+- **Deactivated-user guard is preserved and runs independently of the refresh path.** A successful token refresh MUST NOT bypass the `app_active` check: after any refresh or session restore, re-run `enforceActiveSession` (read `users/me?fields=app_active,status`) and, if `app_active === false` or `status !== 'active'`, clear tokens + cached user and redirect to `/login` with the existing deactivated message (EN/AR). Refresh-retry only suppresses transient errors, never a confirmed deactivation.
 
 ---
 
@@ -114,7 +116,7 @@ Show a small badge (Individual / Corporate) on:
 ```bash
 DIRECTUS_URL=http://127.0.0.1:8055 DIRECTUS_ADMIN_TOKEN=<token> npx tsx scripts/directus-patch-client-type.ts
 DIRECTUS_URL=http://127.0.0.1:8055 DIRECTUS_ADMIN_TOKEN=<token> npx tsx scripts/directus-patch-public-quote.ts
-npm run build && pm2 restart al-diplomacy
+npm run build && pm2 restart aldiplomacy-portal
 ```
 
 ---
