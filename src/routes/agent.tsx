@@ -302,12 +302,26 @@ function AgentDashboardContent() {
         </div>
       </div>
 
+      <div className="mb-4">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={lang === "ar" ? "ابحث برقم الطلب أو اسم العميل…" : "Search by Request ID or Customer Name…"}
+          className="h-11 w-full rounded-xl border border-input bg-surface px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+        />
+      </div>
+
       {/* Desktop table */}
       <div className="hidden overflow-hidden rounded-2xl border border-border bg-card shadow-card md:block">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-muted-foreground">
             <tr className={dir === "rtl" ? "text-right" : "text-left"}>
               <th className="px-5 py-3 font-semibold">{t.table.requestId}</th>
+              <th className="px-5 py-3 font-semibold">{t.table.customer}</th>
+              {!isUnderwriter && (
+                <th className="px-5 py-3 font-semibold">{t.table.underwriter}</th>
+              )}
               <th className="px-5 py-3 font-semibold">{t.table.date}</th>
               <th className="px-5 py-3 font-semibold">{t.table.status}</th>
               <th className="px-5 py-3 font-semibold">{t.table.action}</th>
@@ -316,13 +330,13 @@ function AgentDashboardContent() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="px-5 py-12 text-center text-muted-foreground">
+                <td colSpan={isUnderwriter ? 5 : 6} className="px-5 py-12 text-center text-muted-foreground">
                   …
                 </td>
               </tr>
             ) : filteredItems.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-5 py-8">
+                <td colSpan={isUnderwriter ? 5 : 6} className="px-5 py-8">
                   <EmptyState
                     icon={<Inbox className="h-7 w-7" />}
                     title={t.agent.emptyTitle}
@@ -334,6 +348,10 @@ function AgentDashboardContent() {
               filteredItems.map((r) => (
                 <tr key={r.id} className="border-t border-border transition hover:bg-muted/30">
                   <td className="px-5 py-4 font-semibold text-foreground">{r.id}</td>
+                  <td className="px-5 py-4 text-foreground">{r.customerName ?? "—"}</td>
+                  {!isUnderwriter && (
+                    <td className="px-5 py-4 text-foreground">{resolveUW(r)}</td>
+                  )}
                   <td className="px-5 py-4 text-muted-foreground">
                     {formatDashboardDate(r.createdAt, lang)}
                   </td>
