@@ -133,9 +133,16 @@ function UploadPage() {
   const onSubmit = async () => {
     const parsed = kycSchema.safeParse({ customerName, customerEmail, customerPhone });
     const missing: string[] = [];
-    if (!registrationOk) missing.push(t.upload.cards.registration);
-    if (!emiratesOk) missing.push(t.upload.cards.emirates);
-    if (!licenseOk) missing.push(t.upload.cards.license);
+    if (!clientType) missing.push(dir === "rtl" ? "اختيار نوع العميل" : "Client type");
+    if (clientType === "corporate") {
+      if (!tradeLicenseOk) missing.push(dir === "rtl" ? "الرخصة التجارية" : "Trade License");
+      if (!vatCertOk) missing.push(dir === "rtl" ? "شهادة ضريبة القيمة المضافة" : "VAT Certificate");
+      if (!ownersEidOk) missing.push(dir === "rtl" ? "هوية المالك" : "Owner's Emirates ID");
+    } else {
+      if (!registrationOk) missing.push(t.upload.cards.registration);
+      if (!emiratesOk) missing.push(t.upload.cards.emirates);
+      if (!licenseOk) missing.push(t.upload.cards.license);
+    }
     if (!parsed.success) {
       const fieldErrors: { name?: string; email?: string; phone?: string } = {};
       for (const issue of parsed.error.issues) {
@@ -165,6 +172,7 @@ function UploadPage() {
     try {
       const { id } = await submitUpload({
         agentId: agent,
+        clientType: clientType ?? "individual",
         customerName: parsed.data.customerName,
         customerEmail: parsed.data.customerEmail,
         customerPhone: parsed.data.customerPhone,
@@ -174,6 +182,9 @@ function UploadPage() {
           emirates,
           vehicleMedia,
           attachments,
+          tradeLicense,
+          vatCertificate,
+          ownersEmiratesId,
         },
         optional: { inspection },
       });
