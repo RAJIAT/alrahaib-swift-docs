@@ -424,6 +424,7 @@ type DashboardRequest = {
   status: RequestStatus;
   createdAt: string;
   agentId: string;
+  customerName?: string;
   assignedUnderwriterId?: string;
   assignedUnderwriterUserId?: string;
 };
@@ -489,6 +490,7 @@ function normalizeRequestForDashboard(
     status: safeStatus(req?.status),
     createdAt: safeText(req?.createdAt, ""),
     agentId: safeText(req?.agentId, ""),
+    customerName: req?.customerName ?? undefined,
     assignedUnderwriterId: safeText(req?.assignedUnderwriterId, ""),
     assignedUnderwriterUserId: safeText(req?.assignedUnderwriterUserId, ""),
   };
