@@ -172,6 +172,27 @@ function AgentDashboardContent() {
     [items],
   );
 
+  const [search, setSearch] = useState("");
+  const agentsList = useMemo(() => listAgents(), [items]);
+  const agentById = useMemo(() => {
+    const m = new Map<string, ReturnType<typeof listAgents>[number]>();
+    for (const a of agentsList) m.set(a.id, a);
+    return m;
+  }, [agentsList]);
+  const resolveUW = (r: DashboardRequest): string => {
+    if (r.assignedUnderwriterId) {
+      const u = agentById.get(r.assignedUnderwriterId);
+      if (u) return u.name;
+    }
+    const owner = agentById.get(r.agentId);
+    if (owner?.staffType === "underwriter") return owner.name;
+    if (owner?.staffType === "sales" && owner.assignedUnderwriterId) {
+      const u = agentById.get(owner.assignedUnderwriterId);
+      if (u) return u.name;
+    }
+    return t.table.notAssigned;
+  };
+
   const counts = useMemo(
     () => ({
       all: safeItems.length,
@@ -189,8 +210,15 @@ function AgentDashboardContent() {
   const stats = { total: counts.all, newReq: counts.new, sales: counts.sold };
 
   const filteredItems = useMemo(
-    () => (filter === "all" ? safeItems : safeItems.filter((r) => r.status === filter)),
-    [safeItems, filter],
+    () => {
+      const base = filter === "all" ? safeItems : safeItems.filter((r) => r.status === filter);
+      if (!search.trim()) return base;
+      const q = search.trim().toLowerCase();
+      return base.filter((r) =>
+        `${r.id} ${r.customerName ?? ""}`.toLowerCase().includes(q)
+      );
+    },
+    [safeItems, filter, search],
   );
 
   const tabs: { key: StatusFilter; label: string; tone: string }[] = [
