@@ -399,6 +399,14 @@ function AgentDashboardContent() {
                     <span className="font-bold text-foreground">{r.id}</span>
                     <StatusBadge status={r.status} />
                   </div>
+                  {r.customerName && (
+                    <div className="mt-0.5 text-xs text-foreground">{r.customerName}</div>
+                  )}
+                  {!isUnderwriter && (
+                    <div className="text-[11px] text-muted-foreground">
+                      {t.table.underwriter}: {resolveUW(r)}
+                    </div>
+                  )}
                   <div className="mt-1 text-xs text-muted-foreground">
                     {formatDashboardDate(r.createdAt, lang)}
                   </div>
