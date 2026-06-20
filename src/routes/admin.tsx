@@ -342,7 +342,18 @@ function AdminDashboard() {
               filtered.map((r) => (
                 <tr key={r.id} className="border-t border-border transition hover:bg-muted/30">
                   <td className="px-5 py-4 font-semibold text-foreground">{r.id}</td>
-                  <td className="px-5 py-4 text-foreground">{r.customerName ?? "—"}</td>
+                  <td className="px-5 py-4 text-foreground">
+                    <div>{r.customerName ?? "—"}</div>
+                    {r.clientType && (
+                      <span className={`mt-0.5 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        r.clientType === "corporate" ? "bg-info/15 text-info" : "bg-primary-soft text-primary"
+                      }`}>
+                        {r.clientType === "corporate"
+                          ? (lang === "ar" ? "شركات" : "Corporate")
+                          : (lang === "ar" ? "فردي" : "Individual")}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-5 py-4 text-foreground">
                     <div>{r.agentName}</div>
                     {!isSupervisor && supervisorByAgentId.get(r.agentId) && (
