@@ -376,6 +376,9 @@ function buildImages(files: DxRequestFileRow[]): DemoRequest["images"] {
     inspection: inspectionRow ? dxAssetUrl(fileObj(inspectionRow)?.id ?? "") : undefined,
     attachments,
     ...(missingAttachments.length ? { missingAttachments } : {}),
+    tradeLicense: urls(byKind("trade_license")),
+    vatCertificate: urls(byKind("vat_certificate")),
+    ownersEmiratesId: urls(byKind("owners_emirates_id")),
   };
 }
 
