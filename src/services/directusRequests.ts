@@ -52,6 +52,8 @@ type DxRequestRow = {
   customer_name?: string | null;
   customer_email?: string | null;
   customer_phone?: string | null;
+  client_type?: "individual" | "corporate" | null;
+  selected_quote?: string | null;
   quote_confirmed?: boolean | null;
   quote_confirmed_at?: string | null;
   payment_link?: string | null;
@@ -81,7 +83,10 @@ export type RequestFileKind =
   | "inspection"
   | "attachment"
   | "missing_attachment"
-  | "quote";
+  | "quote"
+  | "trade_license"
+  | "vat_certificate"
+  | "owners_emirates_id";
 
 type DxFileObj = { id: string; filename_download: string; type: string; filesize: number };
 
