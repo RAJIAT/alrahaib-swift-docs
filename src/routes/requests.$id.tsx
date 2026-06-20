@@ -1572,7 +1572,23 @@ function QuotesCard({
       setPaymentOpen(false);
       toast.success(ar ? "تم إرسال رابط الدفع" : "Payment link sent");
     } catch (e) {
-      toast.error(safeMessage(e, ar ? "تعذر إرسال رابط الدفع" : "Could not send payment link"));
+      const code = (e as { code?: string } | null)?.code;
+      let msg: string;
+      if (code === "SESSION_EXPIRED") {
+        msg = ar
+          ? "انتهت الجلسة. الرجاء تسجيل الدخول مرة أخرى."
+          : "Your session expired. Please sign in again.";
+      } else if (code === "PERMISSION_DENIED") {
+        msg = ar
+          ? "لا تملك صلاحية إرسال رابط الدفع. تواصل مع المشرف."
+          : "You don't have permission to send the payment link. Please contact your supervisor.";
+      } else if (code === "ACCOUNT_DEACTIVATED") {
+        msg = ar ? "تم إيقاف الحساب." : "Your account has been deactivated.";
+      } else {
+        msg = safeMessage(e, ar ? "تعذر إرسال رابط الدفع" : "Could not send payment link");
+      }
+      toast.error(msg);
+      console.warn("[submitPaymentLink] failed", { code, error: e });
     } finally {
       setSendingPayment(false);
     }
