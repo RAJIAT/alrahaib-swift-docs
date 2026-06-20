@@ -246,6 +246,15 @@ function AdminDashboard() {
 
       {/* Filters */}
       <div className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-card">
+        <div className="mb-3">
+          <input
+            type="search"
+            value={searchF}
+            onChange={(e) => setSearchF(e.target.value)}
+            placeholder={lang === "ar" ? "ابحث برقم الطلب أو اسم العميل…" : "Search by Request ID or Customer Name…"}
+            className="h-11 w-full rounded-xl border border-input bg-surface px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+          />
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Select value={agentF} onChange={wrap(setAgentF)} label={t.admin.filterAgent} all={t.admin.all}
             options={agentOptions} />
