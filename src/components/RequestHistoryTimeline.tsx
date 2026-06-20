@@ -38,6 +38,8 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "request.quote_removed": FileX,
   "request.shared_with_customer": Send,
   "request.quote_confirmed": CheckCircle2,
+  "request.quote_selected_by_customer": CheckCircle2,
+  "request.client_type_selected": Sparkles,
   "request.payment_link_sent": Send,
 };
 
