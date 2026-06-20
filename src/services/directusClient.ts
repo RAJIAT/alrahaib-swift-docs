@@ -198,7 +198,11 @@ export async function dxRequest<T = unknown>(path: string, init: RequestInit = {
   }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    if (res.status === 403) {
+    // Only treat 403 as "account deactivated" for authenticated requests.
+    // Public/anonymous flows (customer upload, reupload, quote selection)
+    // can legitimately receive 403 when a field/permission is missing and
+    // must NOT be redirected to the login screen as deactivated.
+    if (res.status === 403 && getTokens()) {
       markAccountDeactivated();
       throw createAccountDeactivatedError();
     }
