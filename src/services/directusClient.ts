@@ -151,7 +151,8 @@ async function refreshTokens(): Promise<TokenSet | null> {
 async function ensureFreshToken(): Promise<string | null> {
   let t = getTokens();
   if (!t) return null;
-  if (Date.now() >= t.expires_at) t = await refreshTokens();
+  // Refresh proactively when within 60s of expiry, or when already expired.
+  if (Date.now() >= t.expires_at - 60_000) t = await refreshTokens();
   return t?.access_token ?? null;
 }
 
@@ -173,14 +174,28 @@ function buildError(status: number, body: string): DirectusError {
 
 export async function dxRequest<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
   if (!URL_BASE) throw new Error("VITE_DIRECTUS_URL is not configured.");
-  const token = await ensureFreshToken();
+  let token = await ensureFreshToken();
   const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
-  const headers: Record<string, string> = {
+  let headers: Record<string, string> = {
     ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...((init.headers as Record<string, string>) ?? {}),
   };
-  const res = await fetch(`${URL_BASE}${path}`, { ...init, headers });
+  let res = await fetch(`${URL_BASE}${path}`, { ...init, headers });
+  // Token may have been invalidated server-side between calls — retry once
+  // with a forced refresh so idle users don't get bounced.
+  if (res.status === 401 && getTokens()) {
+    const refreshed = await refreshTokens();
+    if (refreshed?.access_token) {
+      token = refreshed.access_token;
+      headers = {
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
+        Authorization: `Bearer ${token}`,
+        ...((init.headers as Record<string, string>) ?? {}),
+      };
+      res = await fetch(`${URL_BASE}${path}`, { ...init, headers });
+    }
+  }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     if (res.status === 403) {
