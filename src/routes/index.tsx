@@ -343,37 +343,92 @@ function UploadPage() {
         <section className="mt-6 space-y-3" dir={dir}>
           <h2 className="flex items-center gap-2 px-1 text-sm font-bold text-foreground">
             <span className="h-2 w-2 rounded-full bg-primary" />
-            {t.upload.essentialDocs}
+            {dir === "rtl" ? "نوع العميل" : "Client type"}
           </h2>
-          <DocumentRow
-            icon={FileImage}
-            label={t.upload.cards.registration}
-            required
-            files={registration}
-            onChange={setRegistration}
-          />
-          <DocumentRow
-            icon={IdCard}
-            label={t.upload.cards.license}
-            required
-            files={license}
-            onChange={setLicense}
-          />
-          <DocumentRow
-            icon={BadgeCheck}
-            label={t.upload.cards.emirates}
-            required
-            files={emirates}
-            onChange={setEmirates}
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <ClientTypeButton
+              icon={User}
+              label={dir === "rtl" ? "عميل فردي" : "Individual"}
+              sub={dir === "rtl" ? "حساب شخصي" : "Personal"}
+              active={clientType === "individual"}
+              onClick={() => setClientType("individual")}
+            />
+            <ClientTypeButton
+              icon={Building2}
+              label={dir === "rtl" ? "عميل شركات" : "Corporate"}
+              sub={dir === "rtl" ? "حساب تجاري" : "Business"}
+              active={clientType === "corporate"}
+              onClick={() => setClientType("corporate")}
+            />
+          </div>
+
+          {clientType && (
+            <>
+              <h2 className="mt-4 flex items-center gap-2 px-1 text-sm font-bold text-foreground">
+                <span className="h-2 w-2 rounded-full bg-primary" />
+                {t.upload.essentialDocs}
+              </h2>
+              {isCorporate ? (
+                <>
+                  <DocumentRow
+                    icon={FileSpreadsheet}
+                    label={dir === "rtl" ? "الرخصة التجارية" : "Trade License"}
+                    required
+                    files={tradeLicense}
+                    onChange={setTradeLicense}
+                  />
+                  <DocumentRow
+                    icon={Receipt}
+                    label={dir === "rtl" ? "شهادة ضريبة القيمة المضافة" : "VAT Certificate"}
+                    required
+                    files={vatCertificate}
+                    onChange={setVatCertificate}
+                  />
+                  <DocumentRow
+                    icon={Users}
+                    label={dir === "rtl" ? "هوية المالك (Emirates ID)" : "Owner's Emirates ID"}
+                    required
+                    files={ownersEmiratesId}
+                    onChange={setOwnersEmiratesId}
+                  />
+                </>
+              ) : (
+                <>
+                  <DocumentRow
+                    icon={FileImage}
+                    label={t.upload.cards.registration}
+                    required
+                    files={registration}
+                    onChange={setRegistration}
+                  />
+                  <DocumentRow
+                    icon={IdCard}
+                    label={t.upload.cards.license}
+                    required
+                    files={license}
+                    onChange={setLicense}
+                  />
+                  <DocumentRow
+                    icon={BadgeCheck}
+                    label={t.upload.cards.emirates}
+                    required
+                    files={emirates}
+                    onChange={setEmirates}
+                  />
+                </>
+              )}
+            </>
+          )}
         </section>
 
-        <p className="mt-5 text-center text-sm font-medium text-muted-foreground">
-          {docsReady ? t.upload.allDone : t.upload.remaining(remaining)}
-        </p>
+        {clientType && (
+          <p className="mt-5 text-center text-sm font-medium text-muted-foreground">
+            {docsReady ? t.upload.allDone : t.upload.remaining(remaining)}
+          </p>
+        )}
 
         {/* Optional documents — collapsible section */}
-        <section className="mt-6" dir={dir}>
+        {clientType && <section className="mt-6" dir={dir}>
           <OptionalDocsSection
             vehicleMedia={vehicleMedia}
             setVehicleMedia={setVehicleMedia}
@@ -382,7 +437,7 @@ function UploadPage() {
             attachments={attachments}
             setAttachments={setAttachments}
           />
-        </section>
+        </section>}
       </main>
 
       <div className="mx-auto mt-8 max-w-2xl px-4 pb-4">
