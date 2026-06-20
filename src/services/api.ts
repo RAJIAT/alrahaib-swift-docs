@@ -678,13 +678,45 @@ export async function resolveRequestNote(requestId: string, noteId: string): Pro
 export async function appendAttachmentsToRequest(
   requestId: string,
   files: File[],
+  typed?: {
+    registration?: File[];
+    license?: File[];
+    emirates?: File[];
+    tradeLicense?: File[];
+    vatCertificate?: File[];
+    ownersEmiratesId?: File[];
+  },
 ): Promise<InsuranceRequest> {
   const current = await dxGetRequest(requestId);
   if (!current) throw new Error("Request not found");
   const me = getCurrentUser();
   const eligible = files.filter((f) => !f.type.startsWith("video/"));
-  // Upload via Directus /files and create missing_attachment rows.
-  await dxAttachFilesParallel(current.id, eligible, "missing_attachment", me?.id ?? null);
+  const ownerUuid = me?.id ?? null;
+  // Generic "missing_attachment" bucket for any free-form files the customer sends.
+  if (eligible.length > 0) {
+    await dxAttachFilesParallel(current.id, eligible, "missing_attachment", ownerUuid);
+  }
+
+  // Typed reupload slots — saved with the same doc_type as the initial submission
+  // so they surface in the same UI rows and the ZIP picks them up automatically.
+  // The history events below distinguish them via meta.round = "reupload".
+  const typedSlots: Array<{
+    key: "registration" | "license" | "emirates" | "tradeLicense" | "vatCertificate" | "ownersEmiratesId";
+    docType: "registration" | "license" | "emirates" | "trade_license" | "vat_certificate" | "owners_emirates_id";
+    files: File[];
+  }> = [
+    { key: "registration",      docType: "registration",        files: typed?.registration      ?? [] },
+    { key: "license",           docType: "license",             files: typed?.license           ?? [] },
+    { key: "emirates",          docType: "emirates",            files: typed?.emirates          ?? [] },
+    { key: "tradeLicense",      docType: "trade_license",       files: typed?.tradeLicense      ?? [] },
+    { key: "vatCertificate",    docType: "vat_certificate",     files: typed?.vatCertificate    ?? [] },
+    { key: "ownersEmiratesId",  docType: "owners_emirates_id",  files: typed?.ownersEmiratesId  ?? [] },
+  ];
+  for (const slot of typedSlots) {
+    const list = slot.files.filter((f) => !f.type.startsWith("video/"));
+    if (list.length === 0) continue;
+    await dxAttachFilesSequential(current.id, list, slot.docType, ownerUuid);
+  }
   // Mark any open "missing" notes resolved and flip the status to processing.
   for (const n of current.notes) {
     if (n.kind === "missing" && !n.resolvedAt) {
@@ -700,15 +732,34 @@ export async function appendAttachmentsToRequest(
       meta: { auto: true, reason: "customer_reupload" },
     });
   }
-  await logEvent({
-    action: "request.document_uploaded",
-    entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
-    meta: {
-      docKey: "missingAttachments",
-      count: eligible.length,
-      files: eligible.map((a) => ({ name: a.name, size: a.size, type: a.type })),
-    },
-  });
+  if (eligible.length > 0) {
+    await logEvent({
+      action: "request.document_uploaded",
+      entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
+      meta: {
+        docKey: "missingAttachments",
+        round: "reupload",
+        clientType: updated.clientType ?? current.clientType ?? "individual",
+        count: eligible.length,
+        files: eligible.map((a) => ({ name: a.name, size: a.size, type: a.type })),
+      },
+    });
+  }
+  for (const slot of typedSlots) {
+    const list = slot.files.filter((f) => !f.type.startsWith("video/"));
+    if (list.length === 0) continue;
+    await logEvent({
+      action: "request.document_uploaded",
+      entityType: "request", entityId: updated.id, entityLabel: updated.id, branch: updated.branch,
+      meta: {
+        docKey: slot.key,
+        round: "reupload",
+        clientType: updated.clientType ?? current.clientType ?? "individual",
+        count: list.length,
+        files: list.map((a) => ({ name: a.name, size: a.size, type: a.type })),
+      },
+    });
+  }
   return updated;
 }
 
