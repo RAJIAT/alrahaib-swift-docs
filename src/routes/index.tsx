@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Check, ShieldCheck, User, Zap, LogIn, Send, Clock, FileImage, IdCard, BadgeCheck, ChevronRight } from "lucide-react";
+import { Loader2, Check, ShieldCheck, User, Zap, LogIn, Send, Clock, FileImage, IdCard, BadgeCheck, ChevronRight, Building2, FileSpreadsheet, Receipt, Users } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -8,7 +8,7 @@ import { Logo } from "@/components/Logo";
 import { DocumentRow } from "@/components/DocumentRow";
 import { OptionalDocsSection } from "@/components/OptionalDocsSection";
 import { useLang } from "@/i18n/LanguageProvider";
-import { submitUpload } from "@/services/api";
+import { submitUpload, type ClientType } from "@/services/api";
 import { dxResolveUploadAgent } from "@/services/directusRequests";
 
 type Search = { agent?: string };
