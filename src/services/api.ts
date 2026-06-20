@@ -95,6 +95,7 @@ export type RequestQuote = DemoQuote;
 export type Role = "agent" | "admin" | "supervisor";
 export type AgentRole = "agent" | "supervisor";
 export type StaffType = DemoStaffType;
+export type ClientType = "individual" | "corporate";
 
 export type AuthUser = {
   id: string;
@@ -530,6 +531,7 @@ export async function sendPaymentLinkToCustomer(
 
 export async function submitUpload(input: {
   agentId: string;
+  clientType?: ClientType;
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
@@ -539,6 +541,9 @@ export async function submitUpload(input: {
     emirates: File[];
     vehicleMedia: File[];
     attachments?: File[];
+    tradeLicense?: File[];
+    vatCertificate?: File[];
+    ownersEmiratesId?: File[];
   };
   optional?: { inspection?: File | null };
 }): Promise<{ id: string }> {
@@ -565,6 +570,7 @@ export async function submitUpload(input: {
       customerName: input.customerName,
       customerEmail: input.customerEmail,
       customerPhone: input.customerPhone,
+      clientType: input.clientType ?? "individual",
     });
   } catch (e) {
     console.error("[public upload] step=create_request failed", e);
@@ -585,9 +591,15 @@ export async function submitUpload(input: {
   // Ordered kinds (front/back/etc.) upload sequentially; everything else in parallel.
   const ownerUuid = agent.userId;
   try {
-    await dxAttachFilesSequential(id, input.images.registration, "registration", ownerUuid);
-    await dxAttachFilesSequential(id, input.images.license, "license", ownerUuid);
-    await dxAttachFilesSequential(id, input.images.emirates, "emirates", ownerUuid);
+    if (input.clientType === "corporate") {
+      await dxAttachFilesSequential(id, input.images.tradeLicense ?? [], "trade_license", ownerUuid);
+      await dxAttachFilesSequential(id, input.images.vatCertificate ?? [], "vat_certificate", ownerUuid);
+      await dxAttachFilesSequential(id, input.images.ownersEmiratesId ?? [], "owners_emirates_id", ownerUuid);
+    } else {
+      await dxAttachFilesSequential(id, input.images.registration, "registration", ownerUuid);
+      await dxAttachFilesSequential(id, input.images.license, "license", ownerUuid);
+      await dxAttachFilesSequential(id, input.images.emirates, "emirates", ownerUuid);
+    }
     if (input.optional?.inspection) {
       await dxAttachFile(id, input.optional.inspection, "inspection", ownerUuid);
     }
