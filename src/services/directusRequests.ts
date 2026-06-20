@@ -458,7 +458,7 @@ async function ensureEntitiesCached(): Promise<void> {
 const REQ_BASE_FIELDS =
   "id,uuid,agent,origin_agent,assigned_underwriter,branch,status,customer_name,customer_email,customer_phone,assigned_at,date_created";
 const REQ_FIELDS =
-  `${REQ_BASE_FIELDS},quote_confirmed,quote_confirmed_at,payment_link,payment_message,payment_link_sent_at`;
+  `${REQ_BASE_FIELDS},quote_confirmed,quote_confirmed_at,payment_link,payment_message,payment_link_sent_at,client_type,selected_quote`;
 const NOTE_FIELDS =
   "id,request,author,author_role,text,kind,resolved_at,date_created";
 const FILE_FIELDS =
