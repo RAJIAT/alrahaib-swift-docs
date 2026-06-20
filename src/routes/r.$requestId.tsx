@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Check, Loader2, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Check, Loader2, ShieldCheck, AlertTriangle, Building2, User } from "lucide-react";
 import { toast } from "sonner";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Logo } from "@/components/Logo";
 import { MultiUploadCard } from "@/components/MultiUploadCard";
 import { useLang } from "@/i18n/LanguageProvider";
 import { getRequest, appendAttachmentsToRequest } from "@/services/api";
+import type { ClientType } from "@/services/types";
 
 export const Route = createFileRoute("/r/$requestId")({
   component: ReuploadPage,
@@ -18,6 +19,7 @@ type ReuploadInfo = {
   id?: string;
   display?: string;
   customerName?: string | null;
+  clientType?: ClientType;
   missing?: MissingNote[];
 };
 
@@ -27,6 +29,14 @@ function ReuploadPage() {
   const [info, setInfo] = useState<ReuploadInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [files, setFiles] = useState<File[]>([]);
+  // Individual reupload slots
+  const [registration, setRegistration] = useState<File[]>([]);
+  const [license, setLicense] = useState<File[]>([]);
+  const [emirates, setEmirates] = useState<File[]>([]);
+  // Corporate reupload slots
+  const [tradeLicense, setTradeLicense] = useState<File[]>([]);
+  const [vatCertificate, setVatCertificate] = useState<File[]>([]);
+  const [ownersEmiratesId, setOwnersEmiratesId] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
@@ -41,6 +51,7 @@ function ReuploadPage() {
       id: req.id,
       display: req.id,
       customerName: req.customerName ?? null,
+      clientType: (req.clientType ?? "individual") as ClientType,
       missing,
     });
   };
@@ -60,6 +71,7 @@ function ReuploadPage() {
           id: req.id,
           display: req.id,
           customerName: req.customerName ?? null,
+          clientType: (req.clientType ?? "individual") as ClientType,
           missing,
         });
       } finally {
@@ -69,13 +81,23 @@ function ReuploadPage() {
     return () => { alive = false; };
   }, [requestId]);
 
+  const isCorporate = info?.clientType === "corporate";
+  const typedCount =
+    registration.length + license.length + emirates.length +
+    tradeLicense.length + vatCertificate.length + ownersEmiratesId.length;
+  const totalCount = files.length + typedCount;
+
   const onSubmit = async () => {
-    if (!info?.found || files.length === 0 || submitting) return;
+    if (!info?.found || totalCount === 0 || submitting) return;
     setSubmitting(true);
     try {
-      await appendAttachmentsToRequest(requestId, files);
+      await appendAttachmentsToRequest(requestId, files, isCorporate
+        ? { tradeLicense, vatCertificate, ownersEmiratesId }
+        : { registration, license, emirates });
       setDone(true);
       setFiles([]);
+      setRegistration([]); setLicense([]); setEmirates([]);
+      setTradeLicense([]); setVatCertificate([]); setOwnersEmiratesId([]);
       await refresh();
       toast.success(lang === "ar" ? "تم إرسال الملفات" : "Files sent");
     } catch (err) {
@@ -134,9 +156,19 @@ function ReuploadPage() {
               ? `${t.details.customerName}: ${info.customerName}`
               : (t.reuploadPage?.subtitle ?? "")}
           </p>
-          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1.5 text-xs font-semibold text-primary">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            <span>{t.hero?.trust ?? ""}</span>
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1.5 text-xs font-semibold text-primary">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              <span>{t.hero?.trust ?? ""}</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-foreground">
+              {isCorporate ? <Building2 className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
+              <span>
+                {isCorporate
+                  ? (t.reuploadPage?.clientTypeBadgeCorporate ?? (lang === "ar" ? "عميل شركات" : "Corporate"))
+                  : (t.reuploadPage?.clientTypeBadgeIndividual ?? (lang === "ar" ? "عميل فردي" : "Individual"))}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -171,9 +203,75 @@ function ReuploadPage() {
         </section>
 
         {/* Upload area */}
-        <section className="mt-6">
+        <section className="mt-6 space-y-4">
+          <h2 className="text-base font-semibold text-foreground">
+            {isCorporate
+              ? (t.reuploadPage?.corporateSection ?? "Re-upload documents (Corporate)")
+              : (t.reuploadPage?.individualSection ?? "Re-upload documents (Individual)")}
+          </h2>
+          {isCorporate ? (
+            <>
+              <MultiUploadCard
+                label={lang === "ar" ? "الرخصة التجارية" : "Trade License"}
+                hint={t.upload.attachmentsHint}
+                files={tradeLicense}
+                onChange={setTradeLicense}
+                min={0}
+                max={10}
+                acceptAny
+              />
+              <MultiUploadCard
+                label={lang === "ar" ? "شهادة ضريبة القيمة المضافة" : "VAT Certificate"}
+                hint={t.upload.attachmentsHint}
+                files={vatCertificate}
+                onChange={setVatCertificate}
+                min={0}
+                max={10}
+                acceptAny
+              />
+              <MultiUploadCard
+                label={lang === "ar" ? "هوية المالك (Emirates ID)" : "Owner's Emirates ID"}
+                hint={t.upload.attachmentsHint}
+                files={ownersEmiratesId}
+                onChange={setOwnersEmiratesId}
+                min={0}
+                max={10}
+                acceptAny
+              />
+            </>
+          ) : (
+            <>
+              <MultiUploadCard
+                label={t.upload.cards.registration}
+                hint={t.upload.attachmentsHint}
+                files={registration}
+                onChange={setRegistration}
+                min={0}
+                max={10}
+                acceptAny
+              />
+              <MultiUploadCard
+                label={t.upload.cards.license}
+                hint={t.upload.attachmentsHint}
+                files={license}
+                onChange={setLicense}
+                min={0}
+                max={10}
+                acceptAny
+              />
+              <MultiUploadCard
+                label={t.upload.cards.emirates}
+                hint={t.upload.attachmentsHint}
+                files={emirates}
+                onChange={setEmirates}
+                min={0}
+                max={10}
+                acceptAny
+              />
+            </>
+          )}
           <MultiUploadCard
-            label={t.upload.cards.attachments}
+            label={t.reuploadPage?.otherFiles ?? t.upload.cards.attachments}
             hint={t.upload.attachmentsHint}
             files={files}
             onChange={setFiles}
@@ -184,7 +282,7 @@ function ReuploadPage() {
         </section>
 
         <button
-          disabled={files.length === 0 || submitting}
+          disabled={totalCount === 0 || submitting}
           onClick={onSubmit}
           className="mt-6 inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary text-base font-bold text-primary-foreground shadow-elevated transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
         >

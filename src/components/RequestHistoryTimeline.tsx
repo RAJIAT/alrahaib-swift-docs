@@ -93,7 +93,26 @@ function labelFor(action: string, ar: boolean, before?: any, after?: any, meta?:
         : `Reassigned: ${fromTo(before?.agentName, after?.agentName)}`;
     case "request.document_uploaded": {
       const c = meta?.count ?? 1;
-      return ar ? `تم رفع ${c} مستند/مستندات` : `Uploaded ${c} document${c === 1 ? "" : "s"}`;
+      const docLabels: Record<string, { ar: string; en: string }> = {
+        registration:       { ar: "رخصة المركبة",        en: "Vehicle Registration" },
+        license:            { ar: "رخصة القيادة",         en: "Driving License" },
+        emirates:           { ar: "الهوية الإماراتية",     en: "Emirates ID" },
+        tradeLicense:       { ar: "الرخصة التجارية",       en: "Trade License" },
+        vatCertificate:     { ar: "شهادة ضريبة القيمة المضافة", en: "VAT Certificate" },
+        ownersEmiratesId:   { ar: "هوية المالك",          en: "Owner's Emirates ID" },
+        missingAttachments: { ar: "مرفقات إضافية",        en: "Other attachments" },
+      };
+      const key = typeof meta?.docKey === "string" ? meta.docKey : "";
+      const label = docLabels[key];
+      const isReupload = meta?.round === "reupload";
+      const reupAr = isReupload ? " (إعادة رفع)" : "";
+      const reupEn = isReupload ? " (re-upload)" : "";
+      if (label) {
+        return ar
+          ? `تم رفع ${c} ملف — ${label.ar}${reupAr}`
+          : `Uploaded ${c} file${c === 1 ? "" : "s"} — ${label.en}${reupEn}`;
+      }
+      return ar ? `تم رفع ${c} مستند/مستندات${reupAr}` : `Uploaded ${c} document${c === 1 ? "" : "s"}${reupEn}`;
     }
     case "request.document_removed":
       return ar ? `تم حذف مستند: ${meta?.fileName ?? ""}` : `Document removed: ${meta?.fileName ?? ""}`;
