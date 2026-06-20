@@ -569,6 +569,7 @@ export type DxCreateRequestInput = {
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
+  clientType?: "individual" | "corporate";
 };
 
 export async function dxCreateRequest(input: DxCreateRequestInput): Promise<DemoRequest> {
@@ -582,6 +583,7 @@ export async function dxCreateRequest(input: DxCreateRequestInput): Promise<Demo
     customer_name: input.customerName ?? null,
     customer_email: input.customerEmail ?? null,
     customer_phone: input.customerPhone ?? null,
+    client_type: input.clientType ?? "individual",
   };
   body.agent = agentUuid;
   body.origin_agent = agentUuid;
