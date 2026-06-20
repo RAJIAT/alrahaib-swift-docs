@@ -484,6 +484,39 @@ function RequestDetails() {
                 downloadLabel={t.details.download}
               />
             ))}
+            {(req.images.tradeLicense ?? []).map((url, i) => (
+              <ImgCard
+                key={`tl-${i}`}
+                label={(lang === "ar" ? "الرخصة التجارية" : "Trade License") + (i > 0 ? ` ${i + 1}` : "")}
+                baseName={i === 0 ? "trade_license" : `trade_license_${i + 1}`}
+                url={url}
+                onZoom={(u, m, n) => { setZoom(u); setZoomMime(m); setZoomFilename(n); }}
+                pdfLabel={t.details.pdfDocument}
+                downloadLabel={t.details.download}
+              />
+            ))}
+            {(req.images.vatCertificate ?? []).map((url, i) => (
+              <ImgCard
+                key={`vat-${i}`}
+                label={(lang === "ar" ? "شهادة ضريبة القيمة المضافة" : "VAT Certificate") + (i > 0 ? ` ${i + 1}` : "")}
+                baseName={i === 0 ? "vat_certificate" : `vat_certificate_${i + 1}`}
+                url={url}
+                onZoom={(u, m, n) => { setZoom(u); setZoomMime(m); setZoomFilename(n); }}
+                pdfLabel={t.details.pdfDocument}
+                downloadLabel={t.details.download}
+              />
+            ))}
+            {(req.images.ownersEmiratesId ?? []).map((url, i) => (
+              <ImgCard
+                key={`oeid-${i}`}
+                label={(lang === "ar" ? "هوية المالك" : "Owner's Emirates ID") + (i === 0 ? "" : i === 1 ? (lang === "ar" ? " (الظهر)" : " (Back)") : ` ${i + 1}`)}
+                baseName={i === 0 ? "owners_emirates_id_front" : i === 1 ? "owners_emirates_id_back" : `owners_emirates_id_${i + 1}`}
+                url={url}
+                onZoom={(u, m, n) => { setZoom(u); setZoomMime(m); setZoomFilename(n); }}
+                pdfLabel={t.details.pdfDocument}
+                downloadLabel={t.details.download}
+              />
+            ))}
           </div>
 
           {/* Optional: vehicle inspection */}
