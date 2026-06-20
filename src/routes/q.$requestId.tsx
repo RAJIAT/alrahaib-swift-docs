@@ -156,8 +156,25 @@ function QuoteSharePage() {
               {quotes.map((q) => {
                 const isPdf = q.type === "application/pdf" || /\.pdf$/i.test(q.name);
                 const isImage = q.type.startsWith("image/");
+                const isSelected = (req.selectedQuoteId === q.id) || (!req.selectedQuoteId && selectedId === q.id);
+                const canPick = !req.quoteConfirmed && quotes.length > 1;
                 return (
-                  <li key={q.id} className="flex items-center gap-3 rounded-xl border border-border bg-surface p-3 shadow-soft">
+                  <li
+                    key={q.id}
+                    className={`flex items-center gap-3 rounded-xl border bg-surface p-3 shadow-soft transition ${
+                      isSelected ? "border-primary ring-2 ring-primary/30" : "border-border"
+                    } ${canPick ? "cursor-pointer hover:bg-muted/40" : ""}`}
+                    onClick={canPick ? () => setSelectedId(q.id) : undefined}
+                  >
+                    {canPick && (
+                      <input
+                        type="radio"
+                        name="quote-pick"
+                        checked={isSelected}
+                        onChange={() => setSelectedId(q.id)}
+                        className="h-4 w-4 accent-primary"
+                      />
+                    )}
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
                       <FileText className="h-6 w-6" />
                     </div>
@@ -167,12 +184,18 @@ function QuoteSharePage() {
                         {q.size > 0 ? `${(q.size / 1024).toFixed(0)} KB · ` : ""}
                         {isPdf ? "PDF" : isImage ? (ar ? "صورة" : "Image") : (q.type || "file")}
                         {" · "}{fmt(q.uploadedAt)}
+                        {req.selectedQuoteId === q.id && (
+                          <span className="ms-2 inline-flex items-center rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-bold text-success">
+                            {ar ? "تم اختياره" : "Selected"}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <a
                       href={q.url}
                       target="_blank"
                       rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
                       className="inline-flex h-9 items-center gap-1 rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-foreground shadow-soft transition hover:bg-muted"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
@@ -180,7 +203,7 @@ function QuoteSharePage() {
                     </a>
                     <button
                       type="button"
-                      onClick={() => downloadQuote(q)}
+                      onClick={(e) => { e.stopPropagation(); downloadQuote(q); }}
                       className="inline-flex h-9 items-center gap-1 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-soft transition active:scale-95"
                     >
                       <Download className="h-3.5 w-3.5" />
@@ -190,6 +213,11 @@ function QuoteSharePage() {
                 );
               })}
             </ul>
+          )}
+          {!req.quoteConfirmed && quotes.length > 1 && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              {ar ? "اختر عرض السعر المناسب ثم اضغط تأكيد." : "Select the quote you want, then tap Confirm."}
+            </p>
           )}
         </section>
 
