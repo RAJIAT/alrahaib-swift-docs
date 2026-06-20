@@ -404,7 +404,20 @@ function RequestDetails() {
           {/* Customer KYC */}
           {(req.customerName || req.customerEmail || req.customerPhone) && (
             <div className="mt-4 rounded-2xl border border-border bg-card p-5 shadow-card">
-              <h3 className="mb-3 text-sm font-bold text-foreground">{t.details.customer}</h3>
+              <div className="mb-3 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-foreground">{t.details.customer}</h3>
+                {req.clientType && (
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                    req.clientType === "corporate"
+                      ? "bg-info/15 text-info"
+                      : "bg-primary-soft text-primary"
+                  }`}>
+                    {req.clientType === "corporate"
+                      ? (lang === "ar" ? "عميل شركات" : "Corporate")
+                      : (lang === "ar" ? "عميل فردي" : "Individual")}
+                  </span>
+                )}
+              </div>
               <div className="grid gap-x-6 gap-y-1 text-sm text-muted-foreground sm:grid-cols-2">
                 {req.customerName && (
                   <div><span className="font-medium text-foreground">{t.details.customerName}:</span> {req.customerName}</div>
