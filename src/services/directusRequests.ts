@@ -867,6 +867,7 @@ export type PublicQuoteView = {
   createdAt: string;
   quoteConfirmed?: boolean;
   quoteConfirmedAt?: string;
+  selectedQuoteId?: string;
   paymentLink?: string;
   paymentMessage?: string;
   paymentLinkSentAt?: string;
@@ -883,12 +884,17 @@ export async function dxPublicGetQuote(requestId: string): Promise<PublicQuoteVi
   const base = (import.meta.env.VITE_DIRECTUS_URL as string | undefined)?.replace(/\/$/, "");
   if (!base) throw new Error("VITE_DIRECTUS_URL is not configured.");
   const reqFields = "id,customer_name,customer_email,customer_phone,quote_confirmed,quote_confirmed_at,payment_link,payment_message,payment_link_sent_at,date_created";
+  const reqFieldsExt = `${reqFields},selected_quote,client_type`;
   const fileFields = "id,request,kind,uploaded_at,file.id,file.filename_download,file.type,file.filesize";
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   // Try direct row first.
   let row: DxRequestRow | undefined;
   try {
-    const r = await fetch(`${base}/items/requests/${encodeURIComponent(requestId)}?fields=${reqFields}`, { headers });
+    let r = await fetch(`${base}/items/requests/${encodeURIComponent(requestId)}?fields=${reqFieldsExt}`, { headers });
+    if (!r.ok && (r.status === 400 || r.status === 403)) {
+      // Field may not exist yet; fall back to base fields.
+      r = await fetch(`${base}/items/requests/${encodeURIComponent(requestId)}?fields=${reqFields}`, { headers });
+    }
     if (r.status === 403 || r.status === 401) throw new Error("Public read not allowed on requests. Run scripts/directus-patch-public-quote.ts");
     if (r.ok) {
       const j = await r.json().catch(() => null) as { data?: DxRequestRow } | null;
