@@ -489,7 +489,7 @@ export async function dxListRequests(opts?: { agentUuid?: string; branchId?: num
   try {
     r = await dxRequest<{ data: DxRequestRow[] }>(url);
   } catch (e) {
-    if (!/quote_confirmed|payment_link|payment_message/i.test((e as Error)?.message ?? "")) throw e;
+    if (!/quote_confirmed|payment_link|payment_message|client_type|selected_quote/i.test((e as Error)?.message ?? "")) throw e;
     url = `/items/requests${qsFor(REQ_BASE_FIELDS)}`;
     r = await dxRequest<{ data: DxRequestRow[] }>(url);
   }
@@ -527,7 +527,7 @@ export async function dxGetRequest(id: string): Promise<DemoRequest | null> {
     );
     row = direct.data;
   } catch (firstError) {
-    if (/quote_confirmed|payment_link|payment_message/i.test((firstError as Error)?.message ?? "")) {
+    if (/quote_confirmed|payment_link|payment_message|client_type|selected_quote/i.test((firstError as Error)?.message ?? "")) {
       try {
         const direct = await dxRequest<{ data: DxRequestRow }>(
           `/items/requests/${encodeURIComponent(id)}?fields=${REQ_BASE_FIELDS}`,
@@ -603,7 +603,7 @@ export async function dxCreateRequest(input: DxCreateRequestInput): Promise<Demo
       { method: "POST", body: JSON.stringify(body) },
     );
   } catch (e) {
-    if (!/quote_confirmed|payment_link|payment_message/i.test((e as Error)?.message ?? "")) throw e;
+    if (!/quote_confirmed|payment_link|payment_message|client_type|selected_quote/i.test((e as Error)?.message ?? "")) throw e;
     r = await dxRequest<{ data: DxRequestRow }>(
       `/items/requests?fields=${REQ_BASE_FIELDS}`,
       { method: "POST", body: JSON.stringify(body) },
@@ -638,7 +638,7 @@ export async function dxPatchRequest(id: string, patch: Record<string, unknown>)
     );
   } catch (e) {
     const includesNewFields = ["quote_confirmed", "quote_confirmed_at", "payment_link", "payment_message", "payment_link_sent_at"].some((k) => k in patch);
-    if (includesNewFields || !/quote_confirmed|payment_link|payment_message/i.test((e as Error)?.message ?? "")) throw e;
+    if (includesNewFields || !/quote_confirmed|payment_link|payment_message|client_type|selected_quote/i.test((e as Error)?.message ?? "")) throw e;
     r = await dxRequest<{ data: DxRequestRow } | undefined>(
       `/items/requests/${encodeURIComponent(id)}?fields=${REQ_BASE_FIELDS}`,
       { method: "PATCH", body: JSON.stringify(patch) },
