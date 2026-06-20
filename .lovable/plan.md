@@ -62,6 +62,7 @@ This plan covers the corporate upload flow and all 6 items from the uploaded fee
   - Persist `refresh_token` and rotate on each refresh.
 - `enforceActiveSession` no longer clears the session on a transient network error — only on a confirmed deactivated/`401 invalid_credentials` response.
 - If refresh truly fails, show a toast: EN `Your session has expired. Please sign in again.` / AR `انتهت جلستك، يرجى تسجيل الدخول مرة أخرى.` before redirecting to `/login`.
+- **Deactivated-user guard is preserved and runs independently of the refresh path.** A successful token refresh MUST NOT bypass the `app_active` check: after any refresh or session restore, re-run `enforceActiveSession` (read `users/me?fields=app_active,status`) and, if `app_active === false` or `status !== 'active'`, clear tokens + cached user and redirect to `/login` with the existing deactivated message (EN/AR). Refresh-retry only suppresses transient errors, never a confirmed deactivation.
 
 ---
 
