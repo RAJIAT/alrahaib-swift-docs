@@ -18,6 +18,7 @@ function QuoteSharePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -66,10 +67,16 @@ function QuoteSharePage() {
 
   const confirmQuote = async () => {
     if (!req || confirming || req.quoteConfirmed) return;
+    const quotes = req.quotes ?? [];
+    const chosen = quotes.length > 1 ? selectedId : (quotes[0]?.id ?? null);
+    if (quotes.length > 1 && !chosen) {
+      setError(lang === "ar" ? "يرجى اختيار عرض السعر أولاً" : "Please select a quote first");
+      return;
+    }
     setConfirming(true);
     setError(null);
     try {
-      await confirmQuoteByCustomer(req.id);
+      await confirmQuoteByCustomer(req.id, chosen ?? undefined);
       const fresh = await dxPublicGetQuote(req.id);
       if (fresh) setReq(fresh);
     } catch (e) {
