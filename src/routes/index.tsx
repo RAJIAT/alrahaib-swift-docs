@@ -196,13 +196,36 @@ function UploadPage() {
     } catch (err) {
       console.error("Upload failed:", err);
       const raw = err instanceof Error ? err.message : String(err);
-      // Never expose internal Directus permission/field text to the customer.
-      const isInternal = /directus_files|permission to access|Queried in/i.test(raw);
-      const friendly = isInternal
-        ? dir === "rtl"
-          ? "تعذّر رفع الملفات. حاول مرة أخرى أو استخدم صور أصغر."
-          : "Could not upload your files. Please try again or use smaller images."
-        : `${dir === "rtl" ? "تعذّر الرفع" : "Upload failed"}: ${raw}`;
+      const status = (err as { status?: number })?.status;
+      const code = (err as { code?: string })?.code;
+      const isAr = dir === "rtl";
+      let friendly: string;
+      if (code === "CONTENT_TOO_LARGE" || status === 413 || /UPLOAD_TOO_LARGE/i.test(raw)) {
+        friendly = isAr
+          ? `الملف كبير جداً. الحد الأقصى لكل ملف هو 25 ميغابايت. (${raw})`
+          : `File too large. The per-file limit is 25 MB. (${raw})`;
+      } else if (code === "FORBIDDEN" || status === 401 || status === 403 || /UPLOAD_FORBIDDEN|permission/i.test(raw)) {
+        console.warn("[upload] permission denied — check public policy grants on directus_files.create, request_files.create, and requests.create/update (incl. client_type field).");
+        friendly = isAr
+          ? "تعذّر الرفع: صلاحيات الرفع للزوار غير مكتملة. يرجى إبلاغ الوكيل."
+          : "Upload blocked: public upload permissions are incomplete. Please contact your agent.";
+      } else if (code === "NETWORK" || /UPLOAD_NETWORK|Failed to fetch|NetworkError/i.test(raw)) {
+        friendly = isAr
+          ? "تعذّر الاتصال بالخادم. تحقق من الإنترنت وأعد المحاولة."
+          : "Could not reach the server. Check your connection and try again.";
+      } else if (/file type|mime|unsupported/i.test(raw)) {
+        friendly = isAr
+          ? `نوع الملف غير مدعوم: ${raw}`
+          : `Unsupported file type: ${raw}`;
+      } else if (/directus_files|Queried in/i.test(raw)) {
+        // Internal Directus text — keep generic but log full detail.
+        console.warn("[upload] internal Directus error surfaced", raw);
+        friendly = isAr
+          ? "تعذّر رفع الملفات. حاول مرة أخرى أو تواصل مع الوكيل."
+          : "Could not upload your files. Please try again or contact your agent.";
+      } else {
+        friendly = `${isAr ? "تعذّر الرفع" : "Upload failed"}: ${raw}`;
+      }
       toast.error(friendly);
       setDone(false);
       setSubmitting(false);
