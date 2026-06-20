@@ -65,6 +65,11 @@ function UploadPage() {
   const [registration, setRegistration] = useState<File[]>([]);
   const [emirates, setEmirates] = useState<File[]>([]);
   const [license, setLicense] = useState<File[]>([]);
+  // Corporate documents
+  const [tradeLicense, setTradeLicense] = useState<File[]>([]);
+  const [vatCertificate, setVatCertificate] = useState<File[]>([]);
+  const [ownersEmiratesId, setOwnersEmiratesId] = useState<File[]>([]);
+  const [clientType, setClientType] = useState<ClientType | null>(null);
   // Optional documents
   const [vehicleMedia, setVehicleMedia] = useState<File[]>([]);
   const [inspectionFiles, setInspectionFiles] = useState<File[]>([]);
@@ -83,10 +88,16 @@ function UploadPage() {
     kycRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  const isCorporate = clientType === "corporate";
   const registrationOk = registration.length >= 1;
   const emiratesOk = emirates.length >= 1;
   const licenseOk = license.length >= 1;
-  const completed = [registrationOk, emiratesOk, licenseOk].filter(Boolean).length;
+  const tradeLicenseOk = tradeLicense.length >= 1;
+  const vatCertOk = vatCertificate.length >= 1;
+  const ownersEidOk = ownersEmiratesId.length >= 1;
+  const completed = isCorporate
+    ? [tradeLicenseOk, vatCertOk, ownersEidOk].filter(Boolean).length
+    : [registrationOk, emiratesOk, licenseOk].filter(Boolean).length;
   const docsReady = completed === 3;
   const remaining = 3 - completed;
 
