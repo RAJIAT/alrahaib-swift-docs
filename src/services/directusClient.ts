@@ -162,13 +162,16 @@ export type DirectusError = Error & { status: number; body?: string };
 
 function buildError(status: number, body: string): DirectusError {
   let msg = body || `HTTP ${status}`;
+  let code: string | undefined;
   try {
     const j = JSON.parse(body);
     if (j?.errors?.[0]?.message) msg = j.errors[0].message;
+    code = j?.errors?.[0]?.extensions?.code;
   } catch { /* keep body */ }
   const e = new Error(msg) as DirectusError;
   e.status = status;
   e.body = body;
+  (e as DirectusError & { code?: string }).code = code;
   return e;
 }
 
@@ -389,17 +392,62 @@ export function dxIsAssetUrl(s: string): boolean {
  */
 export async function dxUploadFile(file: File): Promise<UploadedFile> {
   if (!URL_BASE) throw new Error("VITE_DIRECTUS_URL is not configured.");
+  // Public upload error categorisation — surface specific failures so the UI
+  // can show a clear message instead of a generic one.
+  // Hard cap matches typical Directus / nginx defaults. Adjust if the server
+  // is configured higher.
+  const MAX_BYTES = 25 * 1024 * 1024;
+  if (file.size > MAX_BYTES) {
+    const mb = (file.size / (1024 * 1024)).toFixed(1);
+    const err = new Error(
+      `UPLOAD_TOO_LARGE: "${file.name}" is ${mb} MB (max 25 MB).`,
+    ) as DirectusError & { code?: string };
+    err.status = 413;
+    err.code = "CONTENT_TOO_LARGE";
+    console.warn("[dxUploadFile] rejected client-side (too large)", { name: file.name, size: file.size, max: MAX_BYTES });
+    throw err;
+  }
   const fd = new FormData();
   fd.append("file", file, file.name);
   // Pass auth header only if signed in (public uploads don't have one).
   const token = await ensureFreshToken();
-  const res = await fetch(`${URL_BASE}/files`, {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: fd,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${URL_BASE}/files`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    });
+  } catch (netErr) {
+    console.warn("[dxUploadFile] network error", { name: file.name, size: file.size, error: netErr });
+    const e = new Error(`UPLOAD_NETWORK: ${(netErr as Error).message ?? "network error"}`) as DirectusError & { code?: string };
+    e.status = 0;
+    e.code = "NETWORK";
+    throw e;
+  }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    console.warn("[dxUploadFile] server rejected file", {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      status: res.status,
+      body: body.slice(0, 500),
+    });
+    if (res.status === 413) {
+      const err = new Error(`UPLOAD_TOO_LARGE: server rejected "${file.name}" (HTTP 413).`) as DirectusError & { code?: string };
+      err.status = 413;
+      err.code = "CONTENT_TOO_LARGE";
+      err.body = body;
+      throw err;
+    }
+    if (res.status === 401 || res.status === 403) {
+      const err = new Error(`UPLOAD_FORBIDDEN: public upload permission missing for directus_files.create (HTTP ${res.status}).`) as DirectusError & { code?: string };
+      err.status = res.status;
+      err.code = "FORBIDDEN";
+      err.body = body;
+      throw err;
+    }
     throw buildError(res.status, body);
   }
   const j = (await res.json()) as {
