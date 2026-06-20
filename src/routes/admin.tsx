@@ -36,6 +36,7 @@ function AdminDashboard() {
   const [branchF, setBranchF] = useState(lockedBranch);
   const [statusF, setStatusF] = useState<"" | RequestStatus>("");
   const [dateF, setDateF] = useState("");
+  const [searchF, setSearchF] = useState("");
   const [isPending, startTransition] = useTransition();
 
   // Stable agents/branches snapshot — refreshed only on subscription change.
@@ -66,6 +67,7 @@ function AdminDashboard() {
 
   // Defer date input — only field that fires per keystroke.
   const deferredDate = useDeferredValue(dateF);
+  const deferredSearch = useDeferredValue(searchF);
 
   const agentNameMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -129,9 +131,14 @@ function AdminDashboard() {
         if (branchF && r.branch !== branchF) return false;
         if (statusF && r.status !== statusF) return false;
         if (deferredDate && !r.createdAt.startsWith(deferredDate)) return false;
+        if (deferredSearch) {
+          const q = deferredSearch.trim().toLowerCase();
+          const hay = `${r.id} ${r.customerName ?? ""}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
         return true;
       }),
-    [items, agentF, branchF, statusF, deferredDate],
+    [items, agentF, branchF, statusF, deferredDate, deferredSearch],
   );
 
   const today = new Date().toISOString().slice(0, 10);
