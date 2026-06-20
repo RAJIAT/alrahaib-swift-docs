@@ -495,3 +495,30 @@ function TrustBadge({ icon: Icon, title, sub }: { icon: typeof Clock; title: str
   );
 }
 
+function ClientTypeButton({
+  icon: Icon, label, sub, active, onClick,
+}: { icon: typeof Clock; label: string; sub: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-3 rounded-2xl border-2 p-4 text-start transition active:scale-[0.99] ${
+        active
+          ? "border-primary bg-primary-soft/40"
+          : "border-border bg-card hover:border-primary/50"
+      }`}
+    >
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+        active ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+      }`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-foreground">{label}</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>
+      </div>
+      {active && <Check className="h-4 w-4 text-primary" />}
+    </button>
+  );
+}
+
