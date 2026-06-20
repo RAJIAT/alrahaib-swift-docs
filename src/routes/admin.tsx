@@ -154,7 +154,7 @@ function AdminDashboard() {
 
   const Chevron = dir === "rtl" ? ChevronLeft : ChevronRight;
   const reset = () => startTransition(() => {
-    setAgentF(""); setBranchF(""); setStatusF(""); setDateF("");
+    setAgentF(""); setBranchF(""); setStatusF(""); setDateF(""); setSearchF("");
   });
 
   const wrap = (fn: (v: string) => void) => (v: string) => startTransition(() => fn(v));
