@@ -52,6 +52,8 @@ type DxRequestRow = {
   customer_name?: string | null;
   customer_email?: string | null;
   customer_phone?: string | null;
+  client_type?: "individual" | "corporate" | null;
+  selected_quote?: string | null;
   quote_confirmed?: boolean | null;
   quote_confirmed_at?: string | null;
   payment_link?: string | null;
@@ -81,7 +83,10 @@ export type RequestFileKind =
   | "inspection"
   | "attachment"
   | "missing_attachment"
-  | "quote";
+  | "quote"
+  | "trade_license"
+  | "vat_certificate"
+  | "owners_emirates_id";
 
 type DxFileObj = { id: string; filename_download: string; type: string; filesize: number };
 
@@ -371,6 +376,9 @@ function buildImages(files: DxRequestFileRow[]): DemoRequest["images"] {
     inspection: inspectionRow ? dxAssetUrl(fileObj(inspectionRow)?.id ?? "") : undefined,
     attachments,
     ...(missingAttachments.length ? { missingAttachments } : {}),
+    tradeLicense: urls(byKind("trade_license")),
+    vatCertificate: urls(byKind("vat_certificate")),
+    ownersEmiratesId: urls(byKind("owners_emirates_id")),
   };
 }
 
@@ -425,6 +433,8 @@ function requestFromRow(
     customerName: r.customer_name ?? undefined,
     customerEmail: r.customer_email ?? undefined,
     customerPhone: r.customer_phone ?? undefined,
+    clientType: (r.client_type ?? undefined) as DemoRequest["clientType"],
+    selectedQuoteId: r.selected_quote ?? undefined,
     quoteConfirmed: r.quote_confirmed === true,
     quoteConfirmedAt: r.quote_confirmed_at ?? undefined,
     paymentLink: r.payment_link ?? undefined,
@@ -448,7 +458,7 @@ async function ensureEntitiesCached(): Promise<void> {
 const REQ_BASE_FIELDS =
   "id,uuid,agent,origin_agent,assigned_underwriter,branch,status,customer_name,customer_email,customer_phone,assigned_at,date_created";
 const REQ_FIELDS =
-  `${REQ_BASE_FIELDS},quote_confirmed,quote_confirmed_at,payment_link,payment_message,payment_link_sent_at`;
+  `${REQ_BASE_FIELDS},quote_confirmed,quote_confirmed_at,payment_link,payment_message,payment_link_sent_at,client_type,selected_quote`;
 const NOTE_FIELDS =
   "id,request,author,author_role,text,kind,resolved_at,date_created";
 const FILE_FIELDS =
@@ -479,7 +489,7 @@ export async function dxListRequests(opts?: { agentUuid?: string; branchId?: num
   try {
     r = await dxRequest<{ data: DxRequestRow[] }>(url);
   } catch (e) {
-    if (!/quote_confirmed|payment_link|payment_message/i.test((e as Error)?.message ?? "")) throw e;
+    if (!/quote_confirmed|payment_link|payment_message|client_type|selected_quote/i.test((e as Error)?.message ?? "")) throw e;
     url = `/items/requests${qsFor(REQ_BASE_FIELDS)}`;
     r = await dxRequest<{ data: DxRequestRow[] }>(url);
   }
@@ -517,7 +527,7 @@ export async function dxGetRequest(id: string): Promise<DemoRequest | null> {
     );
     row = direct.data;
   } catch (firstError) {
-    if (/quote_confirmed|payment_link|payment_message/i.test((firstError as Error)?.message ?? "")) {
+    if (/quote_confirmed|payment_link|payment_message|client_type|selected_quote/i.test((firstError as Error)?.message ?? "")) {
       try {
         const direct = await dxRequest<{ data: DxRequestRow }>(
           `/items/requests/${encodeURIComponent(id)}?fields=${REQ_BASE_FIELDS}`,
@@ -559,6 +569,7 @@ export type DxCreateRequestInput = {
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
+  clientType?: "individual" | "corporate";
 };
 
 export async function dxCreateRequest(input: DxCreateRequestInput): Promise<DemoRequest> {
@@ -572,6 +583,7 @@ export async function dxCreateRequest(input: DxCreateRequestInput): Promise<Demo
     customer_name: input.customerName ?? null,
     customer_email: input.customerEmail ?? null,
     customer_phone: input.customerPhone ?? null,
+    client_type: input.clientType ?? "individual",
   };
   body.agent = agentUuid;
   body.origin_agent = agentUuid;
@@ -591,7 +603,7 @@ export async function dxCreateRequest(input: DxCreateRequestInput): Promise<Demo
       { method: "POST", body: JSON.stringify(body) },
     );
   } catch (e) {
-    if (!/quote_confirmed|payment_link|payment_message/i.test((e as Error)?.message ?? "")) throw e;
+    if (!/quote_confirmed|payment_link|payment_message|client_type|selected_quote/i.test((e as Error)?.message ?? "")) throw e;
     r = await dxRequest<{ data: DxRequestRow }>(
       `/items/requests?fields=${REQ_BASE_FIELDS}`,
       { method: "POST", body: JSON.stringify(body) },
@@ -626,7 +638,7 @@ export async function dxPatchRequest(id: string, patch: Record<string, unknown>)
     );
   } catch (e) {
     const includesNewFields = ["quote_confirmed", "quote_confirmed_at", "payment_link", "payment_message", "payment_link_sent_at"].some((k) => k in patch);
-    if (includesNewFields || !/quote_confirmed|payment_link|payment_message/i.test((e as Error)?.message ?? "")) throw e;
+    if (includesNewFields || !/quote_confirmed|payment_link|payment_message|client_type|selected_quote/i.test((e as Error)?.message ?? "")) throw e;
     r = await dxRequest<{ data: DxRequestRow } | undefined>(
       `/items/requests/${encodeURIComponent(id)}?fields=${REQ_BASE_FIELDS}`,
       { method: "PATCH", body: JSON.stringify(patch) },
@@ -855,6 +867,7 @@ export type PublicQuoteView = {
   createdAt: string;
   quoteConfirmed?: boolean;
   quoteConfirmedAt?: string;
+  selectedQuoteId?: string;
   paymentLink?: string;
   paymentMessage?: string;
   paymentLinkSentAt?: string;
@@ -871,12 +884,17 @@ export async function dxPublicGetQuote(requestId: string): Promise<PublicQuoteVi
   const base = (import.meta.env.VITE_DIRECTUS_URL as string | undefined)?.replace(/\/$/, "");
   if (!base) throw new Error("VITE_DIRECTUS_URL is not configured.");
   const reqFields = "id,customer_name,customer_email,customer_phone,quote_confirmed,quote_confirmed_at,payment_link,payment_message,payment_link_sent_at,date_created";
+  const reqFieldsExt = `${reqFields},selected_quote,client_type`;
   const fileFields = "id,request,kind,uploaded_at,file.id,file.filename_download,file.type,file.filesize";
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   // Try direct row first.
   let row: DxRequestRow | undefined;
   try {
-    const r = await fetch(`${base}/items/requests/${encodeURIComponent(requestId)}?fields=${reqFields}`, { headers });
+    let r = await fetch(`${base}/items/requests/${encodeURIComponent(requestId)}?fields=${reqFieldsExt}`, { headers });
+    if (!r.ok && (r.status === 400 || r.status === 403)) {
+      // Field may not exist yet; fall back to base fields.
+      r = await fetch(`${base}/items/requests/${encodeURIComponent(requestId)}?fields=${reqFields}`, { headers });
+    }
     if (r.status === 403 || r.status === 401) throw new Error("Public read not allowed on requests. Run scripts/directus-patch-public-quote.ts");
     if (r.ok) {
       const j = await r.json().catch(() => null) as { data?: DxRequestRow } | null;
@@ -937,6 +955,7 @@ export async function dxPublicGetQuote(requestId: string): Promise<PublicQuoteVi
     createdAt: row.date_created ?? new Date().toISOString(),
     quoteConfirmed: row.quote_confirmed === true,
     quoteConfirmedAt: row.quote_confirmed_at ?? undefined,
+    selectedQuoteId: row.selected_quote ?? undefined,
     paymentLink: row.payment_link ?? undefined,
     paymentMessage: row.payment_message ?? undefined,
     paymentLinkSentAt: row.payment_link_sent_at ?? undefined,
@@ -944,19 +963,34 @@ export async function dxPublicGetQuote(requestId: string): Promise<PublicQuoteVi
   };
 }
 
-export async function dxPublicConfirmQuote(requestId: string): Promise<PublicQuoteView | null> {
+export async function dxPublicConfirmQuote(requestId: string, selectedQuoteId?: string): Promise<PublicQuoteView | null> {
   const base = (import.meta.env.VITE_DIRECTUS_URL as string | undefined)?.replace(/\/$/, "");
   if (!base) throw new Error("VITE_DIRECTUS_URL is not configured.");
   const now = new Date().toISOString();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const payload: Record<string, unknown> = { quote_confirmed: true, quote_confirmed_at: now };
+  if (selectedQuoteId) payload.selected_quote = selectedQuoteId;
   const res = await fetch(`${base}/items/requests/${encodeURIComponent(requestId)}`, {
     method: "PATCH",
     headers,
-    body: JSON.stringify({ quote_confirmed: true, quote_confirmed_at: now }),
+    body: JSON.stringify(payload),
   });
   if (res.status === 403 || res.status === 401) {
     throw new Error("Public quote confirmation is not allowed. Run scripts/directus-patch-public-quote.ts");
   }
-  if (!res.ok) throw new Error(await res.text().catch(() => "Failed to confirm quote"));
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    // If the column doesn't exist on this Directus instance yet, retry without it.
+    if (selectedQuoteId && /selected_quote/i.test(body)) {
+      const res2 = await fetch(`${base}/items/requests/${encodeURIComponent(requestId)}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ quote_confirmed: true, quote_confirmed_at: now }),
+      });
+      if (!res2.ok) throw new Error(body || "Failed to confirm quote");
+    } else {
+      throw new Error(body || "Failed to confirm quote");
+    }
+  }
   return dxPublicGetQuote(requestId);
 }

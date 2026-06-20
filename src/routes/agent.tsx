@@ -172,6 +172,27 @@ function AgentDashboardContent() {
     [items],
   );
 
+  const [search, setSearch] = useState("");
+  const agentsList = useMemo(() => listAgents(), [items]);
+  const agentById = useMemo(() => {
+    const m = new Map<string, ReturnType<typeof listAgents>[number]>();
+    for (const a of agentsList) m.set(a.id, a);
+    return m;
+  }, [agentsList]);
+  const resolveUW = (r: DashboardRequest): string => {
+    if (r.assignedUnderwriterId) {
+      const u = agentById.get(r.assignedUnderwriterId);
+      if (u) return u.name;
+    }
+    const owner = agentById.get(r.agentId);
+    if (owner?.staffType === "underwriter") return owner.name;
+    if (owner?.staffType === "sales" && owner.assignedUnderwriterId) {
+      const u = agentById.get(owner.assignedUnderwriterId);
+      if (u) return u.name;
+    }
+    return t.table.notAssigned;
+  };
+
   const counts = useMemo(
     () => ({
       all: safeItems.length,
@@ -189,8 +210,15 @@ function AgentDashboardContent() {
   const stats = { total: counts.all, newReq: counts.new, sales: counts.sold };
 
   const filteredItems = useMemo(
-    () => (filter === "all" ? safeItems : safeItems.filter((r) => r.status === filter)),
-    [safeItems, filter],
+    () => {
+      const base = filter === "all" ? safeItems : safeItems.filter((r) => r.status === filter);
+      if (!search.trim()) return base;
+      const q = search.trim().toLowerCase();
+      return base.filter((r) =>
+        `${r.id} ${r.customerName ?? ""}`.toLowerCase().includes(q)
+      );
+    },
+    [safeItems, filter, search],
   );
 
   const tabs: { key: StatusFilter; label: string; tone: string }[] = [
@@ -274,12 +302,26 @@ function AgentDashboardContent() {
         </div>
       </div>
 
+      <div className="mb-4">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={lang === "ar" ? "ابحث برقم الطلب أو اسم العميل…" : "Search by Request ID or Customer Name…"}
+          className="h-11 w-full rounded-xl border border-input bg-surface px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+        />
+      </div>
+
       {/* Desktop table */}
       <div className="hidden overflow-hidden rounded-2xl border border-border bg-card shadow-card md:block">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-muted-foreground">
             <tr className={dir === "rtl" ? "text-right" : "text-left"}>
               <th className="px-5 py-3 font-semibold">{t.table.requestId}</th>
+              <th className="px-5 py-3 font-semibold">{t.table.customer}</th>
+              {!isUnderwriter && (
+                <th className="px-5 py-3 font-semibold">{t.table.underwriter}</th>
+              )}
               <th className="px-5 py-3 font-semibold">{t.table.date}</th>
               <th className="px-5 py-3 font-semibold">{t.table.status}</th>
               <th className="px-5 py-3 font-semibold">{t.table.action}</th>
@@ -288,13 +330,13 @@ function AgentDashboardContent() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="px-5 py-12 text-center text-muted-foreground">
+                <td colSpan={isUnderwriter ? 5 : 6} className="px-5 py-12 text-center text-muted-foreground">
                   …
                 </td>
               </tr>
             ) : filteredItems.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-5 py-8">
+                <td colSpan={isUnderwriter ? 5 : 6} className="px-5 py-8">
                   <EmptyState
                     icon={<Inbox className="h-7 w-7" />}
                     title={t.agent.emptyTitle}
@@ -306,6 +348,10 @@ function AgentDashboardContent() {
               filteredItems.map((r) => (
                 <tr key={r.id} className="border-t border-border transition hover:bg-muted/30">
                   <td className="px-5 py-4 font-semibold text-foreground">{r.id}</td>
+                  <td className="px-5 py-4 text-foreground">{r.customerName ?? "—"}</td>
+                  {!isUnderwriter && (
+                    <td className="px-5 py-4 text-foreground">{resolveUW(r)}</td>
+                  )}
                   <td className="px-5 py-4 text-muted-foreground">
                     {formatDashboardDate(r.createdAt, lang)}
                   </td>
@@ -353,6 +399,14 @@ function AgentDashboardContent() {
                     <span className="font-bold text-foreground">{r.id}</span>
                     <StatusBadge status={r.status} />
                   </div>
+                  {r.customerName && (
+                    <div className="mt-0.5 text-xs text-foreground">{r.customerName}</div>
+                  )}
+                  {!isUnderwriter && (
+                    <div className="text-[11px] text-muted-foreground">
+                      {t.table.underwriter}: {resolveUW(r)}
+                    </div>
+                  )}
                   <div className="mt-1 text-xs text-muted-foreground">
                     {formatDashboardDate(r.createdAt, lang)}
                   </div>
@@ -396,6 +450,7 @@ type DashboardRequest = {
   status: RequestStatus;
   createdAt: string;
   agentId: string;
+  customerName?: string;
   assignedUnderwriterId?: string;
   assignedUnderwriterUserId?: string;
 };
@@ -461,6 +516,7 @@ function normalizeRequestForDashboard(
     status: safeStatus(req?.status),
     createdAt: safeText(req?.createdAt, ""),
     agentId: safeText(req?.agentId, ""),
+    customerName: req?.customerName ?? undefined,
     assignedUnderwriterId: safeText(req?.assignedUnderwriterId, ""),
     assignedUnderwriterUserId: safeText(req?.assignedUnderwriterUserId, ""),
   };

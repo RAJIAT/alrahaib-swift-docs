@@ -241,6 +241,24 @@ function RequestDetails() {
     (req.images.vehicleMedia ?? []).forEach((m, i) => {
       if (m.kind === "image") list.push({ url: m.url, baseName: `vehicle_${i + 1}` });
     });
+    (req.images.attachments ?? []).forEach((a, i) =>
+      list.push({ url: a.url, baseName: `attachment_${i + 1}_${(a.name || "file").replace(/\.[^.]+$/, "")}` }),
+    );
+    (req.images.missingAttachments ?? []).forEach((a, i) =>
+      list.push({ url: a.url, baseName: `reupload_${i + 1}_${(a.name || "file").replace(/\.[^.]+$/, "")}` }),
+    );
+    (req.images.tradeLicense ?? []).forEach((u, i) =>
+      list.push({ url: u, baseName: i === 0 ? "trade_license" : `trade_license_${i + 1}` }),
+    );
+    (req.images.vatCertificate ?? []).forEach((u, i) =>
+      list.push({ url: u, baseName: i === 0 ? "vat_certificate" : `vat_certificate_${i + 1}` }),
+    );
+    (req.images.ownersEmiratesId ?? []).forEach((u, i) =>
+      list.push({ url: u, baseName: i === 0 ? "owners_emirates_id_front" : i === 1 ? "owners_emirates_id_back" : `owners_emirates_id_${i + 1}` }),
+    );
+    (req.quotes ?? []).forEach((q, i) =>
+      list.push({ url: q.url, baseName: `quote_${i + 1}_${(q.name || "quote").replace(/\.[^.]+$/, "")}` }),
+    );
     return list;
   }, [req]);
 
@@ -386,7 +404,20 @@ function RequestDetails() {
           {/* Customer KYC */}
           {(req.customerName || req.customerEmail || req.customerPhone) && (
             <div className="mt-4 rounded-2xl border border-border bg-card p-5 shadow-card">
-              <h3 className="mb-3 text-sm font-bold text-foreground">{t.details.customer}</h3>
+              <div className="mb-3 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-foreground">{t.details.customer}</h3>
+                {req.clientType && (
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                    req.clientType === "corporate"
+                      ? "bg-info/15 text-info"
+                      : "bg-primary-soft text-primary"
+                  }`}>
+                    {req.clientType === "corporate"
+                      ? (lang === "ar" ? "عميل شركات" : "Corporate")
+                      : (lang === "ar" ? "عميل فردي" : "Individual")}
+                  </span>
+                )}
+              </div>
               <div className="grid gap-x-6 gap-y-1 text-sm text-muted-foreground sm:grid-cols-2">
                 {req.customerName && (
                   <div><span className="font-medium text-foreground">{t.details.customerName}:</span> {req.customerName}</div>
@@ -447,6 +478,39 @@ function RequestDetails() {
                 key={`eid-${i}`}
                 label={i === 0 ? t.details.emiratesFront : i === 1 ? t.details.emiratesBack : `${t.details.emirates} ${i + 1}`}
                 baseName={i === 0 ? "emirates_front" : i === 1 ? "emirates_back" : `emirates_${i + 1}`}
+                url={url}
+                onZoom={(u, m, n) => { setZoom(u); setZoomMime(m); setZoomFilename(n); }}
+                pdfLabel={t.details.pdfDocument}
+                downloadLabel={t.details.download}
+              />
+            ))}
+            {(req.images.tradeLicense ?? []).map((url, i) => (
+              <ImgCard
+                key={`tl-${i}`}
+                label={(lang === "ar" ? "الرخصة التجارية" : "Trade License") + (i > 0 ? ` ${i + 1}` : "")}
+                baseName={i === 0 ? "trade_license" : `trade_license_${i + 1}`}
+                url={url}
+                onZoom={(u, m, n) => { setZoom(u); setZoomMime(m); setZoomFilename(n); }}
+                pdfLabel={t.details.pdfDocument}
+                downloadLabel={t.details.download}
+              />
+            ))}
+            {(req.images.vatCertificate ?? []).map((url, i) => (
+              <ImgCard
+                key={`vat-${i}`}
+                label={(lang === "ar" ? "شهادة ضريبة القيمة المضافة" : "VAT Certificate") + (i > 0 ? ` ${i + 1}` : "")}
+                baseName={i === 0 ? "vat_certificate" : `vat_certificate_${i + 1}`}
+                url={url}
+                onZoom={(u, m, n) => { setZoom(u); setZoomMime(m); setZoomFilename(n); }}
+                pdfLabel={t.details.pdfDocument}
+                downloadLabel={t.details.download}
+              />
+            ))}
+            {(req.images.ownersEmiratesId ?? []).map((url, i) => (
+              <ImgCard
+                key={`oeid-${i}`}
+                label={(lang === "ar" ? "هوية المالك" : "Owner's Emirates ID") + (i === 0 ? "" : i === 1 ? (lang === "ar" ? " (الظهر)" : " (Back)") : ` ${i + 1}`)}
+                baseName={i === 0 ? "owners_emirates_id_front" : i === 1 ? "owners_emirates_id_back" : `owners_emirates_id_${i + 1}`}
                 url={url}
                 onZoom={(u, m, n) => { setZoom(u); setZoomMime(m); setZoomFilename(n); }}
                 pdfLabel={t.details.pdfDocument}

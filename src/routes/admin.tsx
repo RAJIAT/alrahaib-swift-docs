@@ -36,6 +36,7 @@ function AdminDashboard() {
   const [branchF, setBranchF] = useState(lockedBranch);
   const [statusF, setStatusF] = useState<"" | RequestStatus>("");
   const [dateF, setDateF] = useState("");
+  const [searchF, setSearchF] = useState("");
   const [isPending, startTransition] = useTransition();
 
   // Stable agents/branches snapshot — refreshed only on subscription change.
@@ -66,6 +67,7 @@ function AdminDashboard() {
 
   // Defer date input — only field that fires per keystroke.
   const deferredDate = useDeferredValue(dateF);
+  const deferredSearch = useDeferredValue(searchF);
 
   const agentNameMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -129,9 +131,14 @@ function AdminDashboard() {
         if (branchF && r.branch !== branchF) return false;
         if (statusF && r.status !== statusF) return false;
         if (deferredDate && !r.createdAt.startsWith(deferredDate)) return false;
+        if (deferredSearch) {
+          const q = deferredSearch.trim().toLowerCase();
+          const hay = `${r.id} ${r.customerName ?? ""}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
         return true;
       }),
-    [items, agentF, branchF, statusF, deferredDate],
+    [items, agentF, branchF, statusF, deferredDate, deferredSearch],
   );
 
   const today = new Date().toISOString().slice(0, 10);
@@ -147,7 +154,7 @@ function AdminDashboard() {
 
   const Chevron = dir === "rtl" ? ChevronLeft : ChevronRight;
   const reset = () => startTransition(() => {
-    setAgentF(""); setBranchF(""); setStatusF(""); setDateF("");
+    setAgentF(""); setBranchF(""); setStatusF(""); setDateF(""); setSearchF("");
   });
 
   const wrap = (fn: (v: string) => void) => (v: string) => startTransition(() => fn(v));
@@ -162,6 +169,10 @@ function AdminDashboard() {
     const rows = filtered.map((r) => ({
       [t.table.requestId]: r.id,
       [t.table.customer]: r.customerName ?? "",
+      [lang === "ar" ? "نوع العميل" : "Client Type"]:
+        r.clientType === "corporate"
+          ? (lang === "ar" ? "شركات" : "Corporate")
+          : (lang === "ar" ? "فردي" : "Individual"),
       [t.table.agent]: r.agentName,
       [t.table.underwriter]: resolveUnderwriterName(r),
       [t.table.branch]: r.branch,
@@ -239,6 +250,15 @@ function AdminDashboard() {
 
       {/* Filters */}
       <div className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-card">
+        <div className="mb-3">
+          <input
+            type="search"
+            value={searchF}
+            onChange={(e) => setSearchF(e.target.value)}
+            placeholder={lang === "ar" ? "ابحث برقم الطلب أو اسم العميل…" : "Search by Request ID or Customer Name…"}
+            className="h-11 w-full rounded-xl border border-input bg-surface px-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+          />
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Select value={agentF} onChange={wrap(setAgentF)} label={t.admin.filterAgent} all={t.admin.all}
             options={agentOptions} />
@@ -326,7 +346,18 @@ function AdminDashboard() {
               filtered.map((r) => (
                 <tr key={r.id} className="border-t border-border transition hover:bg-muted/30">
                   <td className="px-5 py-4 font-semibold text-foreground">{r.id}</td>
-                  <td className="px-5 py-4 text-foreground">{r.customerName ?? "—"}</td>
+                  <td className="px-5 py-4 text-foreground">
+                    <div>{r.customerName ?? "—"}</div>
+                    {r.clientType && (
+                      <span className={`mt-0.5 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        r.clientType === "corporate" ? "bg-info/15 text-info" : "bg-primary-soft text-primary"
+                      }`}>
+                        {r.clientType === "corporate"
+                          ? (lang === "ar" ? "شركات" : "Corporate")
+                          : (lang === "ar" ? "فردي" : "Individual")}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-5 py-4 text-foreground">
                     <div>{r.agentName}</div>
                     {!isSupervisor && supervisorByAgentId.get(r.agentId) && (

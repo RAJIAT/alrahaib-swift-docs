@@ -8,6 +8,8 @@ export type StaffType = "underwriter" | "sales";
 export type RequestStatus =
   | "new" | "quoted" | "linkSent" | "processing" | "sold" | "rejected" | "reupload";
 
+export type ClientType = "individual" | "corporate";
+
 export type Branch = {
   id: number;
   name: string;
@@ -82,6 +84,8 @@ export type InsuranceRequest = {
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
+  clientType?: ClientType;
+  selectedQuoteId?: string;
   quoteConfirmed?: boolean;
   quoteConfirmedAt?: string;
   paymentLink?: string;
@@ -99,6 +103,10 @@ export type InsuranceRequest = {
     inspection?: string;
     attachments: Attachment[];
     missingAttachments?: Attachment[];
+    // Corporate-only documents
+    tradeLicense?: string[];
+    vatCertificate?: string[];
+    ownersEmiratesId?: string[];
   };
   quotes?: Quote[];
 };

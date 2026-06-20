@@ -38,6 +38,8 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   "request.quote_removed": FileX,
   "request.shared_with_customer": Send,
   "request.quote_confirmed": CheckCircle2,
+  "request.quote_selected_by_customer": CheckCircle2,
+  "request.client_type_selected": Sparkles,
   "request.payment_link_sent": Send,
 };
 
@@ -109,6 +111,17 @@ function labelFor(action: string, ar: boolean, before?: any, after?: any, meta?:
       return ar ? "تمت مشاركة عرض السعر مع العميل" : "Quote shared with customer";
     case "request.quote_confirmed":
       return ar ? "أكد العميل عرض السعر" : "Quote confirmed by customer";
+    case "request.quote_selected_by_customer":
+      return ar
+        ? "اختار العميل عرض السعر وأكده"
+        : "Customer selected and confirmed a quote";
+    case "request.client_type_selected": {
+      const ct = meta?.clientType;
+      const human = ct === "corporate"
+        ? (ar ? "عميل شركات" : "Corporate")
+        : (ar ? "عميل فردي" : "Individual");
+      return ar ? `تم تحديد نوع العميل: ${human}` : `Client type set: ${human}`;
+    }
     case "request.payment_link_sent":
       return ar ? "تم إرسال رابط الدفع" : "Payment link sent";
     default:

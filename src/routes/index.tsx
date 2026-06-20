@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Check, ShieldCheck, User, Zap, LogIn, Send, Clock, FileImage, IdCard, BadgeCheck, ChevronRight } from "lucide-react";
+import { Loader2, Check, ShieldCheck, User, Zap, LogIn, Send, Clock, FileImage, IdCard, BadgeCheck, ChevronRight, Building2, FileSpreadsheet, Receipt, Users } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -8,7 +8,7 @@ import { Logo } from "@/components/Logo";
 import { DocumentRow } from "@/components/DocumentRow";
 import { OptionalDocsSection } from "@/components/OptionalDocsSection";
 import { useLang } from "@/i18n/LanguageProvider";
-import { submitUpload } from "@/services/api";
+import { submitUpload, type ClientType } from "@/services/api";
 import { dxResolveUploadAgent } from "@/services/directusRequests";
 
 type Search = { agent?: string };
@@ -65,6 +65,11 @@ function UploadPage() {
   const [registration, setRegistration] = useState<File[]>([]);
   const [emirates, setEmirates] = useState<File[]>([]);
   const [license, setLicense] = useState<File[]>([]);
+  // Corporate documents
+  const [tradeLicense, setTradeLicense] = useState<File[]>([]);
+  const [vatCertificate, setVatCertificate] = useState<File[]>([]);
+  const [ownersEmiratesId, setOwnersEmiratesId] = useState<File[]>([]);
+  const [clientType, setClientType] = useState<ClientType | null>(null);
   // Optional documents
   const [vehicleMedia, setVehicleMedia] = useState<File[]>([]);
   const [inspectionFiles, setInspectionFiles] = useState<File[]>([]);
@@ -83,10 +88,16 @@ function UploadPage() {
     kycRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  const isCorporate = clientType === "corporate";
   const registrationOk = registration.length >= 1;
   const emiratesOk = emirates.length >= 1;
   const licenseOk = license.length >= 1;
-  const completed = [registrationOk, emiratesOk, licenseOk].filter(Boolean).length;
+  const tradeLicenseOk = tradeLicense.length >= 1;
+  const vatCertOk = vatCertificate.length >= 1;
+  const ownersEidOk = ownersEmiratesId.length >= 1;
+  const completed = isCorporate
+    ? [tradeLicenseOk, vatCertOk, ownersEidOk].filter(Boolean).length
+    : [registrationOk, emiratesOk, licenseOk].filter(Boolean).length;
   const docsReady = completed === 3;
   const remaining = 3 - completed;
 
@@ -122,9 +133,16 @@ function UploadPage() {
   const onSubmit = async () => {
     const parsed = kycSchema.safeParse({ customerName, customerEmail, customerPhone });
     const missing: string[] = [];
-    if (!registrationOk) missing.push(t.upload.cards.registration);
-    if (!emiratesOk) missing.push(t.upload.cards.emirates);
-    if (!licenseOk) missing.push(t.upload.cards.license);
+    if (!clientType) missing.push(dir === "rtl" ? "اختيار نوع العميل" : "Client type");
+    if (clientType === "corporate") {
+      if (!tradeLicenseOk) missing.push(dir === "rtl" ? "الرخصة التجارية" : "Trade License");
+      if (!vatCertOk) missing.push(dir === "rtl" ? "شهادة ضريبة القيمة المضافة" : "VAT Certificate");
+      if (!ownersEidOk) missing.push(dir === "rtl" ? "هوية المالك" : "Owner's Emirates ID");
+    } else {
+      if (!registrationOk) missing.push(t.upload.cards.registration);
+      if (!emiratesOk) missing.push(t.upload.cards.emirates);
+      if (!licenseOk) missing.push(t.upload.cards.license);
+    }
     if (!parsed.success) {
       const fieldErrors: { name?: string; email?: string; phone?: string } = {};
       for (const issue of parsed.error.issues) {
@@ -154,6 +172,7 @@ function UploadPage() {
     try {
       const { id } = await submitUpload({
         agentId: agent,
+        clientType: clientType ?? "individual",
         customerName: parsed.data.customerName,
         customerEmail: parsed.data.customerEmail,
         customerPhone: parsed.data.customerPhone,
@@ -163,6 +182,9 @@ function UploadPage() {
           emirates,
           vehicleMedia,
           attachments,
+          tradeLicense,
+          vatCertificate,
+          ownersEmiratesId,
         },
         optional: { inspection },
       });
@@ -321,37 +343,92 @@ function UploadPage() {
         <section className="mt-6 space-y-3" dir={dir}>
           <h2 className="flex items-center gap-2 px-1 text-sm font-bold text-foreground">
             <span className="h-2 w-2 rounded-full bg-primary" />
-            {t.upload.essentialDocs}
+            {dir === "rtl" ? "نوع العميل" : "Client type"}
           </h2>
-          <DocumentRow
-            icon={FileImage}
-            label={t.upload.cards.registration}
-            required
-            files={registration}
-            onChange={setRegistration}
-          />
-          <DocumentRow
-            icon={IdCard}
-            label={t.upload.cards.license}
-            required
-            files={license}
-            onChange={setLicense}
-          />
-          <DocumentRow
-            icon={BadgeCheck}
-            label={t.upload.cards.emirates}
-            required
-            files={emirates}
-            onChange={setEmirates}
-          />
+          <div className="grid grid-cols-2 gap-3">
+            <ClientTypeButton
+              icon={User}
+              label={dir === "rtl" ? "عميل فردي" : "Individual"}
+              sub={dir === "rtl" ? "حساب شخصي" : "Personal"}
+              active={clientType === "individual"}
+              onClick={() => setClientType("individual")}
+            />
+            <ClientTypeButton
+              icon={Building2}
+              label={dir === "rtl" ? "عميل شركات" : "Corporate"}
+              sub={dir === "rtl" ? "حساب تجاري" : "Business"}
+              active={clientType === "corporate"}
+              onClick={() => setClientType("corporate")}
+            />
+          </div>
+
+          {clientType && (
+            <>
+              <h2 className="mt-4 flex items-center gap-2 px-1 text-sm font-bold text-foreground">
+                <span className="h-2 w-2 rounded-full bg-primary" />
+                {t.upload.essentialDocs}
+              </h2>
+              {isCorporate ? (
+                <>
+                  <DocumentRow
+                    icon={FileSpreadsheet}
+                    label={dir === "rtl" ? "الرخصة التجارية" : "Trade License"}
+                    required
+                    files={tradeLicense}
+                    onChange={setTradeLicense}
+                  />
+                  <DocumentRow
+                    icon={Receipt}
+                    label={dir === "rtl" ? "شهادة ضريبة القيمة المضافة" : "VAT Certificate"}
+                    required
+                    files={vatCertificate}
+                    onChange={setVatCertificate}
+                  />
+                  <DocumentRow
+                    icon={Users}
+                    label={dir === "rtl" ? "هوية المالك (Emirates ID)" : "Owner's Emirates ID"}
+                    required
+                    files={ownersEmiratesId}
+                    onChange={setOwnersEmiratesId}
+                  />
+                </>
+              ) : (
+                <>
+                  <DocumentRow
+                    icon={FileImage}
+                    label={t.upload.cards.registration}
+                    required
+                    files={registration}
+                    onChange={setRegistration}
+                  />
+                  <DocumentRow
+                    icon={IdCard}
+                    label={t.upload.cards.license}
+                    required
+                    files={license}
+                    onChange={setLicense}
+                  />
+                  <DocumentRow
+                    icon={BadgeCheck}
+                    label={t.upload.cards.emirates}
+                    required
+                    files={emirates}
+                    onChange={setEmirates}
+                  />
+                </>
+              )}
+            </>
+          )}
         </section>
 
-        <p className="mt-5 text-center text-sm font-medium text-muted-foreground">
-          {docsReady ? t.upload.allDone : t.upload.remaining(remaining)}
-        </p>
+        {clientType && (
+          <p className="mt-5 text-center text-sm font-medium text-muted-foreground">
+            {docsReady ? t.upload.allDone : t.upload.remaining(remaining)}
+          </p>
+        )}
 
         {/* Optional documents — collapsible section */}
-        <section className="mt-6" dir={dir}>
+        {clientType && <section className="mt-6" dir={dir}>
           <OptionalDocsSection
             vehicleMedia={vehicleMedia}
             setVehicleMedia={setVehicleMedia}
@@ -360,7 +437,7 @@ function UploadPage() {
             attachments={attachments}
             setAttachments={setAttachments}
           />
-        </section>
+        </section>}
       </main>
 
       <div className="mx-auto mt-8 max-w-2xl px-4 pb-4">
@@ -415,6 +492,33 @@ function TrustBadge({ icon: Icon, title, sub }: { icon: typeof Clock; title: str
       <p className="text-[11px] font-bold text-foreground">{title}</p>
       <p className="text-[9px] leading-tight text-muted-foreground">{sub}</p>
     </div>
+  );
+}
+
+function ClientTypeButton({
+  icon: Icon, label, sub, active, onClick,
+}: { icon: typeof Clock; label: string; sub: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex items-center gap-3 rounded-2xl border-2 p-4 text-start transition active:scale-[0.99] ${
+        active
+          ? "border-primary bg-primary-soft/40"
+          : "border-border bg-card hover:border-primary/50"
+      }`}
+    >
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+        active ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+      }`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-foreground">{label}</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>
+      </div>
+      {active && <Check className="h-4 w-4 text-primary" />}
+    </button>
   );
 }
 
