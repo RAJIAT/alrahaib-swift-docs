@@ -433,6 +433,8 @@ function requestFromRow(
     customerName: r.customer_name ?? undefined,
     customerEmail: r.customer_email ?? undefined,
     customerPhone: r.customer_phone ?? undefined,
+    clientType: (r.client_type ?? undefined) as DemoRequest["clientType"],
+    selectedQuoteId: r.selected_quote ?? undefined,
     quoteConfirmed: r.quote_confirmed === true,
     quoteConfirmedAt: r.quote_confirmed_at ?? undefined,
     paymentLink: r.payment_link ?? undefined,
