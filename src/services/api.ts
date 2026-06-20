@@ -485,14 +485,15 @@ export async function markRequestSharedWithCustomer(
   });
 }
 
-export async function confirmQuoteByCustomer(id: string): Promise<void> {
-  const updated = await dxPublicConfirmQuote(id);
+export async function confirmQuoteByCustomer(id: string, selectedQuoteId?: string): Promise<void> {
+  const updated = await dxPublicConfirmQuote(id, selectedQuoteId);
   await logEvent({
-    action: "request.quote_confirmed",
+    action: selectedQuoteId ? "request.quote_selected_by_customer" : "request.quote_confirmed",
     entityType: "request",
     entityId: updated?.id ?? id,
     entityLabel: updated?.id ?? id,
     actor: { id: null, name: "Customer", role: "anonymous", branch: null },
+    meta: selectedQuoteId ? { selectedQuoteId } : undefined,
   });
 }
 
