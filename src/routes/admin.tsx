@@ -169,6 +169,10 @@ function AdminDashboard() {
     const rows = filtered.map((r) => ({
       [t.table.requestId]: r.id,
       [t.table.customer]: r.customerName ?? "",
+      [lang === "ar" ? "نوع العميل" : "Client Type"]:
+        r.clientType === "corporate"
+          ? (lang === "ar" ? "شركات" : "Corporate")
+          : (lang === "ar" ? "فردي" : "Individual"),
       [t.table.agent]: r.agentName,
       [t.table.underwriter]: resolveUnderwriterName(r),
       [t.table.branch]: r.branch,
