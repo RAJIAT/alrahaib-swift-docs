@@ -241,6 +241,24 @@ function RequestDetails() {
     (req.images.vehicleMedia ?? []).forEach((m, i) => {
       if (m.kind === "image") list.push({ url: m.url, baseName: `vehicle_${i + 1}` });
     });
+    (req.images.attachments ?? []).forEach((a, i) =>
+      list.push({ url: a.url, baseName: `attachment_${i + 1}_${(a.name || "file").replace(/\.[^.]+$/, "")}` }),
+    );
+    (req.images.missingAttachments ?? []).forEach((a, i) =>
+      list.push({ url: a.url, baseName: `reupload_${i + 1}_${(a.name || "file").replace(/\.[^.]+$/, "")}` }),
+    );
+    (req.images.tradeLicense ?? []).forEach((u, i) =>
+      list.push({ url: u, baseName: i === 0 ? "trade_license" : `trade_license_${i + 1}` }),
+    );
+    (req.images.vatCertificate ?? []).forEach((u, i) =>
+      list.push({ url: u, baseName: i === 0 ? "vat_certificate" : `vat_certificate_${i + 1}` }),
+    );
+    (req.images.ownersEmiratesId ?? []).forEach((u, i) =>
+      list.push({ url: u, baseName: i === 0 ? "owners_emirates_id_front" : i === 1 ? "owners_emirates_id_back" : `owners_emirates_id_${i + 1}` }),
+    );
+    (req.quotes ?? []).forEach((q, i) =>
+      list.push({ url: q.url, baseName: `quote_${i + 1}_${(q.name || "quote").replace(/\.[^.]+$/, "")}` }),
+    );
     return list;
   }, [req]);
 
