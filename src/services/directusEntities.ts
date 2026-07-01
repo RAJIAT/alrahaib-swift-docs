@@ -109,7 +109,7 @@ function userToAgent(u: DxUserRecord): DemoAgent | null {
 
 async function loadRoles(): Promise<Record<string, string>> {
   if (Object.keys(rolesCache).length) return rolesCache;
-  const r = await dxRequest<{ data: Array<{ id: string; name: string }> }>(`/roles?fields=id,name&limit=-1`);
+  const r = await dxRequest<{ data: Array<{ id: string; name: string }> }>(`/roles?fields=id,name&limit=100`);
   const map: Record<string, string> = {};
   for (const row of r.data) map[safeLower(row.name)] = row.id;
   rolesCache = map;
@@ -126,7 +126,7 @@ export async function resolveRoleId(name: "admin" | "supervisor" | "agent"): Pro
 // ---------------- loaders ----------------
 
 export async function refreshBranches(): Promise<void> {
-  const r = await dxRequest<{ data: DxBranchRow[] }>(`/items/branches?limit=-1&sort=name`);
+  const r = await dxRequest<{ data: DxBranchRow[] }>(`/items/branches?limit=500&sort=name`);
   branchesCache = r.data.map(rowToBranch);
   emit(BR_EVT);
 }
