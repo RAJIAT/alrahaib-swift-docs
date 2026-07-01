@@ -244,11 +244,20 @@ export async function dxResolveUploadAgent(identifier: string): Promise<Resolved
     }
   }
   if (!row) {
-    const lookupKeys = candidates.filter((c) => !isUuid(c));
-    const filterParts = lookupKeys.flatMap((c, i) => [
-      `filter[_or][${i * 2}][id][_eq]=${encodeURIComponent(c)}`,
-      `filter[_or][${i * 2 + 1}][agent_code][_eq]=${encodeURIComponent(c)}`,
-    ]);
+    // Bugfix: never pass slug/agent-code values into `filter[id][_eq]` —
+    // Directus casts `id` to uuid and throws
+    //   invalid input syntax for type uuid: "rashid-khan-sls-8684"
+    // Only include the id filter for candidates that are actually UUIDs.
+    const orParts: string[] = [];
+    let idx = 0;
+    for (const c of candidates) {
+      if (isUuid(c)) {
+        orParts.push(`filter[_or][${idx++}][id][_eq]=${encodeURIComponent(c)}`);
+      }
+      // agent_code is a plain text column — safe for any string.
+      orParts.push(`filter[_or][${idx++}][agent_code][_eq]=${encodeURIComponent(c)}`);
+    }
+    const filterParts = orParts;
     try {
       const r = await dxRequest<{ data: DxAgentLookupRow[] }>(
         `/users?fields=${fields}&limit=1&${filterParts.join("&")}`,
@@ -266,7 +275,7 @@ export async function dxResolveUploadAgent(identifier: string): Promise<Resolved
   if (!row && slugNorm && !isUuid(key)) {
     try {
       const r = await dxRequest<{ data: DxAgentLookupRow[] }>(
-        `/users?fields=${fields}&limit=-1&filter[app_role][_eq]=agent&filter[app_active][_eq]=true`,
+        `/users?fields=${fields}&limit=500&filter[app_role][_eq]=agent&filter[app_active][_eq]=true`,
       );
       const norm = (s: string) => s.toLowerCase().replace(/[\u0600-\u06FF]+/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
       const targets = new Set([slugNorm, nameOnlySlug].filter(Boolean));
@@ -481,7 +490,7 @@ export async function dxListRequests(opts?: { agentUuid?: string; branchId?: num
   }
   const filterObj = andClauses.length ? { _and: andClauses } : undefined;
   const qsFor = (fields: string) =>
-    `?fields=${fields}&limit=-1&sort=-date_created` +
+    `?fields=${fields}&limit=200&sort=-date_created` +
     (filterObj ? `&filter=${encodeURIComponent(JSON.stringify(filterObj))}` : "");
   let url = `/items/requests${qsFor(REQ_FIELDS)}`;
   console.info("[agent dashboard debug] dxListRequests URL", url);
@@ -501,8 +510,8 @@ export async function dxListRequests(opts?: { agentUuid?: string; branchId?: num
     const idsParam = ids.map(encodeURIComponent).join(",");
     try {
       const [nr, fr] = await Promise.all([
-        dxRequest<{ data: DxNoteRow[] }>(`/items/request_notes?fields=${NOTE_FIELDS}&limit=-1&filter[request][_in]=${idsParam}`),
-        dxRequest<{ data: DxRequestFileRow[] }>(`/items/request_files?fields=${FILE_FIELDS}&limit=-1&filter[request][_in]=${idsParam}`),
+        dxRequest<{ data: DxNoteRow[] }>(`/items/request_notes?fields=${NOTE_FIELDS}&limit=2000&filter[request][_in]=${idsParam}`),
+        dxRequest<{ data: DxRequestFileRow[] }>(`/items/request_files?fields=${FILE_FIELDS}&limit=2000&filter[request][_in]=${idsParam}`),
       ]);
       notes = nr.data;
       files = fr.data;
