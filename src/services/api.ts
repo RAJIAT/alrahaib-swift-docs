@@ -434,14 +434,69 @@ export async function createEmptyRequest(): Promise<InsuranceRequest> {
   return req;
 }
 
-export async function resolveAssetUrl(stored: string): Promise<{ url: string; mime: string }> {
+export type AssetTransform = {
+  /** Max width in px — passed to Directus /assets transforms. */
+  width?: number;
+  /** Max height in px — passed to Directus /assets transforms. */
+  height?: number;
+  /** JPEG/WebP quality (1-100). Default omitted → server default. */
+  quality?: number;
+  /** Fit mode; `cover` matches the thumbnail behaviour of the UI cards. */
+  fit?: "cover" | "contain" | "inside" | "outside";
+  /** Output format override (usually leave undefined). */
+  format?: "webp" | "jpg" | "png";
+};
+
+/**
+ * Append Directus asset transform params (width/height/quality/fit) to a
+ * `/assets/<id>` URL while preserving any pre-existing query string
+ * (notably `access_token`). Non-asset URLs are returned unchanged.
+ */
+function withAssetTransform(url: string, t?: AssetTransform): string {
+  if (!t || !url) return url;
+  const params: string[] = [];
+  if (t.width) params.push(`width=${t.width}`);
+  if (t.height) params.push(`height=${t.height}`);
+  if (t.quality) params.push(`quality=${t.quality}`);
+  if (t.fit) params.push(`fit=${t.fit}`);
+  if (t.format) params.push(`format=${t.format}`);
+  if (!params.length) return url;
+  return url + (url.includes("?") ? "&" : "?") + params.join("&");
+}
+
+export async function resolveAssetUrl(
+  stored: string,
+  opts?: AssetTransform,
+): Promise<{ url: string; mime: string }> {
   if (!stored) return { url: "", mime: "" };
   const isDxAsset = (() => {
     try { return stored.includes("/assets/"); } catch { return false; }
   })();
   if (isDxAsset) {
-    const res = await fetch(stored);
-    if (!res.ok) throw new Error("Asset not accessible");
+    // Only apply transforms to image-like assets — Directus refuses transforms
+    // on PDFs. We can't know the mime until we fetch, but transform params are
+    // ignored server-side for non-image types, so passing them is safe.
+    const target = withAssetTransform(stored, opts);
+    let res: Response;
+    try {
+      res = await fetch(target);
+    } catch (e) {
+      console.warn("[resolveAssetUrl] network error", { stored, error: e });
+      throw e;
+    }
+    if (!res.ok) {
+      // Fall back to the original URL if the transform errored (e.g. PDF).
+      if (opts) {
+        try {
+          const fallback = await fetch(stored);
+          if (fallback.ok) {
+            const blob = await fallback.blob();
+            return { url: URL.createObjectURL(blob), mime: blob.type || fallback.headers.get("Content-Type") || "" };
+          }
+        } catch { /* fallthrough */ }
+      }
+      throw new Error("Asset not accessible");
+    }
     const blob = await res.blob();
     return { url: URL.createObjectURL(blob), mime: blob.type || res.headers.get("Content-Type") || "" };
   }

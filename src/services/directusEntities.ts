@@ -109,7 +109,7 @@ function userToAgent(u: DxUserRecord): DemoAgent | null {
 
 async function loadRoles(): Promise<Record<string, string>> {
   if (Object.keys(rolesCache).length) return rolesCache;
-  const r = await dxRequest<{ data: Array<{ id: string; name: string }> }>(`/roles?fields=id,name&limit=-1`);
+  const r = await dxRequest<{ data: Array<{ id: string; name: string }> }>(`/roles?fields=id,name&limit=100`);
   const map: Record<string, string> = {};
   for (const row of r.data) map[safeLower(row.name)] = row.id;
   rolesCache = map;
@@ -126,7 +126,7 @@ export async function resolveRoleId(name: "admin" | "supervisor" | "agent"): Pro
 // ---------------- loaders ----------------
 
 export async function refreshBranches(): Promise<void> {
-  const r = await dxRequest<{ data: DxBranchRow[] }>(`/items/branches?limit=-1&sort=name`);
+  const r = await dxRequest<{ data: DxBranchRow[] }>(`/items/branches?limit=500&sort=name`);
   branchesCache = r.data.map(rowToBranch);
   emit(BR_EVT);
 }
@@ -149,12 +149,12 @@ export async function refreshAgents(): Promise<void> {
   if (elevated) {
     try {
       r = await dxRequest<{ data: DxUserRecord[] }>(
-        `/users?fields=${USER_FIELDS}&filter[app_role][_in]=supervisor,agent&limit=-1&sort=email`,
+        `/users?fields=${USER_FIELDS}&filter[app_role][_in]=supervisor,agent&limit=500&sort=email`,
       );
     } catch {
       try {
         r = await dxRequest<{ data: DxUserRecord[] }>(
-          `/users?fields=${agentSafeFields}&filter[app_role][_in]=supervisor,agent&limit=-1&sort=first_name`,
+          `/users?fields=${agentSafeFields}&filter[app_role][_in]=supervisor,agent&limit=500&sort=first_name`,
         );
       } catch {
         r = { data: [] };
@@ -163,7 +163,7 @@ export async function refreshAgents(): Promise<void> {
   } else {
     try {
       r = await dxRequest<{ data: DxUserRecord[] }>(
-        `/users?fields=${agentSafeFields}&filter[app_role][_in]=supervisor,agent&limit=-1&sort=first_name`,
+        `/users?fields=${agentSafeFields}&filter[app_role][_in]=supervisor,agent&limit=500&sort=first_name`,
       );
     } catch {
       // Agent/Underwriter cannot read other users — keep dashboard alive.
@@ -194,7 +194,7 @@ export async function refreshAgents(): Promise<void> {
 export async function refreshAdminUserIds(): Promise<void> {
   try {
     const r = await dxRequest<{ data: Array<{ id: string }> }>(
-      `/users?fields=id&filter[app_role][_eq]=admin&limit=-1`,
+      `/users?fields=id&filter[app_role][_eq]=admin&limit=200`,
     );
     adminUserIdsCache = r.data.map((u) => u.id);
   } catch {
