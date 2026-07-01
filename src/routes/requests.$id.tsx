@@ -18,6 +18,11 @@ import {
 import { isDirectusAssetUrl } from "@/services/directus";
 import { RequestHistoryTimeline } from "@/components/RequestHistoryTimeline";
 
+// Module-level cache of recently viewed requests so re-opening the detail
+// page paints instantly with the last known data while a fresh fetch runs
+// in the background.
+const detailCache = new Map<string, InsuranceRequest>();
+
 // Build a stable signature of the parts of the request that can change while
 // an agent has the page open: notes count, missing-attachment count, status,
 // and attachment count. Used to skip useless re-renders during polling.
@@ -96,8 +101,8 @@ function RequestDetails() {
   const { t, dir, lang } = useLang();
   const navigate = useNavigate();
   const { id } = Route.useParams();
-  const [req, setReq] = useState<InsuranceRequest | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [req, setReq] = useState<InsuranceRequest | null>(() => detailCache.get(id) ?? null);
+  const [loading, setLoading] = useState(() => !detailCache.has(id));
   const [savingAction, setSavingAction] = useState<SavingAction>(null);
   const [zoom, setZoom] = useState<string | null>(null);
   const [zoomMime, setZoomMime] = useState<string>("");
