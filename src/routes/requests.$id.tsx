@@ -738,11 +738,15 @@ function RequestDetails() {
  * fetches the binary with an Authorization header and returns a `blob:` URL
  * so the bearer token never appears in the URL bar, server logs or Referer.
  */
-function useAssetUrl(url: string): { src: string; mime: string; loading: boolean } {
+function useAssetUrl(
+  url: string,
+  opts?: { width?: number; height?: number; quality?: number; fit?: "cover" | "contain" },
+): { src: string; mime: string; loading: boolean } {
   const [src, setSrc] = useState<string>("");
   const [mime, setMime] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
+  const optsKey = opts ? `${opts.width ?? ""}x${opts.height ?? ""}q${opts.quality ?? ""}f${opts.fit ?? ""}` : "";
   useEffect(() => {
     if (!url) { setSrc(""); setMime(""); return; }
     // Anything that needs an Authorization header to fetch (Directus assets
@@ -753,7 +757,7 @@ function useAssetUrl(url: string): { src: string; mime: string; loading: boolean
       let cancelled = false;
       let lastBlob = "";
       setLoading(true);
-      resolveAssetUrl(url)
+      resolveAssetUrl(url, opts)
         .then((res) => {
           if (cancelled) {
             if (res.url.startsWith("blob:")) URL.revokeObjectURL(res.url);
@@ -772,7 +776,8 @@ function useAssetUrl(url: string): { src: string; mime: string; loading: boolean
     // data: URLs and plain http(s) URLs render directly.
     setSrc(url);
     setMime(url.startsWith("data:application/pdf") ? "application/pdf" : "");
-  }, [url]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url, optsKey]);
 
   return { src, mime, loading };
 }
@@ -784,7 +789,10 @@ function ImgCard({
   onZoom: (u: string, mime: string, filename: string) => void;
   pdfLabel: string; downloadLabel: string;
 }) {
-  const { src, mime, loading } = useAssetUrl(url);
+  // Thumbnail-sized fetch for the grid preview to avoid loading full-size
+  // originals on the request details page. The zoom modal re-fetches the
+  // original via `openZoom` when the user opens it.
+  const { src, mime, loading } = useAssetUrl(url, { width: 800, quality: 75, fit: "cover" });
   const pdf = isPdfDataUrl(src) || mime === "application/pdf";
   const onDownload = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -854,7 +862,7 @@ function MissingAttachmentCard({
   url: string;
   onZoom: (u: string, mime: string, filename: string) => void;
 }) {
-  const { src, mime, loading } = useAssetUrl(url);
+  const { src, mime, loading } = useAssetUrl(url, { width: 600, quality: 70, fit: "cover" });
   const isImage = !!src && (mime.startsWith("image/") || (!mime && /\.(jpe?g|png|gif|webp|heic)$/i.test(name)));
   const isPdf = mime === "application/pdf" || isPdfDataUrl(src) || /\.pdf$/i.test(name);
 
