@@ -139,12 +139,16 @@ function RequestDetails() {
     // the request immediately from the cached session. The session check
     // still runs in parallel and redirects to /login on failure.
     let authorized = !!getCurrentUser();
-    let lastSig = "";
+    // Seed lastSig from the cached request so a fresh refetch that returns
+    // identical data doesn't trigger a no-op setState / notification.
+    const seeded = detailCache.get(id) ?? null;
+    let lastSig = seeded ? reqSignature(seeded) : "";
     let lastMissing = -1; // -1 = not yet known
     const refreshRequest = () => {
       if (!authorized) return;
       getRequest(id).then((r) => {
         if (!alive || !r) { if (alive) setLoading(false); return; }
+        detailCache.set(id, r);
         const sig = reqSignature(r);
         if (sig !== lastSig) {
           // Notify the agent if the customer just uploaded missing items.
