@@ -5,6 +5,16 @@ import { listRequests, subscribeRequests, type InsuranceRequest } from "@/servic
 // immediately on agent / supervisor / admin dashboards without manual refresh.
 const POLL_INTERVAL_MS = 4_000;
 
+// Module-level cache keyed by filter. Keeps the last known list visible when
+// the hook remounts (e.g. after returning from the request-details page) so
+// the dashboard never flashes an empty / zero state during the refetch.
+const listCache = new Map<string, { items: InsuranceRequest[]; sig: string; at: number }>();
+const CACHE_FRESH_MS = 3_000;
+
+function cacheKey(agentId?: string, branch?: string) {
+  return `${agentId ?? ""}|${branch ?? ""}`;
+}
+
 function requestSig(r: Partial<InsuranceRequest> | null | undefined): string {
   const images = r?.images ?? {
     registration: [],
@@ -26,14 +36,16 @@ function requestSig(r: Partial<InsuranceRequest> | null | undefined): string {
 }
 
 export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
-  const [items, setItems] = useState<InsuranceRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const sigRef = useRef<string>("");
-
   const agentId = opts?.agentId;
   const branch = opts?.branch;
   const wantsScoped = opts !== undefined;
+  const key = cacheKey(agentId, branch);
+  const cached = listCache.get(key);
+
+  const [items, setItems] = useState<InsuranceRequest[]>(() => cached?.items ?? []);
+  const [loading, setLoading] = useState(!cached);
+  const [error, setError] = useState<string | null>(null);
+  const sigRef = useRef<string>(cached?.sig ?? "");
 
   useEffect(() => {
     let alive = true;
@@ -63,6 +75,7 @@ export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
             sigRef.current = sig;
             setItems(safeRows as InsuranceRequest[]);
           }
+          listCache.set(key, { items: safeRows as InsuranceRequest[], sig, at: Date.now() });
           setLoading(false);
         })
         .catch((e) => {
@@ -73,7 +86,13 @@ export function useRequestsLive(opts?: { agentId?: string; branch?: string }) {
         });
     };
 
-    refresh();
+    // If cache is fresh, skip the immediate refetch — polling still updates it.
+    const fresh = cached && Date.now() - cached.at < CACHE_FRESH_MS;
+    if (fresh) {
+      setLoading(false);
+    } else {
+      refresh();
+    }
     const unsub = subscribeRequests(refresh);
 
     // Polling so new requests submitted by customers (other tabs / devices)

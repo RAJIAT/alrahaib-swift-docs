@@ -9,7 +9,7 @@ import { useLang } from "@/i18n/LanguageProvider";
 import { useRequestsLive } from "@/hooks/useRequestsLive";
 import {
   approveAgentRemoval, dismissAgentRemoval,
-  enforceActiveSession, listAgents, getAgents, listBranches,
+  enforceActiveSession, getCurrentUser, listAgents, getAgents, listBranches,
   subscribeAgents, getApprovalRequired, setApprovalRequired, subscribeSettings,
   type Agent, type AuthUser, type RequestStatus,
 } from "@/services/api";
@@ -23,7 +23,13 @@ export const Route = createFileRoute("/admin")({
 function AdminDashboard() {
   const { t, dir, lang } = useLang();
   const navigate = useNavigate();
-  const [user, setUser] = useState<AuthUser | null>(null);
+  // Hydrate from cached session so the useRequestsLive hook receives the
+  // correct filter on first render — avoids a flash of "no matching requests"
+  // when returning to the dashboard from a request-details page.
+  // Hydrate from cached session so the useRequestsLive hook receives the
+  // correct filter on first render — avoids a flash of "no matching requests"
+  // when returning to the dashboard from a request-details page.
+  const [user, setUser] = useState<AuthUser | null>(() => getCurrentUser());
 
   const isSupervisor = user?.role === "supervisor";
   const lockedBranch = isSupervisor ? user?.branch ?? "" : "";

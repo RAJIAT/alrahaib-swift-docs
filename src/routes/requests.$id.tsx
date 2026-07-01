@@ -18,6 +18,11 @@ import {
 import { isDirectusAssetUrl } from "@/services/directus";
 import { RequestHistoryTimeline } from "@/components/RequestHistoryTimeline";
 
+// Module-level cache of recently viewed requests so re-opening the detail
+// page paints instantly with the last known data while a fresh fetch runs
+// in the background.
+const detailCache = new Map<string, InsuranceRequest>();
+
 // Build a stable signature of the parts of the request that can change while
 // an agent has the page open: notes count, missing-attachment count, status,
 // and attachment count. Used to skip useless re-renders during polling.
@@ -96,8 +101,8 @@ function RequestDetails() {
   const { t, dir, lang } = useLang();
   const navigate = useNavigate();
   const { id } = Route.useParams();
-  const [req, setReq] = useState<InsuranceRequest | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [req, setReq] = useState<InsuranceRequest | null>(() => detailCache.get(id) ?? null);
+  const [loading, setLoading] = useState(() => !detailCache.has(id));
   const [savingAction, setSavingAction] = useState<SavingAction>(null);
   const [zoom, setZoom] = useState<string | null>(null);
   const [zoomMime, setZoomMime] = useState<string>("");
@@ -134,12 +139,16 @@ function RequestDetails() {
     // the request immediately from the cached session. The session check
     // still runs in parallel and redirects to /login on failure.
     let authorized = !!getCurrentUser();
-    let lastSig = "";
+    // Seed lastSig from the cached request so a fresh refetch that returns
+    // identical data doesn't trigger a no-op setState / notification.
+    const seeded = detailCache.get(id) ?? null;
+    let lastSig = seeded ? reqSignature(seeded) : "";
     let lastMissing = -1; // -1 = not yet known
     const refreshRequest = () => {
       if (!authorized) return;
       getRequest(id).then((r) => {
         if (!alive || !r) { if (alive) setLoading(false); return; }
+        detailCache.set(id, r);
         const sig = reqSignature(r);
         if (sig !== lastSig) {
           // Notify the agent if the customer just uploaded missing items.
