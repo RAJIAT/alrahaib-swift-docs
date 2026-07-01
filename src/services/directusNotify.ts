@@ -254,7 +254,7 @@ export async function fetchRequestAuditHistory(requestId: string, aliases: strin
   }));
   try {
     const r = await dxRequest<{ data: DxAuditRow[] }>(
-      `/items/audit_log?fields=${A_FIELDS}&sort=ts&limit=-1&filter=${filter}`,
+      `/items/audit_log?fields=${A_FIELDS}&sort=ts&limit=500&filter=${filter}`,
     );
     const rows = r.data.map(rowToAudit);
     console.info("[request history] audit read", { requestId, aliases, count: rows.length });
